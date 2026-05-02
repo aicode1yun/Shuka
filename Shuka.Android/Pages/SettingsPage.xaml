@@ -266,7 +266,7 @@
                         <!-- Change button -->
                         <Grid ColumnDefinitions="Auto,*,Auto" Padding="16,14,16,14">
                             <Border Grid.Column="0"
-                                    BackgroundColor="{DynamicResource BgInput}"
+                                    BackgroundColor="{DynamicResource AccentContainer}"
                                     StrokeThickness="0"
                                     StrokeShape="RoundRectangle 12"
                                     WidthRequest="40" HeightRequest="40"
@@ -275,7 +275,7 @@
                                 <Label Text="&#xE2C8;"
                                        FontFamily="{DynamicResource IconFont}"
                                        FontSize="20"
-                                       TextColor="{DynamicResource TextSecondary}"
+                                       TextColor="{DynamicResource AccentLight}"
                                        HorizontalOptions="Center"
                                        VerticalOptions="Center" />
                             </Border>
@@ -304,7 +304,7 @@
                         <!-- Reset to default -->
                         <Grid ColumnDefinitions="Auto,*,Auto" Padding="16,14,16,14">
                             <Border Grid.Column="0"
-                                    BackgroundColor="{DynamicResource BgInput}"
+                                    BackgroundColor="{DynamicResource AccentContainer}"
                                     StrokeThickness="0"
                                     StrokeShape="RoundRectangle 12"
                                     WidthRequest="40" HeightRequest="40"
@@ -313,7 +313,7 @@
                                 <Label Text="&#xE042;"
                                        FontFamily="{DynamicResource IconFont}"
                                        FontSize="20"
-                                       TextColor="{DynamicResource TextMuted}"
+                                       TextColor="{DynamicResource AccentLight}"
                                        HorizontalOptions="Center"
                                        VerticalOptions="Center" />
                             </Border>
@@ -381,7 +381,7 @@
                         <!-- Check / Install button -->
                         <Grid ColumnDefinitions="Auto,*,Auto" Padding="16,14,16,14">
                             <Border Grid.Column="0"
-                                    BackgroundColor="{DynamicResource BgInput}"
+                                    BackgroundColor="{DynamicResource AccentContainer}"
                                     StrokeThickness="0"
                                     StrokeShape="RoundRectangle 12"
                                     WidthRequest="40" HeightRequest="40"
@@ -455,7 +455,7 @@
                         <!-- Bug Report -->
                         <Grid ColumnDefinitions="Auto,*,Auto" Padding="16,16,16,16">
                             <Border Grid.Column="0"
-                                    BackgroundColor="{DynamicResource BgInput}"
+                                    BackgroundColor="{DynamicResource AccentContainer}"
                                     StrokeThickness="0"
                                     StrokeShape="RoundRectangle 12"
                                     WidthRequest="40" HeightRequest="40"
@@ -530,7 +530,7 @@
                 </Border>
 
                 <!-- Version -->
-                <Label Text="Shuka v1.0.5  ·  Seizue"
+                <Label x:Name="FooterVersionLabel"
                        FontSize="12"
                        TextColor="{DynamicResource TextMuted}"
                        HorizontalOptions="Center"

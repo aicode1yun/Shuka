@@ -1,3 +1,5 @@
+using Shuka.Android.Services;
+
 namespace Shuka.Android.Pages;
 
 public partial class AboutPage : ContentPage
@@ -5,6 +7,7 @@ public partial class AboutPage : ContentPage
     public AboutPage()
     {
         InitializeComponent();
+        VersionLabel.Text = $"Version {UpdateService.InstalledVersion}";
     }
 
     private async void OnBackTapped(object sender, TappedEventArgs e)

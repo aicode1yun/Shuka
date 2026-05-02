@@ -62,7 +62,8 @@
                                FontAttributes="Bold"
                                TextColor="{DynamicResource TextPrimary}"
                                HorizontalOptions="Center" />
-                        <Label Text="Version 1.0.5"
+                        <Label x:Name="VersionLabel"
+                               Text="Version 1.0.5"
                                FontSize="13"
                                TextColor="{DynamicResource TextMuted}"
                                HorizontalOptions="Center" />
@@ -92,7 +93,7 @@
 
                         <Grid ColumnDefinitions="Auto,*,Auto" Padding="16,16,16,16">
                             <Border Grid.Column="0"
-                                    BackgroundColor="{DynamicResource BgInput}"
+                                    BackgroundColor="{DynamicResource AccentContainer}"
                                     StrokeThickness="0"
                                     StrokeShape="RoundRectangle 12"
                                     WidthRequest="40" HeightRequest="40"
@@ -101,7 +102,7 @@
                                 <Label Text="{DynamicResource IconCode}"
                                        FontFamily="{DynamicResource IconFont}"
                                        FontSize="20"
-                                       TextColor="{DynamicResource TextMuted}"
+                                       TextColor="{DynamicResource AccentLight}"
                                        HorizontalOptions="Center"
                                        VerticalOptions="Center" />
                             </Border>
@@ -129,7 +130,7 @@
 
                         <Grid ColumnDefinitions="Auto,*,Auto" Padding="16,16,16,16">
                             <Border Grid.Column="0"
-                                    BackgroundColor="{DynamicResource BgInput}"
+                                    BackgroundColor="{DynamicResource AccentContainer}"
                                     StrokeThickness="0"
                                     StrokeShape="RoundRectangle 12"
                                     WidthRequest="40" HeightRequest="40"

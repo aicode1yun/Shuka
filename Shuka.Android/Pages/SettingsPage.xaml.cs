@@ -16,6 +16,7 @@ public partial class SettingsPage : ContentPage
     public SettingsPage()
     {
         InitializeComponent();
+        FooterVersionLabel.Text = $"Shuka v{UpdateService.InstalledVersion}  ·  Seizue";
         RefreshRadios(App.CurrentTheme);
         RefreshDownloadPath();
         RefreshUpdateSection();
