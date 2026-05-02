@@ -214,6 +214,47 @@
                             </Grid.GestureRecognizers>
                         </Grid>
 
+                        <BoxView HeightRequest="1" BackgroundColor="{DynamicResource Divider}" Margin="16,0" />
+
+                        <!-- Amoled -->
+                        <Grid ColumnDefinitions="Auto,*,Auto"
+                              Padding="16,16,16,16">
+                            <Border Grid.Column="0"
+                                    BackgroundColor="#000000"
+                                    StrokeThickness="1"
+                                    Stroke="#1C1C1C"
+                                    StrokeShape="RoundRectangle 12"
+                                    WidthRequest="40" HeightRequest="40"
+                                    VerticalOptions="Center"
+                                    Margin="0,0,14,0">
+                                <Label Text="&#xE51C;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="20"
+                                       TextColor="#8B5E5F"
+                                       HorizontalOptions="Center"
+                                       VerticalOptions="Center" />
+                            </Border>
+                            <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                                <Label Text="Amoled"
+                                       FontSize="15"
+                                       FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}" />
+                                <Label Text="True black · OLED battery saver"
+                                       FontSize="12"
+                                       TextColor="{DynamicResource TextMuted}" />
+                            </VerticalStackLayout>
+                            <Label x:Name="RadioAmoled"
+                                   Grid.Column="2"
+                                   Text="{DynamicResource IconRadioOff}"
+                                   FontFamily="{DynamicResource IconFont}"
+                                   FontSize="24"
+                                   TextColor="{DynamicResource TextMuted}"
+                                   VerticalOptions="Center" />
+                            <Grid.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnThemeAmoled" />
+                            </Grid.GestureRecognizers>
+                        </Grid>
+
                     </VerticalStackLayout>
                 </Border>
 

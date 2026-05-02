@@ -69,6 +69,12 @@ public partial class SettingsPage : ContentPage
         ApplyAndRefresh(AppTheme.Frost);
     }
 
+    private async void OnThemeAmoled(object sender, TappedEventArgs e)
+    {
+        await AnimateThemeSelection((Grid)sender);
+        ApplyAndRefresh(AppTheme.Amoled);
+    }
+
     private async Task AnimateThemeSelection(Grid themeGrid)
     {
         // Quick selection animation
@@ -110,11 +116,13 @@ public partial class SettingsPage : ContentPage
         RadioRosewood.Text       = theme == AppTheme.Rosewood ? on : off;
         RadioSlate.Text          = theme == AppTheme.Slate    ? on : off;
         RadioParchment.Text      = theme == AppTheme.Frost    ? on : off;
+        RadioAmoled.Text         = theme == AppTheme.Amoled   ? on : off;
 
         RadioObsidian.TextColor  = theme == AppTheme.Obsidian ? accent : muted;
         RadioRosewood.TextColor  = theme == AppTheme.Rosewood ? accent : muted;
         RadioSlate.TextColor     = theme == AppTheme.Slate    ? accent : muted;
         RadioParchment.TextColor = theme == AppTheme.Frost    ? accent : muted;
+        RadioAmoled.TextColor    = theme == AppTheme.Amoled   ? accent : muted;
     }
 
     // ── Download location ─────────────────────────────────────────────────────

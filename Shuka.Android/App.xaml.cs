@@ -2,7 +2,7 @@ using Shuka.Android.Services;
 
 namespace Shuka.Android;
 
-public enum AppTheme { Obsidian, Rosewood, Slate, Frost }
+public enum AppTheme { Obsidian, Rosewood, Slate, Frost, Amoled }
 
 public partial class App : Application
 {
@@ -222,9 +222,36 @@ public partial class App : Application
                 r["TextMuted"]        = Color.FromArgb("#8E8E93");  // iOS tertiary label
                 r["TextOnAccent"]     = Color.FromArgb("#FFFFFF");
                 r["ProgressTrack"]    = Color.FromArgb("#E5E5EA");
-                r["NavBar"]           = Color.FromArgb("#FFFFFF");  // pure white bar — clean separation from page
-                r["NavBarSelected"]   = Color.FromArgb("#533738");  // burgundy accent — clear active state
-                r["NavBarUnselected"] = Color.FromArgb("#AEAEB2");  // soft grey — visible but not competing
+                r["NavBar"]           = Color.FromArgb("#FFFFFF");  // pure white bar
+                r["NavBarSelected"]   = Color.FromArgb("#533738");
+                r["NavBarUnselected"] = Color.FromArgb("#AEAEB2");
+                break;
+
+            // ── Amoled ────────────────────────────────────────────────────────
+            // True black — saves battery on OLED screens. Maximum contrast.
+            case AppTheme.Amoled:
+                r["BgPage"]           = Color.FromArgb("#000000");  // true black
+                r["BgCard"]           = Color.FromArgb("#0D0D0D");  // near-black cards
+                r["BgInput"]          = Color.FromArgb("#0D0D0D");
+                r["Stroke"]           = Color.FromArgb("#1C1C1C");
+                r["Divider"]          = Color.FromArgb("#141414");
+                r["EntryLine"]        = Color.FromArgb("#1C1C1C");
+                r["EntryLineFocused"] = Color.FromArgb("#8B5E5F");
+                r["Accent"]           = Color.FromArgb("#533738");
+                r["AccentLight"]      = Color.FromArgb("#8B5E5F");
+                r["AccentContainer"]  = Color.FromArgb("#1A0F0F");
+                r["Success"]          = Color.FromArgb("#30D158");
+                r["SuccessContainer"] = Color.FromArgb("#0A1F10");
+                r["Warning"]          = Color.FromArgb("#FFD60A");
+                r["Danger"]           = Color.FromArgb("#FF453A");
+                r["TextPrimary"]      = Color.FromArgb("#FFFFFF");  // pure white text
+                r["TextSecondary"]    = Color.FromArgb("#EBEBF5");
+                r["TextMuted"]        = Color.FromArgb("#545458");
+                r["TextOnAccent"]     = Color.FromArgb("#FFFFFF");
+                r["ProgressTrack"]    = Color.FromArgb("#1C1C1C");
+                r["NavBar"]           = Color.FromArgb("#000000");  // true black nav bar
+                r["NavBarSelected"]   = Color.FromArgb("#8B5E5F");
+                r["NavBarUnselected"] = Color.FromArgb("#545458");
                 break;
         }
 
