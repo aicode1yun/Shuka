@@ -103,6 +103,7 @@ public class DownloadManager
         DownloadForegroundService.Start();
 #endif
 
+        string tempPath = "";
         try
         {
             item.Status     = DownloadStatus.Running;
@@ -138,8 +139,8 @@ public class DownloadManager
                 });
             });
 
-            string dir      = GetOutputDirectory();
-            string tempPath = Path.Combine(dir, $"_shuka_{item.Id:N}.epub");
+            string dir  = GetOutputDirectory();
+            tempPath    = Path.Combine(dir, $"_shuka_{item.Id:N}.epub");
 
             string epubPath = "";
             int attempt = 0;
@@ -158,7 +159,7 @@ public class DownloadManager
                 catch (Exception ex) when (attempt < MaxRetries)
                 {
                     attempt++;
-                    int delaySec = Math.Min(attempt * 2, 8); // 2s, 4s, 6s, 8s, 8s
+                    int delaySec = Math.Min(attempt * 2, 8);
                     Log($"Error (attempt {attempt}/{MaxRetries}): {ex.Message}. Retrying in {delaySec}s...");
                     MainThread.BeginInvokeOnMainThread(() =>
                         item.StatusText = $"Retrying ({attempt}/{MaxRetries})...");
@@ -168,8 +169,6 @@ public class DownloadManager
 
             ct.ThrowIfCancellationRequested();
 
-            // Build the final filename — prefer the translated title; only fall back
-            // to the Chinese title if TitleEn was never populated at all.
             string rawTitle  = book.TitleEn ?? book.Title;
             string finalName = SanitizeFileName(rawTitle);
 
@@ -182,7 +181,7 @@ public class DownloadManager
                 finalName = $"novel_{item.Id:N8}";
 
             string finalPath = ResolveUniqueFilePath(dir, finalName);
-            File.Move(epubPath, finalPath);
+            File.Move(epubPath, finalPath, overwrite: true);
 
             Log($"Saved: {finalPath}");
 
@@ -220,9 +219,8 @@ public class DownloadManager
         }
         finally
         {
-            // Clean up any leftover temp file
-            string tempGlob = Path.Combine(GetOutputDirectory(), $"_shuka_{item.Id:N}.epub");
-            try { if (File.Exists(tempGlob)) File.Delete(tempGlob); } catch { }
+            // Clean up any leftover temp file — use the exact path we wrote to
+            try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
 
 #if ANDROID
             if (!Downloads.Any(d => d.IsRunning))
