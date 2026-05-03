@@ -198,6 +198,7 @@ jobs:
           - 52shuku.net
           - czbooks.net (Cloudflare bypass)
           - dmxs.org
+          - 69shuba.com (Cloudflare bypass)
           "@
 
           # Write with Unix line endings

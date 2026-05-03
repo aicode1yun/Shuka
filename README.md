@@ -15,6 +15,7 @@ A tool that downloads Chinese web novels, translates them to English via Google 
 
 | Site | Example URL |
 |------|------------|
+| [69shuba.com](https://www.69shuba.com/) | `https://www.69shuba.com/book/90417.htm` |
 | [52shuku.net](https://www.52shuku.net) | `https://www.52shuku.net/bl/09_b/bkd7d.html` |
 | [czbooks.net](https://czbooks.net) | `https://czbooks.net/n/clgajm` |
 | [dmxs.org](https://www.dmxs.org) | `https://www.dmxs.org/gdjk/22982.html` |
