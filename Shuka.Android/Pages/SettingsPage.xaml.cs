@@ -363,13 +363,27 @@ public partial class SettingsPage : ContentPage
                     () => UpdateActionSub.Text = msg));
 
             // The system installer takes over from here.
-            // The app may be killed and reinstalled — nothing more to do.
             UpdateActionLabel.Text = "Installer launched";
             UpdateActionSub.Text   = "Follow the system prompt to complete installation";
         }
         catch (Exception ex)
         {
-            await DisplayAlertAsync("Download Failed", ex.Message, "OK");
+            string msg = ex.Message;
+            // "Package conflicts" means the installed APK has a different signing key
+            // (e.g. a debug build installed via adb). User must uninstall first.
+            if (msg.Contains("INSTALL_FAILED_UPDATE_INCOMPATIBLE") ||
+                msg.Contains("Package conflicts") ||
+                msg.Contains("signatures do not match"))
+            {
+                await DisplayAlertAsync("Signature Mismatch",
+                    "The installed version was signed with a different key (likely a debug build).\n\n" +
+                    "Please uninstall Shuka first, then install the update.",
+                    "OK");
+            }
+            else
+            {
+                await DisplayAlertAsync("Download Failed", msg, "OK");
+            }
             UpdateActionLabel.Text = "Install Update";
             UpdateActionSub.Text   = "Tap to retry";
         }

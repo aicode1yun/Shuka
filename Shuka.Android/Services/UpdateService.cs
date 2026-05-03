@@ -152,6 +152,8 @@ public static class UpdateService
         log?.Invoke("Download complete. Launching installer...");
 
         // Trigger the system package installer
+        // Note: if the installed APK was signed with a different key (e.g. debug build),
+        // Android will show "App not installed" — the user must uninstall first.
         InstallApk(ctx, apkPath);
 #else
         await Task.CompletedTask;
