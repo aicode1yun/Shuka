@@ -12,6 +12,7 @@ if (args.Length == 0)
     Console.WriteLine("Usage:");
     Console.WriteLine("  Normal:  Shuka <index-url> [chapters] [output.epub] [cover-url]");
     Console.WriteLine("  Batch:   Shuka --batch <urls-file.txt>");
+    Console.WriteLine("  CF fix:  Shuka --solve-cf <site-url>");
     Console.WriteLine();
     Console.WriteLine("  chapters = how many chapters to download (0 = all)");
     Console.WriteLine();
@@ -19,6 +20,7 @@ if (args.Length == 0)
     Console.WriteLine("    52shuku.net  — e.g. https://www.52shuku.net/bl/09_b/bkd7d.html");
     Console.WriteLine("    czbooks.net  — e.g. https://czbooks.net/n/clgajm");
     Console.WriteLine("    dmxs.org     — e.g. https://www.dmxs.org/GLBH/1840.html");
+    Console.WriteLine("    69shuba.com  — e.g. https://www.69shuba.com/book/90488.htm");
     return;
 }
 
@@ -27,6 +29,73 @@ if (args.Length >= 2 && args[0] == "playwright" && args[1] == "install")
 {
     var exitCode = Microsoft.Playwright.Program.Main(args.Skip(1).ToArray());
     Environment.Exit(exitCode);
+    return;
+}
+
+// --solve-cf: open a visible browser so the user can solve the CF challenge once.
+// The cookies are saved to the persistent profile and reused by all future headless runs.
+if (args.Length >= 2 && args[0] == "--solve-cf")
+{
+    string targetUrl = args[1];
+    string userDataDir = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "Shuka", "browser-profile");
+    Directory.CreateDirectory(userDataDir);
+
+    Console.WriteLine($"Opening browser for: {targetUrl}");
+    Console.WriteLine("A browser window will open. Wait for the page to fully load.");
+    Console.WriteLine("Once you see the actual page content (not a security check), press Enter here.");
+    Console.WriteLine();
+
+    var pw2 = await Playwright.CreateAsync();
+    var ctx2 = await pw2.Chromium.LaunchPersistentContextAsync(userDataDir, new()
+    {
+        Headless = false,
+        Args = new[] { "--disable-blink-features=AutomationControlled" },
+        UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        ViewportSize = new() { Width = 1280, Height = 800 },
+    });
+    var pg2 = await ctx2.NewPageAsync();
+    await pg2.GotoAsync(targetUrl, new() { WaitUntil = WaitUntilState.Load, Timeout = 60000 });
+
+    // Auto-detect when challenge clears (up to 60s), but also let user press Enter manually
+    Console.Write("Waiting for page to load");
+    var cts2 = new CancellationTokenSource();
+    var autoWait = Task.Run(async () =>
+    {
+        var dl2 = DateTime.UtcNow.AddSeconds(60);
+        while (DateTime.UtcNow < dl2 && !cts2.Token.IsCancellationRequested)
+        {
+            try
+            {
+                string t2 = await pg2.TitleAsync();
+                bool isChal = t2.Contains("Just a moment") || t2.Contains("请稍候") ||
+                              t2.Contains("Checking") || t2.Contains("Security") ||
+                              string.IsNullOrWhiteSpace(t2);
+                if (!isChal)
+                {
+                    Console.WriteLine($"\nPage loaded: {t2}");
+                    return;
+                }
+            }
+            catch { /* page may be navigating */ }
+            Console.Write(".");
+            await Task.Delay(1000);
+        }
+    }, cts2.Token);
+
+    // Also let user press Enter to confirm manually
+    var manualWait = Task.Run(() => { Console.ReadLine(); });
+    await Task.WhenAny(autoWait, manualWait);
+    cts2.Cancel();
+
+    // Extra wait to ensure cookies are fully written to disk
+    await Task.Delay(2000);
+    await ctx2.CloseAsync();
+    pw2.Dispose();
+
+    Console.WriteLine("CF cookies saved to browser profile.");
+    Console.WriteLine("Downloads from this site should now work without retries.");
     return;
 }
 
@@ -48,31 +117,33 @@ gt.DefaultRequestHeaders.Add("User-Agent",
 // Falls back to Playwright headless browser if Cloudflare blocks the request
 async Task<string> Fetch(string url, int retries = 4)
 {
+    // Known Cloudflare-protected sites — skip HTTP client entirely, go straight to Playwright
+    if (url.Contains("69shuba.com", StringComparison.OrdinalIgnoreCase))
+        return await FetchWithPlaywrightVerified(url);
+
     int delay = 1000;
     Exception? last = null;
     for (int i = 0; i <= retries; i++)
     {
         try
         {
-            // Build a per-request message so we can set a site-specific Referer
             using var req = new HttpRequestMessage(HttpMethod.Get, url);
             var uri = new Uri(url);
             req.Headers.Add("Referer", $"{uri.Scheme}://{uri.Host}/");
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
             var resp = await site.SendAsync(req, cts.Token);
 
-            // Detect Cloudflare block — fall back to Playwright immediately
             bool isCf = resp.Headers.Contains("cf-ray") || resp.Headers.Server.ToString().Contains("cloudflare");
             if (isCf && ((int)resp.StatusCode == 403 || (int)resp.StatusCode == 503))
-                return await FetchWithPlaywright(url);
+                return await FetchWithPlaywrightVerified(url);
 
             resp.EnsureSuccessStatusCode();
             byte[] bytes = await resp.Content.ReadAsByteArrayAsync();
-
-            // Use Latin-1 (ISO-8859-1) — maps all 256 bytes 1:1, so ASCII-range
-            // charset declarations are preserved even in GBK/Big5 pages.
-            // ASCII would replace bytes > 127 with '?' and break the regex.
             string latin1 = Encoding.Latin1.GetString(bytes);
+
+            // Detect Cloudflare managed challenge served as 200 (with or without CF headers)
+            if (latin1.Contains("cf-chl-opt", StringComparison.OrdinalIgnoreCase))
+                return await FetchWithPlaywrightVerified(url);
 
             // Check HTTP Content-Type header first, then HTML meta tag
             string charset = "utf-8";
@@ -88,7 +159,6 @@ async Task<string> Fetch(string url, int retries = 4)
                 if (cm.Success) charset = cm.Groups[1].Value.Trim();
             }
 
-            // Normalize common aliases
             charset = charset.ToLowerInvariant() switch
             {
                 "gb2312" or "gb_2312" or "csgb2312" or "x-gbk" or "chinese" => "gbk",
@@ -99,7 +169,14 @@ async Task<string> Fetch(string url, int retries = 4)
             Encoding enc;
             try   { enc = Encoding.GetEncoding(charset); }
             catch { enc = Encoding.UTF8; }
-            return enc.GetString(bytes);
+            string result = enc.GetString(bytes);
+
+            // Final check: if we got a CF challenge page despite no CF headers, retry via Playwright
+            if (result.Contains("cf-chl-opt", StringComparison.OrdinalIgnoreCase) ||
+                result.Contains("请稍候", StringComparison.OrdinalIgnoreCase) && result.Contains("cloudflare", StringComparison.OrdinalIgnoreCase))
+                return await FetchWithPlaywrightVerified(url);
+
+            return result;
         }
         catch (Exception ex) { last = ex; await Task.Delay(delay); delay = Math.Min(delay * 2, 16000); }
     }
@@ -109,7 +186,42 @@ async Task<string> Fetch(string url, int retries = 4)
 // Playwright-based fetch for Cloudflare-protected sites
 // Reuses a single browser instance across calls for performance
 IPlaywright? _playwright = null;
-IBrowser?    _browser    = null;
+IBrowserContext? _context = null;
+SemaphoreSlim _playwrightSem = new(1, 1);
+
+// Wrapper: calls FetchWithPlaywright and verifies the result isn't still a challenge page
+async Task<string> FetchWithPlaywrightVerified(string url, int maxAttempts = 3)
+{
+    await _playwrightSem.WaitAsync();
+    try
+    {
+        for (int attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            string html = await FetchWithPlaywright(url);
+
+            // Check if we still got a challenge page — by title poll or body content
+            bool isChallenge = html.Contains("cf-chl-opt", StringComparison.OrdinalIgnoreCase) ||
+                               (html.Contains("请稍候", StringComparison.OrdinalIgnoreCase) &&
+                                html.Contains("cloudflare", StringComparison.OrdinalIgnoreCase)) ||
+                               (html.Contains("Just a moment", StringComparison.OrdinalIgnoreCase) &&
+                                html.Contains("cloudflare", StringComparison.OrdinalIgnoreCase));
+
+            if (!isChallenge) return html;
+
+            if (attempt < maxAttempts)
+            {
+                Console.Write($" [CF retry {attempt}/{maxAttempts}, waiting {attempt * 4}s]");
+                await Task.Delay(attempt * 4000);
+            }
+        }
+        // Last attempt — return whatever we get
+        return await FetchWithPlaywright(url);
+    }
+    finally
+    {
+        _playwrightSem.Release();
+    }
+}
 
 async Task<string> FetchWithPlaywright(string url)
 {
@@ -117,186 +229,223 @@ async Task<string> FetchWithPlaywright(string url)
     {
         Console.WriteLine("\n  [cloudflare] Starting headless browser...");
         _playwright = await Playwright.CreateAsync();
-        // Use a persistent context so cookies/session survive across pages
-        // and launch with args that reduce bot detection signals
-        _browser = await _playwright.Chromium.LaunchAsync(new()
+
+        // Use a persistent user data directory so CF cookies/tokens survive between runs.
+        // After the first successful challenge solve, subsequent runs skip it entirely.
+        string userDataDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Shuka", "browser-profile");
+        Directory.CreateDirectory(userDataDir);
+
+        // LaunchPersistentContext combines browser launch + context creation.
+        // The persistent profile stores CF clearance cookies across sessions.
+        _context = await _playwright.Chromium.LaunchPersistentContextAsync(userDataDir, new()
         {
             Headless = true,
             Args = new[]
             {
                 "--disable-blink-features=AutomationControlled",
                 "--no-sandbox",
-                "--disable-dev-shm-usage"
-            }
+                "--disable-dev-shm-usage",
+            },
+            UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            ExtraHTTPHeaders = new Dictionary<string, string>
+            {
+                ["Accept-Language"] = "zh-CN,zh;q=0.9,en;q=0.7",
+                ["Accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+            },
+            ViewportSize = new() { Width = 1280, Height = 800 },
         });
+        await _context.AddInitScriptAsync(@"
+            Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+            Object.defineProperty(navigator, 'plugins',  { get: () => [1, 2, 3] });
+            Object.defineProperty(navigator, 'languages',{ get: () => ['zh-CN','zh','en'] });
+            window.chrome = { runtime: {} };
+        ");
     }
 
-    var context = await _browser!.NewContextAsync(new()
-    {
-        UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        ExtraHTTPHeaders = new Dictionary<string, string>
-        {
-            ["Accept-Language"] = "zh-TW,zh;q=0.9,zh-CN;q=0.8,en;q=0.7",
-            ["Accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
-        }
-    });
-
-    // Remove the webdriver property that Cloudflare checks
-    await context.AddInitScriptAsync("Object.defineProperty(navigator, 'webdriver', { get: () => undefined })");
-
-    var page = await context.NewPageAsync();
+    var page = await _context!.NewPageAsync();
     try
     {
-        await page.GotoAsync(url, new() { WaitUntil = WaitUntilState.DOMContentLoaded, Timeout = 30000 });
-        // Give Cloudflare challenge time to complete and redirect
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 20000 });
-        // Extra wait if still on challenge page
-        string title = await page.TitleAsync();
-        if (title.Contains("Just a moment") || title.Contains("Checking your browser"))
+        await page.GotoAsync(url, new() { WaitUntil = WaitUntilState.Load, Timeout = 45000 });
+
+        // Poll title until CF challenge clears — up to 40s
+        var deadline = DateTime.UtcNow.AddSeconds(40);
+        while (DateTime.UtcNow < deadline)
         {
-            Console.Write(" [waiting for CF challenge]");
-            await Task.Delay(5000);
-            await page.WaitForLoadStateAsync(LoadState.NetworkIdle, new() { Timeout = 15000 });
+            string t = await page.TitleAsync();
+            bool isChallenge = t.Contains("Just a moment") ||
+                               t.Contains("Checking your browser") ||
+                               t.Contains("Please Wait") ||
+                               t.Contains("Security Check") ||
+                               t.Contains("请稍候") ||
+                               t.Contains("验证") ||
+                               string.IsNullOrWhiteSpace(t);
+            if (!isChallenge) break;
+            Console.Write(".");
+            await Task.Delay(1000);
         }
+
+        await Task.Delay(1500);
         return await page.ContentAsync();
     }
     finally
     {
         await page.CloseAsync();
-        await context.CloseAsync();
     }
 }
 
-// Translate a single chunk — 50 Google retries first, then alternates Google/MyMemory up to 100 each
+// Translate a single chunk — tries Google mobile web page, then gtx GET/POST, then MyMemory
 async Task<string> TranslateChunk(string chunk)
 {
-    // Phase 1: retry Google up to 50 times
-    for (int attempt = 1; attempt <= 50; attempt++)
+    // Phase 1: Google Translate mobile web page — scrapes the result-container div.
+    // This endpoint is NOT rate-limited like the gtx API and works even when the API is blocked.
+    // Limit: ~1000 chars per request (URL length). Chunks are split in Translate() already.
+    for (int attempt = 1; attempt <= 3; attempt++)
     {
         try
         {
-            string url = "https://translate.googleapis.com/translate_a/single" +
-                $"?client=gtx&sl=zh&tl=en&dt=t&q={Uri.EscapeDataString(chunk)}";
-            string json = await gt.GetStringAsync(url);
-            using var jdoc = JsonDocument.Parse(json);
-            var sb = new StringBuilder();
-            foreach (var seg in jdoc.RootElement[0].EnumerateArray())
-                if (seg.ValueKind == JsonValueKind.Array && seg.GetArrayLength() > 0
-                    && seg[0].ValueKind == JsonValueKind.String)
-                    sb.Append(seg[0].GetString());
-            string r = sb.ToString().Trim();
-            if (!string.IsNullOrEmpty(r)) return r;
+            // The mobile page accepts up to ~1000 chars in the query string reliably
+            string truncated = chunk.Length > 900 ? chunk[..900] : chunk;
+            using var req = new HttpRequestMessage(HttpMethod.Get,
+                $"https://translate.google.com/m?sl=zh-CN&tl=en&q={Uri.EscapeDataString(truncated)}");
+            req.Headers.Add("User-Agent",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36");
+            req.Headers.Add("Accept-Language", "en-US,en;q=0.9");
+            using var cts0 = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var resp = await gt.SendAsync(req, cts0.Token);
+            if (resp.IsSuccessStatusCode)
+            {
+                string html = await resp.Content.ReadAsStringAsync();
+                // Result is in: <div class="result-container">TRANSLATED TEXT</div>
+                var m = Regex.Match(html, @"class=""result-container""[^>]*>([\s\S]*?)</div>", RegexOptions.IgnoreCase);
+                if (m.Success)
+                {
+                    string r = System.Net.WebUtility.HtmlDecode(m.Groups[1].Value).Trim();
+                    if (!string.IsNullOrEmpty(r)) return r;
+                }
+            }
         }
         catch (Exception ex)
         {
-            int delay = ex is TaskCanceledException ? 2000 : Math.Min(1000 * attempt, 10000);
-            Console.Write($"\n  [Google retry {attempt}/50]");
-            await Task.Delay(delay);
+            if (attempt < 3) await Task.Delay(300 * attempt);
+            else Console.Write($"\n  [Google web retry {attempt}/3: {ex.Message}]");
         }
     }
 
-    Console.Write("\n  [Google failed 50 times, switching to alternating fallback]");
-
-    // Phase 2: alternate Google/MyMemory, max 100 each
-    const int maxAttempts = 100;
-    int googleFails = 0, memoryFails = 0;
-    bool useGoogle = true;
-
-    while (googleFails < maxAttempts || memoryFails < maxAttempts)
+    // Phase 2: Google gtx GET (JSON API — may be rate-limited but worth trying)
+    for (int attempt = 1; attempt <= 2; attempt++)
     {
-        if (useGoogle && googleFails >= maxAttempts) useGoogle = false;
-        if (!useGoogle && memoryFails >= maxAttempts) useGoogle = true;
-
-        if (useGoogle)
+        try
         {
-            try
+            using var req = new HttpRequestMessage(HttpMethod.Get,
+                "https://translate.googleapis.com/translate_a/single" +
+                $"?client=gtx&sl=zh-CN&tl=en&dt=t&q={Uri.EscapeDataString(chunk)}");
+            req.Headers.Add("User-Agent",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36");
+            req.Headers.Add("Accept", "application/json, text/plain, */*");
+            req.Headers.Add("Referer", "https://translate.google.com/");
+            using var cts1 = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var resp = await gt.SendAsync(req, cts1.Token);
+            if (resp.IsSuccessStatusCode)
             {
-                string url = "https://translate.googleapis.com/translate_a/single" +
-                    $"?client=gtx&sl=zh&tl=en&dt=t&q={Uri.EscapeDataString(chunk)}";
-                string json = await gt.GetStringAsync(url);
-                using var jdoc = JsonDocument.Parse(json);
-                var sb = new StringBuilder();
-                foreach (var seg in jdoc.RootElement[0].EnumerateArray())
-                    if (seg.ValueKind == JsonValueKind.Array && seg.GetArrayLength() > 0
-                        && seg[0].ValueKind == JsonValueKind.String)
-                        sb.Append(seg[0].GetString());
-                string r = sb.ToString().Trim();
-                if (!string.IsNullOrEmpty(r)) return r;
-                googleFails++;
-            }
-            catch
-            {
-                googleFails++;
-                Console.Write($"\n  [Google fail #{googleFails}, switching to MyMemory]");
-                await Task.Delay(Math.Min(1000 * googleFails, 10000));
-            }
-            useGoogle = false;
-        }
-        else
-        {
-            try
-            {
-                string q = chunk.Length > 500 ? chunk[..500] : chunk;
-                string url = $"https://api.mymemory.translated.net/get?q={Uri.EscapeDataString(q)}&langpair=zh|en";
-                string json = await gt.GetStringAsync(url);
-                using var jdoc = JsonDocument.Parse(json);
-                string? result = jdoc.RootElement
-                    .GetProperty("responseData")
-                    .GetProperty("translatedText")
-                    .GetString();
-                if (!string.IsNullOrWhiteSpace(result) && result != chunk)
+                string json = await resp.Content.ReadAsStringAsync();
+                if (!json.TrimStart().StartsWith('<'))
                 {
-                    Console.Write(" [MM]");
-                    return result.Trim();
+                    string? r = ParseGoogleJson(json);
+                    if (r != null) return r;
                 }
-                memoryFails++;
             }
-            catch
-            {
-                memoryFails++;
-                Console.Write($"\n  [MyMemory fail #{memoryFails}, switching to Google]");
-                await Task.Delay(Math.Min(1000 * memoryFails, 10000));
-            }
-            useGoogle = true;
         }
+        catch { if (attempt < 2) await Task.Delay(400); }
     }
 
-    Console.WriteLine($"\n  [all translators exhausted, keeping original]");
+    // Phase 3: Google gtx POST
+    for (int attempt = 1; attempt <= 2; attempt++)
+    {
+        try
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Post,
+                "https://translate.googleapis.com/translate_a/single?client=gtx&sl=zh-CN&tl=en&dt=t");
+            req.Headers.Add("User-Agent",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36");
+            req.Headers.Add("Referer", "https://translate.google.com/");
+            req.Content = new FormUrlEncodedContent(new[] { new KeyValuePair<string, string>("q", chunk) });
+            using var cts2 = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var resp = await gt.SendAsync(req, cts2.Token);
+            if (resp.IsSuccessStatusCode)
+            {
+                string json = await resp.Content.ReadAsStringAsync();
+                if (!json.TrimStart().StartsWith('<'))
+                {
+                    string? r = ParseGoogleJson(json);
+                    if (r != null) return r;
+                }
+            }
+        }
+        catch { if (attempt < 2) await Task.Delay(400); }
+    }
+
+    // Phase 4: MyMemory fallback
+    Console.Write("\n  [trying MyMemory...]");
+    try
+    {
+        string? mm = await CallMyMemory(chunk);
+        if (mm != null) { Console.Write(" [ok]"); return mm; }
+    }
+    catch (Exception ex) { Console.Write($" [failed: {ex.Message}]"); }
+
+    Console.WriteLine("\n  [all translators failed — keeping original]");
     return chunk;
 }
 
-// MyMemory fallback translator (free, no key, 5000 chars/day per IP)
-async Task<string> TranslateChunkMyMemory(string chunk)
+static string? ParseGoogleJson(string json)
 {
-    try
-    {
-        // MyMemory has a 500 char limit per request, so split if needed
-        if (chunk.Length > 500)
-        {
-            var parts = new List<string>();
-            for (int i = 0; i < chunk.Length; i += 500)
-                parts.Add(chunk.Substring(i, Math.Min(500, chunk.Length - i)));
-            var translated = new List<string>();
-            foreach (var part in parts)
-                translated.Add(await TranslateChunkMyMemory(part));
-            return string.Join("", translated);
-        }
+    using var jdoc = JsonDocument.Parse(json);
+    var root = jdoc.RootElement;
+    if (root.ValueKind != JsonValueKind.Array || root.GetArrayLength() == 0) return null;
+    var first = root[0];
+    if (first.ValueKind != JsonValueKind.Array) return null;
+    var sb = new StringBuilder();
+    foreach (var seg in first.EnumerateArray())
+        if (seg.ValueKind == JsonValueKind.Array && seg.GetArrayLength() > 0
+            && seg[0].ValueKind == JsonValueKind.String)
+            sb.Append(seg[0].GetString());
+    string r = sb.ToString().Trim();
+    return string.IsNullOrEmpty(r) ? null : r;
+}
 
-        string url = $"https://api.mymemory.translated.net/get?q={Uri.EscapeDataString(chunk)}&langpair=zh|en";
-        string json = await gt.GetStringAsync(url);
-        using var jdoc = JsonDocument.Parse(json);
-        string? result = jdoc.RootElement
-            .GetProperty("responseData")
-            .GetProperty("translatedText")
-            .GetString();
-        if (!string.IsNullOrWhiteSpace(result) && result != chunk)
+async Task<string?> CallMyMemory(string chunk)
+{
+    // MyMemory caps at 500 chars — split and reassemble
+    if (chunk.Length > 450)
+    {
+        var parts = new List<string>();
+        for (int i = 0; i < chunk.Length; i += 450)
+            parts.Add(chunk.Substring(i, Math.Min(450, chunk.Length - i)));
+        var results = new List<string>();
+        foreach (var part in parts)
         {
-            Console.Write(" [MyMemory]");
-            return result.Trim();
+            string? r = await CallMyMemory(part);
+            if (r == null) return null;
+            results.Add(r);
+            if (parts.Count > 1) await Task.Delay(100);
         }
+        return string.Join("", results);
     }
-    catch (Exception ex) { Console.WriteLine($"\n  [MyMemory failed] {ex.Message}"); }
-    return chunk; // last resort: return original Chinese
+
+    using var req = new HttpRequestMessage(HttpMethod.Get,
+        $"https://api.mymemory.translated.net/get?q={Uri.EscapeDataString(chunk)}&langpair=zh-CN|en-US");
+    req.Headers.Add("User-Agent",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36");
+    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+    var resp = await gt.SendAsync(req, cts.Token);
+    if (!resp.IsSuccessStatusCode) return null;
+    string json = await resp.Content.ReadAsStringAsync();
+    using var jdoc = JsonDocument.Parse(json);
+    if (jdoc.RootElement.GetProperty("responseStatus").GetInt32() != 200) return null;
+    string? result = jdoc.RootElement.GetProperty("responseData").GetProperty("translatedText").GetString();
+    return !string.IsNullOrWhiteSpace(result) && result != chunk ? result.Trim() : null;
 }
 
 // Split text into chunks and translate in parallel
@@ -308,7 +457,7 @@ async Task<string> Translate(string text)
     var cur    = new StringBuilder();
     foreach (var line in lines)
     {
-        if (cur.Length + line.Length + 1 > 1500 && cur.Length > 0)
+        if (cur.Length + line.Length + 1 > 800 && cur.Length > 0)
         { chunks.Add(cur.ToString()); cur.Clear(); }
         if (cur.Length > 0) cur.Append('\n');
         cur.Append(line);
@@ -374,7 +523,11 @@ async Task<(byte[]? bytes, string mime)> DownloadCover(string? coverUrl)
 // Download and translate all chapters for a book (fetch-ahead pipeline)
 async Task<List<(int Idx, string Title, string Text)>> DownloadChapters(BookInfo book)
 {
-    var fetchSem = new SemaphoreSlim(3);
+    // Use concurrency 1 for CF-protected sites — Playwright fetches must be serialized
+    // so the CF cookie is established before the next fetch starts.
+    // (The _playwrightSem inside FetchWithPlaywrightVerified already enforces this,
+    //  but limiting here avoids queuing up many simultaneous waits.)
+    var fetchSem = new SemaphoreSlim(1);
     var t0 = DateTime.Now;
 
     // Kick off all fetches immediately (gated by semaphore)
@@ -386,7 +539,6 @@ async Task<List<(int Idx, string Title, string Text)>> DownloadChapters(BookInfo
     }).ToArray();
 
     var chapters = new List<(int Idx, string Title, string Text)>(book.Total);
-    bool firstDebug = true;
 
     for (int i = 0; i < book.Total; i++)
     {
@@ -396,12 +548,6 @@ async Task<List<(int Idx, string Title, string Text)>> DownloadChapters(BookInfo
 
         var (_, chTitle, html) = await fetchTasks[i];
         var paras = book.Adapter.ExtractChapterText(html);
-
-        if (firstDebug && paras.Count > 0)
-        {
-            Console.WriteLine($"\n  [debug] first para ({paras[0].Length} chars): {paras[0][..Math.Min(60, paras[0].Length)]}");
-            firstDebug = false;
-        }
 
         string english = await Translate(string.Join("\n", paras));
         chapters.Add((i + 1, chTitle, english));
@@ -448,9 +594,9 @@ async Task ProcessBook(BookInfo book, string? outFile = null)
 // Detect which adapter handles this URL
 static ISiteAdapter DetectAdapter(string url)
 {
-    ISiteAdapter[] adapters = [new ShukuAdapter(), new CzBooksAdapter(), new DmxsAdapter()];
+    ISiteAdapter[] adapters = [new ShukuAdapter(), new CzBooksAdapter(), new DmxsAdapter(), new ShubaAdapter()];
     return adapters.FirstOrDefault(a => a.Matches(url))
-        ?? throw new Exception($"No supported adapter for URL: {url}\nSupported sites: 52shuku.net, czbooks.net, dmxs.org");
+        ?? throw new Exception($"No supported adapter for URL: {url}\nSupported sites: 52shuku.net, czbooks.net, dmxs.org, 69shuba.com");
 }
 
 // Gather book info using the appropriate site adapter
@@ -529,7 +675,7 @@ else
 }
 
 // Cleanup Playwright browser if it was used
-if (_browser is not null) await _browser.CloseAsync();
+if (_context is not null) await _context.CloseAsync();
 _playwright?.Dispose();
 
 
@@ -930,8 +1076,7 @@ class CzBooksAdapter : ISiteAdapter
 // dmxs.org adapter (Chinese novel site)
 // Index URL: https://www.dmxs.org/{category}/{bookId}.html
 // Chapter URL: https://www.dmxs.org/view/{classId}-{bookId}-{chapterNum}.html
-class DmxsAdapter : ISiteAdapter
-{
+class DmxsAdapter : ISiteAdapter{
     public string SiteName => "dmxs.org";
 
     public bool Matches(string url) =>
@@ -1033,3 +1178,128 @@ class DmxsAdapter : ISiteAdapter
         return result;
     }
 }
+
+// 69shuba.com adapter (Simplified Chinese novel site, GBK encoded)
+// Index URL: https://www.69shuba.com/book/{bookId}.htm  or  /book/{bookId}/
+// Chapter URL: https://www.69shuba.com/txt/{bookId}/{chapterId}
+class ShubaAdapter : ISiteAdapter
+{
+    public string SiteName => "69shuba.com";
+
+    public bool Matches(string url) =>
+        url.Contains("69shuba.com", StringComparison.OrdinalIgnoreCase);
+
+    public string NormalizeUrl(string url)
+    {
+        if (!url.StartsWith("http")) url = "https://" + url;
+        // Chapter URL → index
+        var cm = Regex.Match(url, @"https?://(?:www\.)?69shuba\.com/txt/(\d+)/\d+", RegexOptions.IgnoreCase);
+        if (cm.Success) return $"https://www.69shuba.com/book/{cm.Groups[1].Value}/";
+        // .htm info page → full chapter list page
+        var im = Regex.Match(url, @"https?://(?:www\.)?69shuba\.com/book/(\d+)\.htm", RegexOptions.IgnoreCase);
+        if (im.Success) return $"https://www.69shuba.com/book/{im.Groups[1].Value}/";
+        // Already list page — strip query/fragment
+        var lm = Regex.Match(url, @"(https?://(?:www\.)?69shuba\.com/book/\d+/)", RegexOptions.IgnoreCase);
+        return lm.Success ? lm.Groups[1].Value : url;
+    }
+
+    public IndexInfo ParseIndex(string html, string indexUrl)
+    {
+        string bookId = Regex.Match(indexUrl, @"/book/(\d+)/").Groups[1].Value;
+
+        string cleanHtml = Regex.Replace(html, @"<script[\s\S]*?</script>", "", RegexOptions.IgnoreCase);
+        cleanHtml = Regex.Replace(cleanHtml, @"<style[\s\S]*?</style>", "", RegexOptions.IgnoreCase);
+
+        string title = "";
+        var h1m = Regex.Match(cleanHtml, @"<h1[^>]*class=""[^""]*bookname[^""]*""[^>]*>\s*([^<]+)", RegexOptions.IgnoreCase);
+        if (h1m.Success) title = h1m.Groups[1].Value.Trim();
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            h1m = Regex.Match(cleanHtml, @"<h1[^>]*>\s*([^<]+)", RegexOptions.IgnoreCase);
+            if (h1m.Success) title = h1m.Groups[1].Value.Trim();
+        }
+        if (string.IsNullOrWhiteSpace(title))
+            title = Regex.Match(cleanHtml, @"<title[^>]*>([^<|_–\-]+)", RegexOptions.IgnoreCase).Groups[1].Value.Trim();
+
+        string author = "Unknown";
+        var am = Regex.Match(cleanHtml, @"作者[：:]\s*<a[^>]*>([^<]+)</a>", RegexOptions.IgnoreCase);
+        if (!am.Success) am = Regex.Match(cleanHtml, @"作者[：:]\s*([^\s<\n,，]+)");
+        if (am.Success) author = am.Groups[1].Value.Trim();
+
+        // Strip SEO junk appended to titles
+        title = Regex.Replace(title, @"\s*[,，]\s*.*$", "").Trim();
+        title = Regex.Replace(title, @"\s*[-_|–]\s*.*$", "").Trim();
+        title = Regex.Replace(title, @"\s*(最新章节|无弹窗|全文阅读|免费阅读).*$", "").Trim();
+
+        var chapters = Regex.Matches(html,
+                @"href=[""'](?:https?://(?:www\.)?69shuba\.com)?/txt/" + Regex.Escape(bookId) + @"/(\d+)[""'][^>]*>([^<]*)</a>",
+                RegexOptions.IgnoreCase)
+            .Cast<Match>()
+            .Select(m => new { Id = m.Groups[1].Value, Title = System.Net.WebUtility.HtmlDecode(m.Groups[2].Value.Trim()) })
+            .DistinctBy(x => x.Id)
+            .Select((x, i) => new ChapterRef(
+                $"https://www.69shuba.com/txt/{bookId}/{x.Id}",
+                string.IsNullOrWhiteSpace(x.Title) ? $"Chapter {i + 1}" : x.Title))
+            .ToList();
+
+        string? cover = null;
+        var imgM = Regex.Match(html,
+            @"<img[^>]+src=[""'](https?://[^""']*/" + Regex.Escape(bookId) + @"[^""']*\.(jpg|png|webp))[""']",
+            RegexOptions.IgnoreCase);
+        if (imgM.Success) cover = imgM.Groups[1].Value.Trim();
+        if (cover == null)
+        {
+            var ogM = Regex.Match(html, @"<meta[^>]+property=[""']og:image[""'][^>]+content=[""']([^""']+)[""']", RegexOptions.IgnoreCase);
+            if (!ogM.Success) ogM = Regex.Match(html, @"<meta[^>]+content=[""']([^""']+)[""'][^>]+property=[""']og:image[""']", RegexOptions.IgnoreCase);
+            if (ogM.Success) cover = ogM.Groups[1].Value.Trim();
+        }
+        // Fallback: construct CDN cover URL directly — prefix = floor(bookId / 1000)
+        if (cover == null && int.TryParse(bookId, out int bid))
+            cover = $"https://cdn.cdnshu.com/files/article/image/{bid / 1000}/{bookId}/{bookId}s.jpg";
+
+        return new IndexInfo(title, author, chapters, cover);
+    }
+
+    public List<string> ExtractChapterText(string html)
+    {
+        html = Regex.Replace(html, @"<script[\s\S]*?</script>", "", RegexOptions.IgnoreCase);
+        html = Regex.Replace(html, @"<style[\s\S]*?</style>",   "", RegexOptions.IgnoreCase);
+        html = Regex.Replace(html, @"<nav[\s\S]*?</nav>",       "", RegexOptions.IgnoreCase);
+        html = Regex.Replace(html, @"<header[\s\S]*?</header>", "", RegexOptions.IgnoreCase);
+        html = Regex.Replace(html, @"<footer[\s\S]*?</footer>", "", RegexOptions.IgnoreCase);
+
+        string? content = null;
+        foreach (var pattern in new[]
+        {
+            @"<div[^>]+class=""[^""]*txtnav[^""]*""[^>]*>([\s\S]+?)<div[^>]+class=""[^""]*txtright",
+            @"<div[^>]+class=""[^""]*txtnav[^""]*""[^>]*>([\s\S]+)",
+            @"<div[^>]+id=""content""[^>]*>([\s\S]+?)</div>\s*</div>",
+            @"<div[^>]+id=""content""[^>]*>([\s\S]+)",
+            @"<div[^>]+class=""[^""]*\bcontent\b[^""]*""[^>]*>([\s\S]+)",
+            @"<article[^>]*>([\s\S]+?)</article>",
+        })
+        {
+            var m = Regex.Match(html, pattern, RegexOptions.IgnoreCase);
+            if (m.Success && m.Groups[1].Value.Length > 200) { content = m.Groups[1].Value; break; }
+        }
+        content ??= html;
+
+        content = Regex.Replace(content, @"<br\s*/?>", "\n", RegexOptions.IgnoreCase);
+        content = Regex.Replace(content, @"<p[^>]*>",  "\n", RegexOptions.IgnoreCase);
+        content = Regex.Replace(content, @"<[^>]+>",   "");
+        content = System.Net.WebUtility.HtmlDecode(content);
+
+        var result = new List<string>();
+        foreach (var line in content.Split('\n'))
+        {
+            string trimmed = line.Trim().TrimStart('\u3000').Trim();
+            if (trimmed.Length > 0 &&
+                Regex.IsMatch(trimmed, @"[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]") &&
+                !trimmed.Contains("69shuba") && !trimmed.Contains("www.") &&
+                !Regex.IsMatch(trimmed, @"https?://"))
+                result.Add(trimmed);
+        }
+        return result;
+    }
+}
+

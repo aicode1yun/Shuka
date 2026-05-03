@@ -64,6 +64,20 @@ public class HttpFetcher : IDisposable
                     throw new Exception("Cloudflare blocked the request and no bypass is configured.");
                 }
 
+                // Also trigger bypass on any 403/503 for known CF-protected sites,
+                // even if CF headers aren't present (some CDN configs omit them)
+                if ((int)resp.StatusCode == 403 || (int)resp.StatusCode == 503)
+                {
+                    bool isKnownCfSite = url.Contains("69shuba.com", StringComparison.OrdinalIgnoreCase);
+                    if (isKnownCfSite && _cfBypass != null)
+                    {
+                        log?.Invoke($"[CF bypass] {(int)resp.StatusCode} (no CF header) on {url}");
+                        string bypassed = await _cfBypass.FetchAsync(url);
+                        log?.Invoke($"[CF bypass] got {bypassed.Length}b, cf={bypassed.Contains("cf-chl-opt")}");
+                        return bypassed;
+                    }
+                }
+
                 if (resp.IsSuccessStatusCode)
                 {
                     byte[] rawBytes = await resp.Content.ReadAsByteArrayAsync(ct);
@@ -77,6 +91,7 @@ public class HttpFetcher : IDisposable
                     bool isCfChallenge = latin1.Contains("cf-browser-verification") ||
                                          latin1.Contains("jschl-answer") ||
                                          latin1.Contains("challenge-form") ||
+                                         latin1.Contains("cf-chl-opt") ||          // managed challenge (69shuba)
                                          (latin1.Contains("cloudflare") && latin1.Contains("checking your browser"));
 
                     // Also detect the czbooks login-wall stub (tiny page with no real content)

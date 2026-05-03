@@ -15,7 +15,7 @@ public class BookService
     private readonly Translator  _translator;
 
     private static readonly ISiteAdapter[] Adapters =
-        [new ShukuAdapter(), new CzBooksAdapter(), new DmxsAdapter()];
+        [new ShukuAdapter(), new CzBooksAdapter(), new DmxsAdapter(), new ShubaAdapter()];
 
     public BookService(ICloudflareBypass? cfBypass = null)
     {
@@ -110,7 +110,9 @@ public class BookService
             });
 
         // 12 concurrent fetches — more parallelism; CF-protected sites
-        // are serialised anyway by the WebView bypass.
+        // are serialised anyway by the WebView bypass semaphore.
+        // For 69shuba specifically, the WebView bypass is already serialized,
+        // so high concurrency just queues up requests without benefit.
         var fetchSem = new SemaphoreSlim(12);
 
         // ── Stage 1: fetch all chapters → channel ─────────────────────────────
@@ -146,7 +148,7 @@ public class BookService
         {
             await foreach (var (i, chTitle, html) in channel.Reader.ReadAllAsync(ct))
             {
-                var paras   = book.Adapter.ExtractChapterText(html);
+                var paras = book.Adapter.ExtractChapterText(html);
                 string text = await _translator.Translate(
                     string.Join("\n", paras), log, ct);
                 results[i] = (chTitle, text);
@@ -196,7 +198,7 @@ public class BookService
 
     private static ISiteAdapter DetectAdapter(string url) =>
         Adapters.FirstOrDefault(a => a.Matches(url))
-        ?? throw new Exception($"No supported adapter for URL: {url}\nSupported: 52shuku.net, czbooks.net, dmxs.org");
+        ?? throw new Exception($"No supported adapter for URL: {url}\nSupported: 52shuku.net, czbooks.net, dmxs.org, 69shuba.com");
 
     private static string? TryExtractCover(string html, string baseUrl)
     {

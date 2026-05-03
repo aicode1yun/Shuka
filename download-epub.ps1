@@ -1,4 +1,5 @@
-# 52shuku EPUB Downloader
+# Shuka EPUB Downloader
+# Supported sites: 52shuku.net, czbooks.net, dmxs.org, 69shuba.com, uukanshu.cc
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 

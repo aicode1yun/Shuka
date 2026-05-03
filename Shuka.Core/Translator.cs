@@ -11,8 +11,8 @@ public class Translator
     // 8 concurrent translate calls — balanced for mobile networks
     private static readonly SemaphoreSlim _globalSem = new(8);
 
-    // 4000 chars — conservative limit that works reliably across all endpoints
-    private const int ChunkSize = 4000;
+    // 800 chars — fits comfortably in the mobile web page URL
+    private const int ChunkSize = 800;
 
     public Translator(HttpClient http)
     {
@@ -60,7 +60,26 @@ public class Translator
     private async Task<string> TranslateChunk(string chunk, Action<string>? log,
         CancellationToken ct)
     {
-        // ── Endpoint 1: Google gtx GET (most reliable on desktop/WiFi) ────────
+        // ── Endpoint 1: Google Translate mobile web page ──────────────────────
+        // Scrapes the result-container div. Not rate-limited like the JSON API.
+        for (int attempt = 1; attempt <= 3; attempt++)
+        {
+            ct.ThrowIfCancellationRequested();
+            try
+            {
+                string truncated = chunk.Length > 900 ? chunk[..900] : chunk;
+                string? result = await CallGoogleMobileWeb(truncated, ct);
+                if (result != null) return result;
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex)
+            {
+                if (attempt < 3) await Task.Delay(300 * attempt, ct);
+                else log?.Invoke($"[Google web attempt {attempt}/3 failed: {ex.Message}]");
+            }
+        }
+
+        // ── Endpoint 2: Google gtx GET (JSON API) ─────────────────────────────
         for (int attempt = 1; attempt <= 3; attempt++)
         {
             ct.ThrowIfCancellationRequested();
@@ -78,7 +97,7 @@ public class Translator
             }
         }
 
-        // ── Endpoint 2: Google translate POST (works better on mobile) ────────
+        // ── Endpoint 3: Google translate POST ────────────────────────────────
         for (int attempt = 1; attempt <= 3; attempt++)
         {
             ct.ThrowIfCancellationRequested();
@@ -96,7 +115,7 @@ public class Translator
             }
         }
 
-        // ── Endpoint 3: MyMemory (reliable free fallback, 500-char limit) ─────
+        // ── Endpoint 4: MyMemory (reliable free fallback, 500-char limit) ─────
         log?.Invoke("[Google failed, trying MyMemory...]");
         try
         {
@@ -116,6 +135,33 @@ public class Translator
         // ── Last resort: return original Chinese ──────────────────────────────
         log?.Invoke("[all translation endpoints failed — keeping original]");
         return chunk;
+    }
+
+    /// <summary>Google Translate mobile web page — scrapes result-container div.</summary>
+    private async Task<string?> CallGoogleMobileWeb(string chunk, CancellationToken ct)
+    {
+        string url = $"https://translate.google.com/m?sl=zh-CN&tl=en&q={Uri.EscapeDataString(chunk)}";
+
+        using var req = new HttpRequestMessage(HttpMethod.Get, url);
+        req.Headers.Add("User-Agent",
+            "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36");
+        req.Headers.Add("Accept-Language", "en-US,en;q=0.9");
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromSeconds(10));
+
+        var resp = await _http.SendAsync(req, cts.Token);
+        if (!resp.IsSuccessStatusCode)
+            throw new Exception($"HTTP {(int)resp.StatusCode}");
+
+        string html = await resp.Content.ReadAsStringAsync(cts.Token);
+        var m = System.Text.RegularExpressions.Regex.Match(html,
+            @"class=""result-container""[^>]*>([\s\S]*?)</div>",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (!m.Success) return null;
+
+        string result = System.Net.WebUtility.HtmlDecode(m.Groups[1].Value).Trim();
+        return string.IsNullOrEmpty(result) ? null : result;
     }
 
     /// <summary>Google Translate unofficial GET endpoint (gtx client).</summary>

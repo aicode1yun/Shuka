@@ -11,88 +11,87 @@ namespace Shuka.Android.Platform;
 /// </summary>
 public class WebViewCloudflareBypass : ICloudflareBypass
 {
-    // How long to wait after navigation for CF JS challenge to resolve
-    private const int CfWaitMs = 5000;
-    // Additional wait for SPA content to load (czbooks uses client-side rendering)
-    private const int SpaContentWaitMs = 3000;
+    // Max time to wait for CF challenge + real page to load
+    private const int MaxWaitMs   = 35000;
+    private const int PollMs      = 1500;
 
-    public Task<string> FetchAsync(string url)
+    // Serialize all WebView fetches — CF cookie must be established before
+    // the next fetch starts. Multiple concurrent WebViews cause CF to re-challenge.
+    private static readonly SemaphoreSlim _sem = new(1, 1);
+
+    public async Task<string> FetchAsync(string url)
+    {
+        await _sem.WaitAsync();
+        try
+        {
+            return await FetchInternalAsync(url);
+        }
+        finally
+        {
+            _sem.Release();
+        }
+    }
+
+    private Task<string> FetchInternalAsync(string url)
     {
         var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        MainThread.BeginInvokeOnMainThread(() =>
+        MainThread.BeginInvokeOnMainThread(async () =>
         {
+            var webView = new WebView
+            {
+                IsVisible     = false,
+                WidthRequest  = 1,
+                HeightRequest = 1,
+                Source        = new UrlWebViewSource { Url = url }
+            };
+
+            var (hostLayout, overlay) = AttachWebView(webView);
+
             try
             {
-                var webView = new WebView
+                // Give the WebView time to start loading before we poll
+                await Task.Delay(2000);
+
+                string? html = null;
+                int waited = 0;
+
+                while (waited < MaxWaitMs)
                 {
-                    IsVisible     = false,
-                    WidthRequest  = 1,
-                    HeightRequest = 1,
-                    Source        = new UrlWebViewSource { Url = url }
-                };
+                    await Task.Delay(PollMs);
+                    waited += PollMs;
 
-                // Find a suitable layout to attach the hidden WebView
-                var (hostLayout, overlay) = AttachWebView(webView);
+                    html = await GetPageHtmlAsync(webView);
+                    if (html == null || html.Length < 500) continue;
 
-                bool completed = false;
+                    // Still on a CF challenge page — keep waiting
+                    bool isChallenge =
+                        html.Contains("cf-chl-opt") ||
+                        html.Contains("cf-browser-verification") ||
+                        html.Contains("jschl-answer") ||
+                        html.Contains("challenge-form") ||
+                        (html.Contains("cloudflare") && html.Contains("checking"));
 
-                webView.Navigated += async (s, e) =>
+                    if (!isChallenge) break;
+                }
+
+                // For czbooks index pages, also wait for chapter links to render
+                if (url.Contains("czbooks.net/n/") &&
+                    !Regex.IsMatch(url, @"czbooks\.net/n/[^/]+/[^/]+"))
                 {
-                    if (completed) return;
+                    await WaitForCzBooksChaptersAsync(webView);
+                    html = await GetPageHtmlAsync(webView);
+                }
 
-                    if (e.Result != WebNavigationResult.Success)
-                    {
-                        completed = true;
-                        tcs.TrySetException(new Exception($"WebView navigation failed: {e.Result}"));
-                        Cleanup(hostLayout, overlay);
-                        return;
-                    }
-
-                    // Wait for Cloudflare JS challenge to complete
-                    await Task.Delay(CfWaitMs);
-
-                    // Check if we're still on a CF challenge page and wait more if needed
-                    try
-                    {
-                        // Use btoa/blob trick to avoid JS string escaping issues with outerHTML
-                        string? checkHtml = await GetPageHtmlAsync(webView);
-
-                        bool stillChallenge = checkHtml != null && (
-                            checkHtml.Contains("cf-browser-verification") ||
-                            checkHtml.Contains("jschl-answer") ||
-                            checkHtml.Contains("challenge-form") ||
-                            (checkHtml.Contains("cloudflare") && checkHtml.Contains("checking")));
-
-                        if (stillChallenge)
-                        {
-                            // Give it more time for CF to resolve
-                            await Task.Delay(5000);
-                        }
-
-                        // For SPA sites like czbooks.net, wait for dynamic content to render.
-                        // Poll until the chapter list links appear (up to 15s).
-                        await WaitForContentAsync(webView, url);
-
-                        string? html = await GetPageHtmlAsync(webView);
-
-                        completed = true;
-                        tcs.TrySetResult(html ?? "");
-                    }
-                    catch (Exception ex)
-                    {
-                        completed = true;
-                        tcs.TrySetException(ex);
-                    }
-                    finally
-                    {
-                        Cleanup(hostLayout, overlay);
-                    }
-                };
+                tcs.TrySetResult(html ?? "");
             }
             catch (Exception ex)
             {
                 tcs.TrySetException(ex);
+            }
+            finally
+            {
+                Cleanup(hostLayout, overlay);
             }
         });
 
@@ -100,45 +99,29 @@ public class WebViewCloudflareBypass : ICloudflareBypass
     }
 
     /// <summary>
-    /// For SPA sites (czbooks.net uses client-side rendering), polls until
-    /// meaningful content appears in the DOM — specifically chapter links.
-    /// Falls back after a timeout so we always return something.
+    /// For czbooks.net index pages (client-side rendered), polls until
+    /// chapter links appear in the DOM — up to 25s.
     /// </summary>
-    private static async Task WaitForContentAsync(WebView webView, string url)
+    private static async Task WaitForCzBooksChaptersAsync(WebView webView)
     {
-        // Only do SPA polling for czbooks index pages (not chapter pages)
-        bool isCzBooksIndex = url.Contains("czbooks.net/n/") &&
-                              !Regex.IsMatch(url, @"czbooks\.net/n/[^/]+/[^/]+");
-
-        if (!isCzBooksIndex)
-        {
-            // For chapter pages, a short extra wait is enough
-            await Task.Delay(SpaContentWaitMs);
-            return;
-        }
-
-        // Poll every 1s for up to 25s waiting for chapter links to appear
-        const int pollIntervalMs = 1000;
-        const int maxWaitMs = 25000;
+        const int pollMs  = 1000;
+        const int maxWait = 25000;
         int waited = 0;
 
-        while (waited < maxWaitMs)
+        while (waited < maxWait)
         {
-            await Task.Delay(pollIntervalMs);
-            waited += pollIntervalMs;
+            await Task.Delay(pollMs);
+            waited += pollMs;
 
-            // Count anchor tags that look like chapter links: /n/{bookId}/{chapterId}
             string? js = await webView.EvaluateJavaScriptAsync(
                 "document.querySelectorAll('a[href*=\"/n/\"]').length.toString()");
 
             if (int.TryParse(js?.Trim('"'), out int count) && count > 5)
             {
-                // Found enough links — give JS one more tick to finish rendering
                 await Task.Delay(500);
                 return;
             }
         }
-        // Timed out — return whatever we have
     }
 
     /// <summary>
