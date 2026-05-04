@@ -20,7 +20,7 @@ A tool that downloads Chinese web novels, translates them to English via Google 
 | [czbooks.net](https://czbooks.net) | `https://czbooks.net/n/clgajm` |
 | [dmxs.org](https://www.dmxs.org) | `https://www.dmxs.org/gdjk/22982.html` |
 
-> **czbooks.net** is protected by Cloudflare. Shuka handles this automatically using a headless browser on Windows and a hidden WebView on Android — no extra setup needed.
+> **czbooks.net** and **69shuba.com** is protected by Cloudflare. Shuka handles this automatically using a headless browser on Windows and a hidden WebView on Android — no extra setup needed.
 
 ## Features
 
@@ -41,7 +41,7 @@ A tool that downloads Chinese web novels, translates them to English via Google 
 - Prevents duplicate downloads — queuing the same URL twice is blocked
 - Open or share the finished `.epub` directly from the Downloads tab
 - Custom save location with full storage permission handling (Android 11+)
-- Four built-in themes: Obsidian, Rosewood, Slate, Frost
+- Five built-in themes: Obsidian, Rosewood, Slate, Frost, Amoled
 
 ## Installation
 
