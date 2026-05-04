@@ -103,6 +103,13 @@ Shuka.exe <url> 0 "" <cover-url>
 
 # Batch from a text file (one URL per line, # for comments)
 Shuka.exe --batch urls.txt
+
+# Examples with supported sites
+Shuka.exe https://www.69shuba.com/book/90417.htm
+Shuka.exe https://czbooks.net/n/clgajm 50
+Shuka.exe https://www.dmxs.org/gdjk/22982.html
+Shuka.exe https://www.52shuku.net/bl/09_b/bkd7d.html
+Shuka.exe https://www.quanben.io/n/aoshidanshen/list.html 3
 ```
 Output is saved to `%USERPROFILE%\Downloads` by default.
 
@@ -125,9 +132,9 @@ dotnet build -c Release
 **Windows installer** — publish first then compile with [Inno Setup](https://jrsoftware.org/isinfo.php):
 
 ```bash
-dotnet publish -c Release -r win-x64 --self-contained false -o bin/publish
-Shuka.exe playwright install chromium
-ISCC.exe installer.iss
+dotnet publish Shuka.Windows/Shuka.Windows.csproj -c Release -r win-x64 --self-contained true -o Shuka.Windows/bin/publish
+Shuka.Windows/bin/publish/Shuka.exe playwright install chromium
+ISCC.exe Shuka.Windows/installer.iss
 ```
 
 **Android APK:**
