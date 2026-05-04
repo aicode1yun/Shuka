@@ -227,6 +227,25 @@ async Task<string> FetchWithPlaywright(string url)
 {
     if (_playwright == null)
     {
+        // Auto-install Chromium if missing or version has changed since last install.
+        // The marker file stores the Playwright assembly version; if it differs from
+        // the current package version the browser binaries are stale and need updating.
+        string playwrightVersion = typeof(Microsoft.Playwright.Playwright)
+            .Assembly.GetName().Version?.ToString() ?? "unknown";
+        string markerPath = Path.Combine(AppContext.BaseDirectory, ".playwright-version");
+        string installedVersion = File.Exists(markerPath) ? File.ReadAllText(markerPath).Trim() : "";
+
+        if (installedVersion != playwrightVersion)
+        {
+            Console.WriteLine(installedVersion == ""
+                ? "\n  [cloudflare] Installing browser (first run)..."
+                : $"\n  [cloudflare] Updating browser ({installedVersion} → {playwrightVersion})...");
+            var exitCode = Microsoft.Playwright.Program.Main(new[] { "install", "chromium" });
+            if (exitCode != 0)
+                throw new Exception($"Playwright browser install failed (exit code {exitCode}). Run: Shuka.exe playwright install chromium");
+            File.WriteAllText(markerPath, playwrightVersion);
+        }
+
         Console.WriteLine("\n  [cloudflare] Starting headless browser...");
         _playwright = await Playwright.CreateAsync();
 

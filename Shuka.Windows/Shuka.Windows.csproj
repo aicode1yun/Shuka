@@ -8,6 +8,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>Shuka</AssemblyName>
     <RootNamespace>Shuka</RootNamespace>
+    <MSBuildProjectExtensionsPath>$(MSBuildProjectDirectory)\obj\</MSBuildProjectExtensionsPath>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,14 +17,5 @@
     <PackageReference Include="System.Text.Encoding.CodePages" Version="10.0.7" />
   </ItemGroup>
 
-  <!-- Exclude Android and Core subfolders from this Windows-only build -->
-  <ItemGroup>
-    <Compile Remove="Shuka.Android\**" />
-    <Compile Remove="Shuka.Core\**" />
-    <EmbeddedResource Remove="Shuka.Android\**" />
-    <EmbeddedResource Remove="Shuka.Core\**" />
-    <None Remove="Shuka.Android\**" />
-    <None Remove="Shuka.Core\**" />
-  </ItemGroup>
 
 </Project>
