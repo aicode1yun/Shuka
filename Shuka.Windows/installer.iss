@@ -1,6 +1,6 @@
 #define MyAppName "Shuka"
 #ifndef MyAppVersion
-  #define MyAppVersion "1.0"
+  #define MyAppVersion "1.0.7"
 #endif
 #define MyAppPublisher "Shuka"
 #define MyAppExeName "download-epub.bat"

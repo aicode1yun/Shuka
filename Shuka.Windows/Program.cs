@@ -19,6 +19,7 @@ if (args.Length == 0)
     Console.WriteLine("    czbooks.net  — e.g. https://czbooks.net/n/clgajm");
     Console.WriteLine("    dmxs.org     — e.g. https://www.dmxs.org/GLBH/1840.html");
     Console.WriteLine("    69shuba.com  — e.g. https://www.69shuba.com/book/90488.htm");
+    Console.WriteLine("    quanben.io   — e.g. https://www.quanben.io/n/aoshidanshen/list.html");
     return;
 }
 

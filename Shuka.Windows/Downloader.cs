@@ -133,11 +133,12 @@ internal sealed class Downloader
             new Shuka.Core.Adapters.CzBooksAdapter(),
             new Shuka.Core.Adapters.DmxsAdapter(),
             new Shuka.Core.Adapters.ShubaAdapter(),
+            new Shuka.Core.Adapters.QuanbenAdapter(),
         ];
         return adapters.FirstOrDefault(a => a.Matches(url))
             ?? throw new Exception(
                 $"No supported adapter for URL: {url}\n" +
-                "Supported sites: 52shuku.net, czbooks.net, dmxs.org, 69shuba.com");
+                "Supported sites: 52shuku.net, czbooks.net, dmxs.org, 69shuba.com, quanben.io");
     }
 
     private static string? TryExtractCover(string html, string baseUrl)

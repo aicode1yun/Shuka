@@ -199,6 +199,7 @@ jobs:
           - czbooks.net (Cloudflare bypass)
           - dmxs.org
           - 69shuba.com (Cloudflare bypass)
+          - quanben.io
           "@
 
           # Write with Unix line endings

@@ -67,7 +67,7 @@
                                     BackgroundColor="{DynamicResource BgInput}"
                                     Padding="14,0">
                                 <Entry x:Name="UrlEntry"
-                                       Placeholder="https://czbooks.net/n/..."
+                                       Placeholder="https://czbooks.net/n/... or quanben.io/n/..."
                                        Keyboard="Url"
                                        ReturnType="Next"
                                        HeightRequest="48" />
