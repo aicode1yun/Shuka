@@ -8,8 +8,8 @@ public class Translator
 {
     private readonly HttpClient _http;
 
-    // 8 concurrent translate calls — balanced for mobile networks
-    private static readonly SemaphoreSlim _globalSem = new(8);
+    // 4 concurrent translate calls on mobile — avoids rate-limiting Google
+    private static readonly SemaphoreSlim _globalSem = new(4);
 
     // 800 chars — fits comfortably in the mobile web page URL
     private const int ChunkSize = 800;

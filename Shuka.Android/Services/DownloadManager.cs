@@ -152,10 +152,18 @@ public class DownloadManager
                     epubPath = await service.ProcessBook(book, tempPath, progress, Log, ct);
                     break;
                 }
-                catch (OperationCanceledException)
-                {
-                    throw;
-                }
+        catch (OperationCanceledException ex) when (ex is TaskCanceledException tce
+            && tce.CancellationToken != ct
+            && !ct.IsCancellationRequested)
+        {
+            // HttpClient timeout — treat as a retryable failure, not a user cancellation
+            Log($"Error (attempt {attempt}/{MaxRetries}): Request timed out. Retrying...");
+            MainThread.BeginInvokeOnMainThread(() =>
+                item.StatusText = $"Retrying ({attempt}/{MaxRetries})...");
+            attempt++;
+            if (attempt > MaxRetries) throw new Exception("Too many timeouts — check your connection.");
+            await Task.Delay(TimeSpan.FromSeconds(Math.Min(attempt * 2, 8)), ct);
+        }
                 catch (Exception ex) when (attempt < MaxRetries)
                 {
                     attempt++;

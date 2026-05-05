@@ -27,7 +27,7 @@ public class BookService
             AllowAutoRedirect = true,
             MaxAutomaticRedirections = 3
         };
-        _gtClient = new HttpClient(gh) { Timeout = TimeSpan.FromSeconds(30) };
+        _gtClient = new HttpClient(gh) { Timeout = TimeSpan.FromSeconds(60) };
         _gtClient.DefaultRequestHeaders.Add("User-Agent",
             "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36");
         _gtClient.DefaultRequestHeaders.Add("Accept-Language", "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7");
@@ -167,7 +167,7 @@ public class BookService
         await Task.WhenAll(translateTasks);
 
         return results
-            .Select((r, i) => (i + 1, r!.Value.title, r!.Value.text))
+            .Select((r, i) => (i + 1, r?.title ?? $"Chapter {i + 1}", r?.text ?? ""))
             .ToList();
     }
 
