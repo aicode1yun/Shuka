@@ -14,6 +14,10 @@ public class Translator
     // 800 chars — fits comfortably in the mobile web page URL
     private const int ChunkSize = 800;
 
+    // Minimum gap between requests per worker to avoid Google rate-limiting.
+    // At 4 concurrent workers this gives ~4 × 300ms = ~1.2s between bursts.
+    private const int InterChunkDelayMs = 300;
+
     public Translator(HttpClient http)
     {
         _http = http;
@@ -45,7 +49,14 @@ public class Translator
         var tasks = chunks.Select(async (chunk, i) =>
         {
             await _globalSem.WaitAsync(ct);
-            try   { return (i, text: await TranslateChunk(chunk, log, ct)); }
+            try
+            {
+                // Stagger requests to avoid hitting Google's rate limit.
+                // Each worker waits a short delay before firing, spreading
+                // the burst across time even when all chunks start together.
+                if (i > 0) await Task.Delay(InterChunkDelayMs * Math.Min(i, 4), ct);
+                return (i, text: await TranslateChunk(chunk, log, ct));
+            }
             finally { _globalSem.Release(); }
         }).ToArray();
 
@@ -69,7 +80,12 @@ public class Translator
             {
                 string truncated = chunk.Length > 900 ? chunk[..900] : chunk;
                 string? result = await CallGoogleMobileWeb(truncated, ct);
-                if (result != null) return result;
+                if (result != null)
+                {
+                    // Small cooldown after success to avoid back-to-back bursts
+                    await Task.Delay(150, ct);
+                    return result;
+                }
             }
             catch (OperationCanceledException) { throw; }
             catch (Exception ex)
