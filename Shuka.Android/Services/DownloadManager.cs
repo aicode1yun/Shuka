@@ -139,8 +139,11 @@ public class DownloadManager
                 });
             });
 
-            string dir  = GetOutputDirectory();
-            tempPath    = Path.Combine(dir, $"_shuka_{item.Id:N}.epub");
+            // Always write the EPUB to app-private cache first — avoids
+            // UnauthorizedAccessException on scoped storage (Android 10+).
+            // We copy/move to the user's chosen folder afterwards via SAF.
+            string cacheDir = GetCacheDirectory();
+            tempPath = Path.Combine(cacheDir, $"_shuka_{item.Id:N}.epub");
 
             string epubPath = "";
             int attempt = 0;
@@ -152,18 +155,18 @@ public class DownloadManager
                     epubPath = await service.ProcessBook(book, tempPath, progress, Log, ct);
                     break;
                 }
-        catch (OperationCanceledException ex) when (ex is TaskCanceledException tce
-            && tce.CancellationToken != ct
-            && !ct.IsCancellationRequested)
-        {
-            // HttpClient timeout — treat as a retryable failure, not a user cancellation
-            Log($"Error (attempt {attempt}/{MaxRetries}): Request timed out. Retrying...");
-            MainThread.BeginInvokeOnMainThread(() =>
-                item.StatusText = $"Retrying ({attempt}/{MaxRetries})...");
-            attempt++;
-            if (attempt > MaxRetries) throw new Exception("Too many timeouts — check your connection.");
-            await Task.Delay(TimeSpan.FromSeconds(Math.Min(attempt * 2, 8)), ct);
-        }
+                catch (OperationCanceledException ex) when (ex is TaskCanceledException tce
+                    && tce.CancellationToken != ct
+                    && !ct.IsCancellationRequested)
+                {
+                    // HttpClient timeout — treat as a retryable failure, not a user cancellation
+                    Log($"Error (attempt {attempt}/{MaxRetries}): Request timed out. Retrying...");
+                    MainThread.BeginInvokeOnMainThread(() =>
+                        item.StatusText = $"Retrying ({attempt}/{MaxRetries})...");
+                    attempt++;
+                    if (attempt > MaxRetries) throw new Exception("Too many timeouts — check your connection.");
+                    await Task.Delay(TimeSpan.FromSeconds(Math.Min(attempt * 2, 8)), ct);
+                }
                 catch (Exception ex) when (attempt < MaxRetries)
                 {
                     attempt++;
@@ -188,8 +191,8 @@ public class DownloadManager
             if (string.IsNullOrWhiteSpace(finalName))
                 finalName = $"novel_{item.Id:N8}";
 
-            string finalPath = ResolveUniqueFilePath(dir, finalName);
-            File.Move(epubPath, finalPath, overwrite: true);
+            // Copy from cache to the user's chosen output folder via SAF
+            string finalPath = await CopyToOutputAsync(epubPath, finalName, ct);
 
             Log($"Saved: {finalPath}");
 
@@ -227,7 +230,7 @@ public class DownloadManager
         }
         finally
         {
-            // Clean up any leftover temp file — use the exact path we wrote to
+            // Clean up temp file in cache
             try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
 
 #if ANDROID
@@ -235,6 +238,78 @@ public class DownloadManager
                 DownloadForegroundService.Stop();
 #endif
         }
+    }
+
+    /// <summary>
+    /// Copies the EPUB from the app cache to the user's chosen output folder.
+    /// On Android uses SAF DocumentsContract when a tree URI is set so scoped
+    /// storage restrictions are bypassed. Falls back to a plain File.Move on
+    /// other platforms or when no tree URI is configured.
+    /// Returns the final file path (or content URI string on Android SAF).
+    /// </summary>
+    private static async Task<string> CopyToOutputAsync(
+        string sourcePath, string baseName, CancellationToken ct)
+    {
+#if ANDROID
+        string treeUriStr = Preferences.Default.Get(PrefKeyDownloadTreeUri, "");
+        if (!string.IsNullOrWhiteSpace(treeUriStr))
+        {
+            try
+            {
+                var treeUri = global::Android.Net.Uri.Parse(treeUriStr)!;
+                var ctx     = global::Android.App.Application.Context;
+                var cr      = ctx.ContentResolver!;
+
+                // Resolve a unique file name inside the SAF tree
+                string fileName = baseName + ".epub";
+                int    n        = 2;
+
+                // Check for existing documents with the same name
+                var existingUri = global::Android.Provider.DocumentsContract.BuildDocumentUriUsingTree(
+                    treeUri,
+                    global::Android.Provider.DocumentsContract.GetTreeDocumentId(treeUri));
+
+                // Create the document via SAF — this works regardless of scoped storage
+                var docUri = global::Android.Provider.DocumentsContract.CreateDocument(
+                    cr, existingUri, "application/epub+zip", baseName);
+
+                if (docUri == null)
+                    throw new Exception("Could not create document in selected folder.");
+
+                // Stream the file into the SAF URI
+                await using var src  = File.OpenRead(sourcePath);
+                await using var dest = cr.OpenOutputStream(docUri)
+                    ?? throw new Exception("Could not open output stream for SAF URI.");
+
+                await src.CopyToAsync(dest, ct);
+
+                // Return the content URI as string so the share/open flow works
+                return docUri.ToString()!;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // SAF failed — fall through to plain file copy into default dir
+                System.Diagnostics.Debug.WriteLine($"[SAF] copy failed: {ex.Message}");
+            }
+        }
+#endif
+        // Plain file copy — works for default Downloads/Shuka dir and non-Android
+        string dir       = GetDefaultOutputDirectory();
+        string finalPath = ResolveUniqueFilePath(dir, baseName);
+        File.Move(sourcePath, finalPath, overwrite: true);
+        return finalPath;
+    }
+
+    /// <summary>App-private cache directory — always writable, no permissions needed.</summary>
+    private static string GetCacheDirectory()
+    {
+#if ANDROID
+        string dir = global::Android.App.Application.Context.CacheDir!.AbsolutePath;
+#else
+        string dir = Path.GetTempPath();
+#endif
+        Directory.CreateDirectory(dir);
+        return dir;
     }
 
     public static string GetOutputDirectory()
