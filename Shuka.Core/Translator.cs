@@ -8,8 +8,9 @@ public class Translator
 {
     private readonly HttpClient _http;
 
-    // 4 concurrent translate calls on mobile — avoids rate-limiting Google
-    private static readonly SemaphoreSlim _globalSem = new(4);
+    // 3 concurrent translate calls — balanced between speed and avoiding rate limits.
+    // Lower concurrency means fewer 429s on large novels (1000+ chapters).
+    private static readonly SemaphoreSlim _globalSem = new(3);
 
     // 800 chars — fits comfortably in the mobile web page URL
     private const int ChunkSize = 800;
@@ -63,7 +64,7 @@ public class Translator
     }
 
     /// <summary>
-    /// Translate one chunk. Tries multiple Google endpoints, then MyMemory.
+    /// Translate one chunk. Tries multiple Google endpoints with backoff, then MyMemory.
     /// Logs every failure so the user can see what's happening.
     /// </summary>
     private async Task<string> TranslateChunk(string chunk, Action<string>? log,
@@ -71,7 +72,8 @@ public class Translator
     {
         // ── Endpoint 1: Google Translate mobile web page ──────────────────────
         // Scrapes the result-container div. Not rate-limited like the JSON API.
-        for (int attempt = 1; attempt <= 3; attempt++)
+        // Retry up to 5 times with exponential backoff on rate-limit signals.
+        for (int attempt = 1; attempt <= 5; attempt++)
         {
             ct.ThrowIfCancellationRequested();
             try
@@ -79,12 +81,25 @@ public class Translator
                 string truncated = chunk.Length > 900 ? chunk[..900] : chunk;
                 string? result = await CallGoogleMobileWeb(truncated, ct);
                 if (result != null) return result;
+
+                // Empty result — likely a soft rate-limit, back off and retry
+                if (attempt < 5)
+                {
+                    int wait = Math.Min(500 * attempt, 4000);
+                    await Task.Delay(wait, ct);
+                }
             }
             catch (OperationCanceledException) { throw; }
             catch (Exception ex)
             {
-                if (attempt < 3) await Task.Delay(300 * attempt, ct);
-                else log?.Invoke($"[Google web attempt {attempt}/3 failed: {ex.Message}]");
+                bool isRateLimit = ex.Message.Contains("429") ||
+                                   ex.Message.Contains("Too Many") ||
+                                   ex.Message.Contains("HTML instead of");
+                int wait = isRateLimit
+                    ? Math.Min(1000 * attempt, 8000)  // longer wait on rate limit
+                    : Math.Min(300  * attempt, 2000);
+                if (attempt < 5) await Task.Delay(wait, ct);
+                else log?.Invoke($"[Google web failed after 5 attempts: {ex.Message}]");
             }
         }
 
