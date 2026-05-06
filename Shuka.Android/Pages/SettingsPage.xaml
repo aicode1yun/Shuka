@@ -255,6 +255,88 @@
                             </Grid.GestureRecognizers>
                         </Grid>
 
+                        <BoxView HeightRequest="1" BackgroundColor="{DynamicResource Divider}" Margin="16,0" />
+
+                        <!-- Parchment -->
+                        <Grid ColumnDefinitions="Auto,*,Auto"
+                              Padding="16,16,16,16">
+                            <Border Grid.Column="0"
+                                    BackgroundColor="#FBF4E2"
+                                    StrokeThickness="1"
+                                    Stroke="#E8D9B8"
+                                    StrokeShape="RoundRectangle 12"
+                                    WidthRequest="40" HeightRequest="40"
+                                    VerticalOptions="Center"
+                                    Margin="0,0,14,0">
+                                <Label Text="{DynamicResource IconBook}"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="20"
+                                       TextColor="#7A4E4F"
+                                       HorizontalOptions="Center"
+                                       VerticalOptions="Center" />
+                            </Border>
+                            <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                                <Label Text="Parchment"
+                                       FontSize="15"
+                                       FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}" />
+                                <Label Text="Warm cream · aged paper feel"
+                                       FontSize="12"
+                                       TextColor="{DynamicResource TextMuted}" />
+                            </VerticalStackLayout>
+                            <Label x:Name="RadioParchment2"
+                                   Grid.Column="2"
+                                   Text="{DynamicResource IconRadioOff}"
+                                   FontFamily="{DynamicResource IconFont}"
+                                   FontSize="24"
+                                   TextColor="{DynamicResource TextMuted}"
+                                   VerticalOptions="Center" />
+                            <Grid.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnThemeParchment2" />
+                            </Grid.GestureRecognizers>
+                        </Grid>
+
+                        <BoxView HeightRequest="1" BackgroundColor="{DynamicResource Divider}" Margin="16,0" />
+
+                        <!-- Blossom -->
+                        <Grid ColumnDefinitions="Auto,*,Auto"
+                              Padding="16,16,16,16">
+                            <Border Grid.Column="0"
+                                    BackgroundColor="#FEF2F6"
+                                    StrokeThickness="1"
+                                    Stroke="#F5C6D8"
+                                    StrokeShape="RoundRectangle 12"
+                                    WidthRequest="40" HeightRequest="40"
+                                    VerticalOptions="Center"
+                                    Margin="0,0,14,0">
+                                <Label Text="&#xE8F4;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="20"
+                                       TextColor="#7A4E4F"
+                                       HorizontalOptions="Center"
+                                       VerticalOptions="Center" />
+                            </Border>
+                            <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                                <Label Text="Blossom"
+                                       FontSize="15"
+                                       FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}" />
+                                <Label Text="Soft pink · delicate light theme"
+                                       FontSize="12"
+                                       TextColor="{DynamicResource TextMuted}" />
+                            </VerticalStackLayout>
+                            <Label x:Name="RadioBlossom"
+                                   Grid.Column="2"
+                                   Text="{DynamicResource IconRadioOff}"
+                                   FontFamily="{DynamicResource IconFont}"
+                                   FontSize="24"
+                                   TextColor="{DynamicResource TextMuted}"
+                                   VerticalOptions="Center" />
+                            <Grid.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnThemeBlossom" />
+                            </Grid.GestureRecognizers>
+                        </Grid>
+
                     </VerticalStackLayout>
                 </Border>
 

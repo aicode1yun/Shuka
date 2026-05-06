@@ -75,6 +75,18 @@ public partial class SettingsPage : ContentPage
         ApplyAndRefresh(AppTheme.Amoled);
     }
 
+    private async void OnThemeParchment2(object sender, TappedEventArgs e)
+    {
+        await AnimateThemeSelection((Grid)sender);
+        ApplyAndRefresh(AppTheme.Parchment);
+    }
+
+    private async void OnThemeBlossom(object sender, TappedEventArgs e)
+    {
+        await AnimateThemeSelection((Grid)sender);
+        ApplyAndRefresh(AppTheme.Blossom);
+    }
+
     private async Task AnimateThemeSelection(Grid themeGrid)
     {
         // Quick selection animation
@@ -112,17 +124,21 @@ public partial class SettingsPage : ContentPage
         var accent = (Color)Application.Current.Resources["Accent"];
         var muted  = (Color)Application.Current.Resources["TextMuted"];
 
-        RadioObsidian.Text       = theme == AppTheme.Obsidian ? on : off;
-        RadioRosewood.Text       = theme == AppTheme.Rosewood ? on : off;
-        RadioSlate.Text          = theme == AppTheme.Slate    ? on : off;
-        RadioParchment.Text      = theme == AppTheme.Frost    ? on : off;
-        RadioAmoled.Text         = theme == AppTheme.Amoled   ? on : off;
+        RadioObsidian.Text       = theme == AppTheme.Obsidian  ? on : off;
+        RadioRosewood.Text       = theme == AppTheme.Rosewood  ? on : off;
+        RadioSlate.Text          = theme == AppTheme.Slate      ? on : off;
+        RadioParchment.Text      = theme == AppTheme.Frost      ? on : off;
+        RadioAmoled.Text         = theme == AppTheme.Amoled     ? on : off;
+        RadioParchment2.Text     = theme == AppTheme.Parchment  ? on : off;
+        RadioBlossom.Text        = theme == AppTheme.Blossom    ? on : off;
 
-        RadioObsidian.TextColor  = theme == AppTheme.Obsidian ? accent : muted;
-        RadioRosewood.TextColor  = theme == AppTheme.Rosewood ? accent : muted;
-        RadioSlate.TextColor     = theme == AppTheme.Slate    ? accent : muted;
-        RadioParchment.TextColor = theme == AppTheme.Frost    ? accent : muted;
-        RadioAmoled.TextColor    = theme == AppTheme.Amoled   ? accent : muted;
+        RadioObsidian.TextColor  = theme == AppTheme.Obsidian  ? accent : muted;
+        RadioRosewood.TextColor  = theme == AppTheme.Rosewood  ? accent : muted;
+        RadioSlate.TextColor     = theme == AppTheme.Slate      ? accent : muted;
+        RadioParchment.TextColor = theme == AppTheme.Frost      ? accent : muted;
+        RadioAmoled.TextColor    = theme == AppTheme.Amoled     ? accent : muted;
+        RadioParchment2.TextColor= theme == AppTheme.Parchment  ? accent : muted;
+        RadioBlossom.TextColor   = theme == AppTheme.Blossom    ? accent : muted;
     }
 
     // ── Download location ─────────────────────────────────────────────────────

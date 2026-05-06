@@ -2,7 +2,7 @@ using Shuka.Android.Services;
 
 namespace Shuka.Android;
 
-public enum AppTheme { Obsidian, Rosewood, Slate, Frost, Amoled }
+public enum AppTheme { Obsidian, Rosewood, Slate, Frost, Amoled, Parchment, Blossom }
 
 public partial class App : Application
 {
@@ -253,6 +253,60 @@ public partial class App : Application
                 r["NavBarSelected"]   = Color.FromArgb("#8B5E5F");
                 r["NavBarUnselected"] = Color.FromArgb("#545458");
                 break;
+
+            // ── Parchment ─────────────────────────────────────────────────────
+            // Warm cream — aged paper feel. Easy on the eyes for long reading.
+            case AppTheme.Parchment:
+                r["BgPage"]           = Color.FromArgb("#FBF4E2");  // warm cream
+                r["BgCard"]           = Color.FromArgb("#FFF8EC");  // lighter cream cards
+                r["BgInput"]          = Color.FromArgb("#FFF8EC");
+                r["Stroke"]           = Color.FromArgb("#E8D9B8");  // warm tan border
+                r["Divider"]          = Color.FromArgb("#EDE0C4");
+                r["EntryLine"]        = Color.FromArgb("#D4BC90");
+                r["EntryLineFocused"] = Color.FromArgb("#533738");
+                r["Accent"]           = Color.FromArgb("#533738");  // burgundy
+                r["AccentLight"]      = Color.FromArgb("#7A4E4F");
+                r["AccentContainer"]  = Color.FromArgb("#F2DDD0");  // warm blush
+                r["Success"]          = Color.FromArgb("#3A7D44");
+                r["SuccessContainer"] = Color.FromArgb("#D6EDD9");
+                r["Warning"]          = Color.FromArgb("#B45309");
+                r["Danger"]           = Color.FromArgb("#C0392B");
+                r["TextPrimary"]      = Color.FromArgb("#2C1A0E");  // deep warm brown
+                r["TextSecondary"]    = Color.FromArgb("#5C3D2E");
+                r["TextMuted"]        = Color.FromArgb("#A08060");
+                r["TextOnAccent"]     = Color.FromArgb("#FBF4E2");
+                r["ProgressTrack"]    = Color.FromArgb("#E8D9B8");
+                r["NavBar"]           = Color.FromArgb("#FFF8EC");
+                r["NavBarSelected"]   = Color.FromArgb("#533738");
+                r["NavBarUnselected"] = Color.FromArgb("#A08060");
+                break;
+
+            // ── Blossom ───────────────────────────────────────────────────────
+            // Soft pink — delicate and warm. Light feminine aesthetic.
+            case AppTheme.Blossom:
+                r["BgPage"]           = Color.FromArgb("#FEF2F6");  // soft pink
+                r["BgCard"]           = Color.FromArgb("#FFFFFF");  // white cards
+                r["BgInput"]          = Color.FromArgb("#FFFFFF");
+                r["Stroke"]           = Color.FromArgb("#F5C6D8");  // pink border
+                r["Divider"]          = Color.FromArgb("#FAD9E7");
+                r["EntryLine"]        = Color.FromArgb("#EBA8C3");
+                r["EntryLineFocused"] = Color.FromArgb("#533738");
+                r["Accent"]           = Color.FromArgb("#533738");  // burgundy
+                r["AccentLight"]      = Color.FromArgb("#7A4E4F");
+                r["AccentContainer"]  = Color.FromArgb("#FADADD");  // light rose
+                r["Success"]          = Color.FromArgb("#2E7D52");
+                r["SuccessContainer"] = Color.FromArgb("#D4EDDA");
+                r["Warning"]          = Color.FromArgb("#C07000");
+                r["Danger"]           = Color.FromArgb("#C0392B");
+                r["TextPrimary"]      = Color.FromArgb("#2D1B22");  // deep rose-brown
+                r["TextSecondary"]    = Color.FromArgb("#5C3347");
+                r["TextMuted"]        = Color.FromArgb("#B07090");
+                r["TextOnAccent"]     = Color.FromArgb("#FEF2F6");
+                r["ProgressTrack"]    = Color.FromArgb("#F5C6D8");
+                r["NavBar"]           = Color.FromArgb("#FFFFFF");
+                r["NavBarSelected"]   = Color.FromArgb("#533738");
+                r["NavBarUnselected"] = Color.FromArgb("#B07090");
+                break;
         }
 
         // Re-tint all active Entry underlines to match the new theme
@@ -264,7 +318,7 @@ public partial class App : Application
         {
             var bgColor = (Color)Application.Current!.Resources["BgPage"];
             // Light icons for dark themes, dark icons for Frost (light theme)
-            bool lightIcons = theme != AppTheme.Frost;
+            bool lightIcons = theme != AppTheme.Frost && theme != AppTheme.Parchment && theme != AppTheme.Blossom;
             var androidColor = global::Android.Graphics.Color.Argb(
                 (int)(bgColor.Alpha * 255),
                 (int)(bgColor.Red   * 255),
