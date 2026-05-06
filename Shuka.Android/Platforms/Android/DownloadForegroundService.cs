@@ -86,7 +86,9 @@ public class DownloadForegroundService : Service
             StartForeground(NotificationId, notification);
 #pragma warning restore CA1416
 
-        return StartCommandResult.Sticky;
+        // NotSticky — don't restart the service if the app is killed.
+        // The service is started explicitly by DownloadManager when a download begins.
+        return StartCommandResult.NotSticky;
     }
 
     public override void OnDestroy()

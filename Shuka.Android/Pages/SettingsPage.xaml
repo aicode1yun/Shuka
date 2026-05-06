@@ -49,6 +49,13 @@
                        CharacterSpacing="1.5"
                        Margin="4,0,0,6" />
 
+                <!-- Dark Themes label -->
+                <Label Text="Dark"
+                       FontSize="12"
+                       FontAttributes="Bold"
+                       TextColor="{DynamicResource TextMuted}"
+                       Margin="4,4,0,4" />
+
                 <Border BackgroundColor="{DynamicResource BgCard}"
                         Stroke="{DynamicResource Stroke}"
                         StrokeThickness="1"
@@ -176,46 +183,6 @@
 
                         <BoxView HeightRequest="1" BackgroundColor="{DynamicResource Divider}" Margin="16,0" />
 
-                        <!-- Frost -->
-                        <Grid ColumnDefinitions="Auto,*,Auto"
-                              Padding="16,16,16,16">
-                            <Border Grid.Column="0"
-                                    BackgroundColor="#F2E8E8"
-                                    StrokeThickness="0"
-                                    StrokeShape="RoundRectangle 12"
-                                    WidthRequest="40" HeightRequest="40"
-                                    VerticalOptions="Center"
-                                    Margin="0,0,14,0">
-                                <Label Text="{DynamicResource IconLightMode}"
-                                       FontFamily="{DynamicResource IconFont}"
-                                       FontSize="20"
-                                       TextColor="#7A4E4F"
-                                       HorizontalOptions="Center"
-                                       VerticalOptions="Center" />
-                            </Border>
-                            <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
-                                <Label Text="Frost"
-                                       FontSize="15"
-                                       FontAttributes="Bold"
-                                       TextColor="{DynamicResource TextPrimary}" />
-                                <Label Text="Clean white · modern light"
-                                       FontSize="12"
-                                       TextColor="{DynamicResource TextMuted}" />
-                            </VerticalStackLayout>
-                            <Label x:Name="RadioParchment"
-                                   Grid.Column="2"
-                                   Text="{DynamicResource IconRadioOff}"
-                                   FontFamily="{DynamicResource IconFont}"
-                                   FontSize="24"
-                                   TextColor="{DynamicResource TextMuted}"
-                                   VerticalOptions="Center" />
-                            <Grid.GestureRecognizers>
-                                <TapGestureRecognizer Tapped="OnThemeParchment" />
-                            </Grid.GestureRecognizers>
-                        </Grid>
-
-                        <BoxView HeightRequest="1" BackgroundColor="{DynamicResource Divider}" Margin="16,0" />
-
                         <!-- Amoled -->
                         <Grid ColumnDefinitions="Auto,*,Auto"
                               Padding="16,16,16,16">
@@ -252,6 +219,61 @@
                                    VerticalOptions="Center" />
                             <Grid.GestureRecognizers>
                                 <TapGestureRecognizer Tapped="OnThemeAmoled" />
+                            </Grid.GestureRecognizers>
+                        </Grid>
+
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- Light Themes label -->
+                <Label Text="Light"
+                       FontSize="12"
+                       FontAttributes="Bold"
+                       TextColor="{DynamicResource TextMuted}"
+                       Margin="4,12,0,4" />
+
+                <Border BackgroundColor="{DynamicResource BgCard}"
+                        Stroke="{DynamicResource Stroke}"
+                        StrokeThickness="1"
+                        StrokeShape="RoundRectangle 20"
+                        Padding="0">
+                    <VerticalStackLayout>
+
+                        <!-- Frost -->
+                        <Grid ColumnDefinitions="Auto,*,Auto"
+                              Padding="16,16,16,16">
+                            <Border Grid.Column="0"
+                                    BackgroundColor="#F2E8E8"
+                                    StrokeThickness="0"
+                                    StrokeShape="RoundRectangle 12"
+                                    WidthRequest="40" HeightRequest="40"
+                                    VerticalOptions="Center"
+                                    Margin="0,0,14,0">
+                                <Label Text="{DynamicResource IconLightMode}"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="20"
+                                       TextColor="#7A4E4F"
+                                       HorizontalOptions="Center"
+                                       VerticalOptions="Center" />
+                            </Border>
+                            <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                                <Label Text="Frost"
+                                       FontSize="15"
+                                       FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}" />
+                                <Label Text="Clean white · modern light"
+                                       FontSize="12"
+                                       TextColor="{DynamicResource TextMuted}" />
+                            </VerticalStackLayout>
+                            <Label x:Name="RadioParchment"
+                                   Grid.Column="2"
+                                   Text="{DynamicResource IconRadioOff}"
+                                   FontFamily="{DynamicResource IconFont}"
+                                   FontSize="24"
+                                   TextColor="{DynamicResource TextMuted}"
+                                   VerticalOptions="Center" />
+                            <Grid.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnThemeParchment" />
                             </Grid.GestureRecognizers>
                         </Grid>
 
