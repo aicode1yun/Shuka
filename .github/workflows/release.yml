@@ -130,6 +130,8 @@ jobs:
           -p:AndroidSigningKeyPass=${{ secrets.KEY_PASSWORD }}
           -p:AndroidSigningStorePass=${{ secrets.STORE_PASSWORD }}
           -p:AndroidPackageFormats=apk
+          -p:ApplicationVersion=${{ github.run_number }}
+          -p:ApplicationDisplayVersion=${{ github.ref_name }}
           -o publish_output
 
       - name: Locate APK
