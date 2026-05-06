@@ -100,20 +100,18 @@ public class BookService
         var chapterList = book.ChapterUrls.Take(book.Total).ToList();
         int total = chapterList.Count;
 
-        // Channel buffer = 3× fetch concurrency so translators are never starved
+        // Channel buffer sized to fetch concurrency so translators drain it steadily
         var channel = Channel.CreateBounded<(int i, string title, string html)>(
-            new BoundedChannelOptions(30)
+            new BoundedChannelOptions(8)
             {
                 SingleWriter = false,
                 SingleReader = false,
                 FullMode     = BoundedChannelFullMode.Wait
             });
 
-        // 12 concurrent fetches — more parallelism; CF-protected sites
-        // are serialised anyway by the WebView bypass semaphore.
-        // For 69shuba specifically, the WebView bypass is already serialized,
-        // so high concurrency just queues up requests without benefit.
-        var fetchSem = new SemaphoreSlim(12);
+        // 4 concurrent fetches — matches translate concurrency so the pipeline
+        // stays balanced. CF-protected sites are serialised by the WebView semaphore anyway.
+        var fetchSem = new SemaphoreSlim(4);
 
         // ── Stage 1: fetch all chapters → channel ─────────────────────────────
         var fetchProducer = Task.Run(async () =>
@@ -143,8 +141,8 @@ public class BookService
         var results   = new (string title, string text)?[total];
         int completed = 0;
 
-        // 12 consumer workers — matches the global translate semaphore in Translator
-        var translateTasks = Enumerable.Range(0, 12).Select(_ => Task.Run(async () =>
+        // 3 consumer workers — matches the global translate semaphore in Translator
+        var translateTasks = Enumerable.Range(0, 3).Select(_ => Task.Run(async () =>
         {
             await foreach (var (i, chTitle, html) in channel.Reader.ReadAllAsync(ct))
             {
