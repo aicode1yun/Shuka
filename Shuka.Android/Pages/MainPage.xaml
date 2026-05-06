@@ -65,12 +65,48 @@
                                     StrokeThickness="1.5"
                                     StrokeShape="RoundRectangle 12"
                                     BackgroundColor="{DynamicResource BgInput}"
-                                    Padding="14,0">
-                                <Entry x:Name="UrlEntry"
-                                       Placeholder="https://czbooks.net/n/... or quanben.io/n/..."
-                                       Keyboard="Url"
-                                       ReturnType="Next"
-                                       HeightRequest="48" />
+                                    Padding="14,0,4,0">
+                                <Grid ColumnDefinitions="*,Auto,Auto">
+                                    <Entry Grid.Column="0"
+                                           x:Name="UrlEntry"
+                                           Placeholder="https://czbooks.net/n/... or quanben.io/n/..."
+                                           Keyboard="Url"
+                                           ReturnType="Next"
+                                           HeightRequest="48" />
+                                    <!-- Paste button -->
+                                    <Border Grid.Column="1"
+                                            x:Name="UrlPasteBtn"
+                                            BackgroundColor="Transparent"
+                                            StrokeThickness="0"
+                                            Padding="6,0"
+                                            VerticalOptions="Center">
+                                        <Label Text="&#xE22B;"
+                                               FontFamily="{DynamicResource IconFont}"
+                                               FontSize="18"
+                                               TextColor="{DynamicResource TextMuted}"
+                                               VerticalOptions="Center" />
+                                        <Border.GestureRecognizers>
+                                            <TapGestureRecognizer Tapped="OnUrlPasteTapped" />
+                                        </Border.GestureRecognizers>
+                                    </Border>
+                                    <!-- Clear button — only visible when entry has text -->
+                                    <Border Grid.Column="2"
+                                            x:Name="UrlClearBtn"
+                                            BackgroundColor="Transparent"
+                                            StrokeThickness="0"
+                                            Padding="6,0,8,0"
+                                            VerticalOptions="Center"
+                                            IsVisible="False">
+                                        <Label Text="&#xE5CD;"
+                                               FontFamily="{DynamicResource IconFont}"
+                                               FontSize="18"
+                                               TextColor="{DynamicResource TextMuted}"
+                                               VerticalOptions="Center" />
+                                        <Border.GestureRecognizers>
+                                            <TapGestureRecognizer Tapped="OnUrlClearTapped" />
+                                        </Border.GestureRecognizers>
+                                    </Border>
+                                </Grid>
                             </Border>
                         </VerticalStackLayout>
 
@@ -95,12 +131,47 @@
                                     StrokeThickness="1.5"
                                     StrokeShape="RoundRectangle 12"
                                     BackgroundColor="{DynamicResource BgInput}"
-                                    Padding="14,0">
-                                <Entry x:Name="CoverEntry"
-                                       Placeholder="https://..."
-                                       Keyboard="Url"
-                                       ReturnType="Next"
-                                       HeightRequest="48" />
+                                    Padding="14,0,4,0">
+                                <Grid ColumnDefinitions="*,Auto,Auto">
+                                    <Entry Grid.Column="0"
+                                           x:Name="CoverEntry"
+                                           Placeholder="https://..."
+                                           Keyboard="Url"
+                                           ReturnType="Next"
+                                           HeightRequest="48" />
+                                    <!-- Paste button -->
+                                    <Border Grid.Column="1"
+                                            BackgroundColor="Transparent"
+                                            StrokeThickness="0"
+                                            Padding="6,0"
+                                            VerticalOptions="Center">
+                                        <Label Text="&#xE22B;"
+                                               FontFamily="{DynamicResource IconFont}"
+                                               FontSize="18"
+                                               TextColor="{DynamicResource TextMuted}"
+                                               VerticalOptions="Center" />
+                                        <Border.GestureRecognizers>
+                                            <TapGestureRecognizer Tapped="OnCoverPasteTapped" />
+                                        </Border.GestureRecognizers>
+                                    </Border>
+                                    <!-- Clear button -->
+                                    <Border Grid.Column="2"
+                                            x:Name="CoverClearBtn"
+                                            BackgroundColor="Transparent"
+                                            StrokeThickness="0"
+                                            Padding="6,0,8,0"
+                                            VerticalOptions="Center"
+                                            IsVisible="False">
+                                        <Label Text="&#xE5CD;"
+                                               FontFamily="{DynamicResource IconFont}"
+                                               FontSize="18"
+                                               TextColor="{DynamicResource TextMuted}"
+                                               VerticalOptions="Center" />
+                                        <Border.GestureRecognizers>
+                                            <TapGestureRecognizer Tapped="OnCoverClearTapped" />
+                                        </Border.GestureRecognizers>
+                                    </Border>
+                                </Grid>
                             </Border>
                         </VerticalStackLayout>
 

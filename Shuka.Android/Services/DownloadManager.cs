@@ -10,13 +10,18 @@ namespace Shuka.Android.Services;
 
 /// <summary>
 /// Singleton service that manages all download jobs.
-/// Supports multiple concurrent downloads and per-job cancellation.
+/// Limits concurrent downloads to 2 — beyond that, jobs queue and start
+/// automatically when a slot frees up. This keeps Google Translate load
+/// manageable and prevents rate-limiting with large queues.
 /// </summary>
 public class DownloadManager
 {
     public static readonly DownloadManager Instance = new();
 
     public ObservableCollection<DownloadItem> Downloads { get; } = new();
+
+    // Max 2 novels downloading/translating at the same time
+    private static readonly SemaphoreSlim _downloadSem = new(2, 2);
 
     private DownloadManager() { }
 
@@ -98,6 +103,24 @@ public class DownloadManager
         void Log(string msg) =>
             MainThread.BeginInvokeOnMainThread(() =>
                 item.LogText += msg + "\n");
+
+        // Wait for a download slot — show queued status while waiting
+        if (_downloadSem.CurrentCount == 0)
+        {
+            MainThread.BeginInvokeOnMainThread(() =>
+                item.StatusText = "Queued — waiting for slot...");
+        }
+
+        try { await _downloadSem.WaitAsync(ct); }
+        catch (OperationCanceledException)
+        {
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                item.StatusText = "Cancelled";
+                item.Status     = DownloadStatus.Cancelled;
+            });
+            return;
+        }
 
 #if ANDROID
         DownloadForegroundService.Start();
@@ -233,6 +256,9 @@ public class DownloadManager
             // Clean up temp file in cache
             try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
 
+            // Release the download slot so the next queued novel can start
+            _downloadSem.Release();
+
 #if ANDROID
             if (!Downloads.Any(d => d.IsRunning))
                 DownloadForegroundService.Stop();
@@ -262,16 +288,15 @@ public class DownloadManager
 
                 // Resolve a unique file name inside the SAF tree
                 string fileName = baseName + ".epub";
-                int    n        = 2;
 
                 // Check for existing documents with the same name
+                var treeDocId   = global::Android.Provider.DocumentsContract.GetTreeDocumentId(treeUri);
                 var existingUri = global::Android.Provider.DocumentsContract.BuildDocumentUriUsingTree(
-                    treeUri,
-                    global::Android.Provider.DocumentsContract.GetTreeDocumentId(treeUri));
+                    treeUri, treeDocId!);
 
                 // Create the document via SAF — this works regardless of scoped storage
                 var docUri = global::Android.Provider.DocumentsContract.CreateDocument(
-                    cr, existingUri, "application/epub+zip", baseName);
+                    cr, existingUri!, "application/epub+zip", baseName);
 
                 if (docUri == null)
                     throw new Exception("Could not create document in selected folder.");

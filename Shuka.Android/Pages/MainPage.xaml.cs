@@ -7,6 +7,11 @@ public partial class MainPage : ContentPage
     public MainPage()
     {
         InitializeComponent();
+
+        // Show/hide clear button as URL entry text changes
+        UrlEntry.TextChanged   += (_, e) => UrlClearBtn.IsVisible   = !string.IsNullOrEmpty(e.NewTextValue);
+        CoverEntry.TextChanged += (_, e) =>
+            CoverClearBtn.IsVisible = !string.IsNullOrEmpty(e.NewTextValue);
     }
 
     protected override async void OnAppearing()
@@ -216,5 +221,33 @@ public partial class MainPage : ContentPage
             default:
                 return true;
         }
+    }
+
+    // ── URL field buttons ─────────────────────────────────────────────────────
+
+    private async void OnUrlPasteTapped(object sender, TappedEventArgs e)
+    {
+        string? text = await Clipboard.Default.GetTextAsync();
+        if (!string.IsNullOrWhiteSpace(text))
+            UrlEntry.Text = text.Trim();
+    }
+
+    private void OnUrlClearTapped(object sender, TappedEventArgs e)
+    {
+        UrlEntry.Text = "";
+    }
+
+    // ── Cover URL field buttons ───────────────────────────────────────────────
+
+    private async void OnCoverPasteTapped(object sender, TappedEventArgs e)
+    {
+        string? text = await Clipboard.Default.GetTextAsync();
+        if (!string.IsNullOrWhiteSpace(text))
+            CoverEntry.Text = text.Trim();
+    }
+
+    private void OnCoverClearTapped(object sender, TappedEventArgs e)
+    {
+        CoverEntry.Text = "";
     }
 }
