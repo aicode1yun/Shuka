@@ -89,14 +89,20 @@ public class Translator
                     await Task.Delay(wait, ct);
                 }
             }
-            catch (OperationCanceledException) { throw; }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+            catch (OperationCanceledException ex)
+            {
+                // Internal HTTP timeout (linked CTS) — treat as retryable, not user cancel
+                if (attempt < 5) await Task.Delay(Math.Min(1000 * attempt, 8000), ct);
+                else log?.Invoke($"[Google web timed out after 5 attempts: {ex.Message}]");
+            }
             catch (Exception ex)
             {
                 bool isRateLimit = ex.Message.Contains("429") ||
                                    ex.Message.Contains("Too Many") ||
                                    ex.Message.Contains("HTML instead of");
                 int wait = isRateLimit
-                    ? Math.Min(1000 * attempt, 8000)  // longer wait on rate limit
+                    ? Math.Min(1000 * attempt, 8000)
                     : Math.Min(300  * attempt, 2000);
                 if (attempt < 5) await Task.Delay(wait, ct);
                 else log?.Invoke($"[Google web failed after 5 attempts: {ex.Message}]");
@@ -112,7 +118,12 @@ public class Translator
                 string? result = await CallGoogleGtx(chunk, ct);
                 if (result != null) return result;
             }
-            catch (OperationCanceledException) { throw; }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+            catch (OperationCanceledException)
+            {
+                log?.Invoke($"[Google gtx timeout attempt {attempt}/3]");
+                if (attempt < 3) await Task.Delay(400 * attempt, ct);
+            }
             catch (Exception ex)
             {
                 log?.Invoke($"[Google gtx attempt {attempt}/3 failed: {ex.Message}]");
@@ -130,7 +141,12 @@ public class Translator
                 string? result = await CallGooglePost(chunk, ct);
                 if (result != null) return result;
             }
-            catch (OperationCanceledException) { throw; }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+            catch (OperationCanceledException)
+            {
+                log?.Invoke($"[Google POST timeout attempt {attempt}/3]");
+                if (attempt < 3) await Task.Delay(400 * attempt, ct);
+            }
             catch (Exception ex)
             {
                 log?.Invoke($"[Google POST attempt {attempt}/3 failed: {ex.Message}]");
@@ -150,7 +166,7 @@ public class Translator
                 return mm;
             }
         }
-        catch (OperationCanceledException) { throw; }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
         catch (Exception ex)
         {
             log?.Invoke($"[MyMemory failed: {ex.Message}]");
