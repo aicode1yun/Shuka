@@ -19,7 +19,7 @@
                       Icon="tab_downloads.png"
                       ContentTemplate="{DataTemplate pages:DownloadsPage}"
                       Route="DownloadsPage" />
-        <ShellContent Title="Library"
+        <ShellContent Title="History"
                       Icon="tab_history.png"
                       ContentTemplate="{DataTemplate pages:HistoryPage}"
                       Route="HistoryPage" />

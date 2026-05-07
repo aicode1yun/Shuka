@@ -13,10 +13,10 @@ public class HistoryService
 
     public ObservableCollection<HistoryEntry> Entries { get; } = new();
 
-    private static readonly string HistoryFile =
+    private static string HistoryFile =>
         Path.Combine(FileSystem.AppDataDirectory, "history.json");
 
-    private static readonly string CoversDir =
+    private static string CoversDir =>
         Path.Combine(FileSystem.AppDataDirectory, "covers");
 
     private static readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(20) };
@@ -25,7 +25,6 @@ public class HistoryService
 
     private HistoryService()
     {
-        Directory.CreateDirectory(CoversDir);
         _ = LoadAsync();
     }
 
@@ -101,6 +100,7 @@ public class HistoryService
     {
         try
         {
+            Directory.CreateDirectory(CoversDir);
             if (!File.Exists(HistoryFile)) return;
             string json = await File.ReadAllTextAsync(HistoryFile);
             var list = JsonSerializer.Deserialize<List<HistoryEntry>>(json);

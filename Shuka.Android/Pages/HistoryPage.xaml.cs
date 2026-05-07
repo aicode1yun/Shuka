@@ -269,8 +269,8 @@ public partial class HistoryPage : ContentPage
         if (HistoryService.Instance.Entries.Count == 0) return;
 
         bool confirm = await DisplayAlertAsync(
-            "Clear Library",
-            "Remove all novels from your library? EPUB files on disk are not deleted.",
+            "Clear History",
+            "Remove all novels from your history? EPUB files on disk are not deleted.",
             "Clear", "Cancel");
 
         if (confirm)
@@ -319,8 +319,8 @@ public partial class HistoryPage : ContentPage
     private async void OnDeleteRequested(HistoryEntry entry)
     {
         bool confirm = await DisplayAlertAsync(
-            "Remove from Library",
-            $"Remove \"{entry.Title}\" from your library? The EPUB file on disk is not deleted.",
+            "Remove from History",
+            $"Remove \"{entry.Title}\" from your history? The EPUB file on disk is not deleted.",
             "Remove", "Cancel");
 
         if (confirm)

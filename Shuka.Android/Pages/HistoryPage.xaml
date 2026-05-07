@@ -29,7 +29,7 @@
             </Border>
 
             <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
-                <Label Text="Library"
+                <Label Text="History"
                        FontSize="22" FontAttributes="Bold"
                        TextColor="{DynamicResource TextPrimary}" />
                 <Label x:Name="CountLabel"
