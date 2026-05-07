@@ -6,6 +6,7 @@ namespace Shuka.Android.Pages;
 public partial class HistoryPage : ContentPage
 {
     private readonly Dictionary<Guid, HistoryCard> _cards = new();
+    private string _searchQuery = "";
 
     public HistoryPage()
     {
@@ -16,6 +17,7 @@ public partial class HistoryPage : ContentPage
             AddCard(entry);
 
         RefreshEmptyState();
+        UpdateCountLabel();
     }
 
     protected override async void OnAppearing()
@@ -33,6 +35,8 @@ public partial class HistoryPage : ContentPage
             BodyGrid.TranslateToAsync(0, 0, 220, Easing.CubicOut));
     }
 
+    // ── Collection changes ────────────────────────────────────────────────────
+
     private void OnCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         MainThread.BeginInvokeOnMainThread(async () =>
@@ -45,7 +49,8 @@ public partial class HistoryPage : ContentPage
                 foreach (HistoryEntry entry in e.OldItems)
                     await RemoveCardWithAnimationAsync(entry);
 
-            RefreshEmptyState();
+            ApplyFilter();
+            UpdateCountLabel();
         });
     }
 
@@ -91,12 +96,75 @@ public partial class HistoryPage : ContentPage
         return card;
     }
 
+    // ── Search ────────────────────────────────────────────────────────────────
+
+    private void OnSearchTextChanged(object sender, TextChangedEventArgs e)
+    {
+        _searchQuery = e.NewTextValue?.Trim() ?? "";
+        ClearSearchBtn.IsVisible = !string.IsNullOrEmpty(_searchQuery);
+        ApplyFilter();
+    }
+
+    private void OnClearSearchTapped(object sender, TappedEventArgs e)
+    {
+        SearchEntry.Text = "";
+        _searchQuery = "";
+        ClearSearchBtn.IsVisible = false;
+        ApplyFilter();
+    }
+
+    /// <summary>
+    /// Shows/hides cards based on the current search query.
+    /// Matches against title and author (case-insensitive).
+    /// </summary>
+    private void ApplyFilter()
+    {
+        bool hasEntries = HistoryService.Instance.Entries.Count > 0;
+        bool isSearching = !string.IsNullOrEmpty(_searchQuery);
+
+        if (!hasEntries)
+        {
+            EmptyState.IsVisible    = true;
+            NoResultsState.IsVisible = false;
+            ListScroll.IsVisible    = false;
+            return;
+        }
+
+        int visibleCount = 0;
+        foreach (var entry in HistoryService.Instance.Entries)
+        {
+            if (!_cards.TryGetValue(entry.Id, out var card)) continue;
+
+            bool matches = !isSearching ||
+                entry.Title.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase) ||
+                entry.Author.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase);
+
+            card.IsVisible = matches;
+            if (matches) visibleCount++;
+        }
+
+        EmptyState.IsVisible     = false;
+        ListScroll.IsVisible     = visibleCount > 0;
+        NoResultsState.IsVisible = visibleCount == 0;
+
+        if (visibleCount == 0 && isSearching)
+            NoResultsLabel.Text = $"No results for \"{_searchQuery}\"";
+    }
+
     private void RefreshEmptyState()
     {
-        bool hasItems = HistoryService.Instance.Entries.Count > 0;
-        EmptyState.IsVisible = !hasItems;
-        ListScroll.IsVisible = hasItems;
+        ApplyFilter();
     }
+
+    private void UpdateCountLabel()
+    {
+        int total = HistoryService.Instance.Entries.Count;
+        CountLabel.Text = total == 0
+            ? "Your downloaded novels"
+            : total == 1 ? "1 novel" : $"{total} novels";
+    }
+
+    // ── Actions ───────────────────────────────────────────────────────────────
 
     private async void OnClearAllTapped(object sender, TappedEventArgs e)
     {
@@ -112,7 +180,10 @@ public partial class HistoryPage : ContentPage
             "Clear", "Cancel");
 
         if (confirm)
+        {
+            SearchEntry.Text = "";
             await HistoryService.Instance.ClearAllAsync();
+        }
     }
 
     private async void OnOpenRequested(HistoryEntry entry)
