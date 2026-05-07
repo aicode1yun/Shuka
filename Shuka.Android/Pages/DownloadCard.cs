@@ -5,6 +5,7 @@ namespace Shuka.Android.Pages;
 /// <summary>
 /// A self-contained card view for a single DownloadItem.
 /// Subscribes to PropertyChanged and updates itself live.
+/// Includes a tap-to-expand log panel for debugging.
 /// </summary>
 public class DownloadCard : ContentView
 {
@@ -28,6 +29,10 @@ public class DownloadCard : ContentView
     private readonly View   _progressSection;
     private readonly View   _actionRow;
     private readonly View   _retryRow;
+    private readonly View   _logSection;
+    private readonly Label  _logLabel;
+    private readonly Label  _logToggleIcon;
+    private bool            _logExpanded = false;
 
     // Track card width for progress fill calculation
     private double _cardWidth = 0;
@@ -38,8 +43,8 @@ public class DownloadCard : ContentView
 
         _statusIconLabel = new Label
         {
-            FontFamily      = "MaterialSymbols",
-            FontSize        = 18,
+            FontFamily        = "MaterialSymbols",
+            FontSize          = 18,
             HorizontalOptions = LayoutOptions.Center,
             VerticalOptions   = LayoutOptions.Center
         };
@@ -57,10 +62,10 @@ public class DownloadCard : ContentView
 
         _titleLabel = new Label
         {
-            FontSize        = 14,
-            FontAttributes  = FontAttributes.Bold,
-            LineBreakMode   = LineBreakMode.TailTruncation,
-            MaxLines        = 1
+            FontSize       = 14,
+            FontAttributes = FontAttributes.Bold,
+            LineBreakMode  = LineBreakMode.TailTruncation,
+            MaxLines       = 1
         };
         _titleLabel.SetDynamicResource(Label.TextColorProperty, "TextPrimary");
 
@@ -87,11 +92,36 @@ public class DownloadCard : ContentView
             Children        = { _titleLabel, _authorLabel, _statusTextLabel }
         };
 
+        // ── Log toggle button ─────────────────────────────────────────────────
+        _logToggleIcon = new Label
+        {
+            Text            = "\uE313", // expand_more
+            FontFamily      = "MaterialSymbols",
+            FontSize        = 20,
+            VerticalOptions = LayoutOptions.Center,
+            Margin          = new Thickness(4, 0, 0, 0),
+        };
+        _logToggleIcon.SetDynamicResource(Label.TextColorProperty, "TextMuted");
+
+        var logToggleBtn = new Border
+        {
+            StrokeThickness = 0,
+            BackgroundColor = Colors.Transparent,
+            Padding         = new Thickness(6, 4),
+            VerticalOptions = LayoutOptions.Center,
+            Content         = _logToggleIcon,
+        };
+        logToggleBtn.GestureRecognizers.Add(new TapGestureRecognizer
+        {
+            Command = new Command(ToggleLog)
+        });
+
+        // ── Cancel button ─────────────────────────────────────────────────────
         var cancelLabel = new Label
         {
-            Text           = "Cancel",
-            FontSize       = 11,
-            FontAttributes = FontAttributes.Bold,
+            Text            = "Cancel",
+            FontSize        = 11,
+            FontAttributes  = FontAttributes.Bold,
             VerticalOptions = LayoutOptions.Center
         };
         cancelLabel.SetDynamicResource(Label.TextColorProperty, "Danger");
@@ -111,36 +141,40 @@ public class DownloadCard : ContentView
             Command = new Command(() => CancelRequested?.Invoke(_item))
         });
 
+        // ── Header row ────────────────────────────────────────────────────────
         var headerGrid = new Grid
         {
             ColumnDefinitions = new ColumnDefinitionCollection
             {
-                new ColumnDefinition { Width = GridLength.Auto },
-                new ColumnDefinition { Width = GridLength.Star },
-                new ColumnDefinition { Width = GridLength.Auto }
+                new ColumnDefinition { Width = GridLength.Auto },  // status dot
+                new ColumnDefinition { Width = GridLength.Star },  // text
+                new ColumnDefinition { Width = GridLength.Auto },  // log toggle
+                new ColumnDefinition { Width = GridLength.Auto },  // cancel
             },
             Padding = new Thickness(18, 16, 18, 14)
         };
-        headerGrid.Add(_statusDot,  0, 0);
-        headerGrid.Add(textStack,   1, 0);
-        headerGrid.Add(_cancelBtn,  2, 0);
+        headerGrid.Add(_statusDot,   0, 0);
+        headerGrid.Add(textStack,    1, 0);
+        headerGrid.Add(logToggleBtn, 2, 0);
+        headerGrid.Add(_cancelBtn,   3, 0);
 
+        // ── Progress bar ──────────────────────────────────────────────────────
         var progressTrack = new Border
         {
-            StrokeThickness = 0,
-            StrokeShape     = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 3 },
-            HeightRequest   = 6,
+            StrokeThickness   = 0,
+            StrokeShape       = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 3 },
+            HeightRequest     = 6,
             HorizontalOptions = LayoutOptions.Fill
         };
         progressTrack.SetDynamicResource(Border.BackgroundColorProperty, "ProgressTrack");
 
         _progressFill = new Border
         {
-            StrokeThickness = 0,
-            StrokeShape     = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 3 },
-            HeightRequest   = 6,
+            StrokeThickness   = 0,
+            StrokeShape       = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 3 },
+            HeightRequest     = 6,
             HorizontalOptions = LayoutOptions.Start,
-            WidthRequest    = 0
+            WidthRequest      = 0
         };
         _progressFill.SetDynamicResource(Border.BackgroundColorProperty, "AccentLight");
 
@@ -153,10 +187,10 @@ public class DownloadCard : ContentView
 
         _pctLabel = new Label
         {
-            FontSize       = 12,
-            FontAttributes = FontAttributes.Bold,
+            FontSize        = 12,
+            FontAttributes  = FontAttributes.Bold,
             VerticalOptions = LayoutOptions.Center,
-            Margin         = new Thickness(10, 0, 0, 0)
+            Margin          = new Thickness(10, 0, 0, 0)
         };
         _pctLabel.SetDynamicResource(Label.TextColorProperty, "AccentLight");
 
@@ -167,7 +201,7 @@ public class DownloadCard : ContentView
                 new ColumnDefinition { Width = GridLength.Star },
                 new ColumnDefinition { Width = GridLength.Auto }
             },
-            ColumnSpacing = 0,
+            ColumnSpacing   = 0,
             VerticalOptions = LayoutOptions.Center
         };
         progressRow.Add(trackContainer, 0, 0);
@@ -180,84 +214,9 @@ public class DownloadCard : ContentView
             Children = { progressRow }
         };
 
-        var shareLabel = new Label
-        {
-            Text           = "Share",
-            FontSize       = 13,
-            FontAttributes = FontAttributes.Bold,
-            VerticalOptions = LayoutOptions.Center
-        };
-        shareLabel.SetDynamicResource(Label.TextColorProperty, "TextOnAccent");
-
-        var shareIcon = new Label
-        {
-            Text           = "\uE6B8",
-            FontFamily     = "MaterialSymbols",
-            FontSize       = 18,
-            VerticalOptions = LayoutOptions.Center,
-            Margin         = new Thickness(0, 0, 8, 0)
-        };
-        shareIcon.SetDynamicResource(Label.TextColorProperty, "TextOnAccent");
-
-        var shareInner = new Grid { Padding = new Thickness(14, 0) };
-        shareInner.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        shareInner.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
-        shareInner.Add(shareIcon,  0, 0);
-        shareInner.Add(shareLabel, 1, 0);
-
-        var shareBtn = new Border
-        {
-            StrokeThickness = 0,
-            StrokeShape     = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 14 },
-            HeightRequest   = 46,
-            Padding         = new Thickness(0),
-            Content         = shareInner
-        };
-        shareBtn.SetDynamicResource(Border.BackgroundColorProperty, "Accent");
-        shareBtn.GestureRecognizers.Add(new TapGestureRecognizer
-        {
-            Command = new Command(() => ShareRequested?.Invoke(_item))
-        });
-
-        var openLabel = new Label
-        {
-            Text           = "Open",
-            FontSize       = 13,
-            FontAttributes = FontAttributes.Bold,
-            VerticalOptions = LayoutOptions.Center
-        };
-        openLabel.SetDynamicResource(Label.TextColorProperty, "TextSecondary");
-
-        var openIcon = new Label
-        {
-            Text           = "\uE2C7",
-            FontFamily     = "MaterialSymbols",
-            FontSize       = 18,
-            VerticalOptions = LayoutOptions.Center,
-            Margin         = new Thickness(0, 0, 8, 0)
-        };
-        openIcon.SetDynamicResource(Label.TextColorProperty, "TextSecondary");
-
-        var openInner = new Grid { Padding = new Thickness(14, 0) };
-        openInner.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        openInner.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
-        openInner.Add(openIcon,  0, 0);
-        openInner.Add(openLabel, 1, 0);
-
-        var openBtn = new Border
-        {
-            StrokeThickness = 1,
-            StrokeShape     = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 14 },
-            HeightRequest   = 46,
-            Padding         = new Thickness(0),
-            Content         = openInner
-        };
-        openBtn.SetDynamicResource(Border.BackgroundColorProperty, "BgInput");
-        openBtn.SetDynamicResource(Border.StrokeProperty, "Stroke");
-        openBtn.GestureRecognizers.Add(new TapGestureRecognizer
-        {
-            Command = new Command(() => OpenRequested?.Invoke(_item))
-        });
+        // ── Action row (done) ─────────────────────────────────────────────────
+        var shareBtn = MakeActionBtn("\uE6B8", "Share", "Accent",   false, () => ShareRequested?.Invoke(_item));
+        var openBtn  = MakeActionBtn("\uE2C7", "Open",  "BgInput",  true,  () => OpenRequested?.Invoke(_item));
 
         var actionGrid = new Grid
         {
@@ -267,91 +226,16 @@ public class DownloadCard : ContentView
                 new ColumnDefinition { Width = new GridLength(12) },
                 new ColumnDefinition { Width = GridLength.Star }
             },
-            Padding    = new Thickness(18, 0, 18, 16),
-            IsVisible  = false
+            Padding   = new Thickness(18, 0, 18, 16),
+            IsVisible = false
         };
         actionGrid.Add(shareBtn, 0, 0);
         actionGrid.Add(openBtn,  2, 0);
         _actionRow = actionGrid;
 
-        var retryLabel = new Label
-        {
-            Text            = "Retry",
-            FontSize        = 13,
-            FontAttributes  = FontAttributes.Bold,
-            VerticalOptions = LayoutOptions.Center
-        };
-        retryLabel.SetDynamicResource(Label.TextColorProperty, "TextOnAccent");
-
-        var retryIcon = new Label
-        {
-            Text            = "\uE5D5",
-            FontFamily      = "MaterialSymbols",
-            FontSize        = 18,
-            VerticalOptions = LayoutOptions.Center,
-            Margin          = new Thickness(0, 0, 8, 0)
-        };
-        retryIcon.SetDynamicResource(Label.TextColorProperty, "TextOnAccent");
-
-        var retryInner = new Grid { Padding = new Thickness(14, 0) };
-        retryInner.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        retryInner.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
-        retryInner.Add(retryIcon,  0, 0);
-        retryInner.Add(retryLabel, 1, 0);
-
-        var retryBtn = new Border
-        {
-            StrokeThickness = 0,
-            StrokeShape     = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 14 },
-            HeightRequest   = 46,
-            Padding         = new Thickness(0),
-            Content         = retryInner
-        };
-        retryBtn.SetDynamicResource(Border.BackgroundColorProperty, "Accent");
-        retryBtn.GestureRecognizers.Add(new TapGestureRecognizer
-        {
-            Command = new Command(() => RetryRequested?.Invoke(_item))
-        });
-
-        var dismissLabel = new Label
-        {
-            Text            = "Dismiss",
-            FontSize        = 13,
-            FontAttributes  = FontAttributes.Bold,
-            VerticalOptions = LayoutOptions.Center
-        };
-        dismissLabel.SetDynamicResource(Label.TextColorProperty, "TextSecondary");
-
-        var dismissIcon = new Label
-        {
-            Text            = "\uE5CD",
-            FontFamily      = "MaterialSymbols",
-            FontSize        = 18,
-            VerticalOptions = LayoutOptions.Center,
-            Margin          = new Thickness(0, 0, 8, 0)
-        };
-        dismissIcon.SetDynamicResource(Label.TextColorProperty, "TextSecondary");
-
-        var dismissInner = new Grid { Padding = new Thickness(14, 0) };
-        dismissInner.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        dismissInner.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
-        dismissInner.Add(dismissIcon,  0, 0);
-        dismissInner.Add(dismissLabel, 1, 0);
-
-        var dismissBtn = new Border
-        {
-            StrokeThickness = 1,
-            StrokeShape     = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 14 },
-            HeightRequest   = 46,
-            Padding         = new Thickness(0),
-            Content         = dismissInner
-        };
-        dismissBtn.SetDynamicResource(Border.BackgroundColorProperty, "BgInput");
-        dismissBtn.SetDynamicResource(Border.StrokeProperty, "Stroke");
-        dismissBtn.GestureRecognizers.Add(new TapGestureRecognizer
-        {
-            Command = new Command(() => DismissRequested?.Invoke(_item))
-        });
+        // ── Retry row (failed/cancelled) ──────────────────────────────────────
+        var retryBtn   = MakeActionBtn("\uE5D5", "Retry",   "Accent",  false, () => RetryRequested?.Invoke(_item));
+        var dismissBtn = MakeActionBtn("\uE5CD", "Dismiss", "BgInput", true,  () => DismissRequested?.Invoke(_item));
 
         var retryGrid = new Grid
         {
@@ -368,9 +252,34 @@ public class DownloadCard : ContentView
         retryGrid.Add(dismissBtn, 2, 0);
         _retryRow = retryGrid;
 
+        // ── Log section ───────────────────────────────────────────────────────
+        var logDivider = new BoxView
+        {
+            HeightRequest     = 1,
+            HorizontalOptions = LayoutOptions.Fill,
+            Margin            = new Thickness(18, 0)
+        };
+        logDivider.SetDynamicResource(BoxView.ColorProperty, "Divider");
+
+        _logLabel = new Label
+        {
+            FontSize      = 10,
+            FontFamily    = "Monospace",
+            LineBreakMode = LineBreakMode.WordWrap,
+            Margin        = new Thickness(18, 10, 18, 14),
+        };
+        _logLabel.SetDynamicResource(Label.TextColorProperty, "TextMuted");
+
+        _logSection = new VerticalStackLayout
+        {
+            IsVisible = false,
+            Children  = { logDivider, _logLabel }
+        };
+
+        // ── Card assembly ─────────────────────────────────────────────────────
         var cardInner = new VerticalStackLayout
         {
-            Children = { headerGrid, _progressSection, _actionRow, _retryRow }
+            Children = { headerGrid, _progressSection, _actionRow, _retryRow, _logSection }
         };
 
         var card = new Border
@@ -383,76 +292,143 @@ public class DownloadCard : ContentView
         card.SetDynamicResource(Border.BackgroundColorProperty, "BgCard");
         card.SetDynamicResource(Border.StrokeProperty, "Stroke");
 
-        // Track width for progress fill
         card.SizeChanged += (s, e) =>
         {
-            _cardWidth = card.Width - 36; // subtract padding
+            _cardWidth = card.Width - 36;
             UpdateProgressFill();
         };
 
         Content = card;
 
-        // Subscribe to live updates
         _item.PropertyChanged += OnItemPropertyChanged;
-
-        // Apply initial state
         Refresh();
     }
 
+    // ── Log toggle ────────────────────────────────────────────────────────────
+
+    private async void ToggleLog()
+    {
+        _logExpanded = !_logExpanded;
+
+        // Rotate the chevron icon
+        await _logToggleIcon.RotateToAsync(_logExpanded ? 180 : 0, 200, Easing.CubicOut);
+
+        if (_logExpanded)
+        {
+            // Update log text before showing
+            _logLabel.Text    = string.IsNullOrWhiteSpace(_item.LogText)
+                ? "(no log yet)"
+                : _item.LogText.TrimEnd();
+            _logSection.Opacity      = 0;
+            _logSection.IsVisible    = true;
+            await _logSection.FadeToAsync(1.0, 180, Easing.CubicOut);
+        }
+        else
+        {
+            await _logSection.FadeToAsync(0, 150, Easing.CubicIn);
+            _logSection.IsVisible = false;
+        }
+    }
+
+    // ── Property change ───────────────────────────────────────────────────────
+
     private void OnItemPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        MainThread.BeginInvokeOnMainThread(Refresh);
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            Refresh();
+            // Keep log text live while expanded
+            if (_logExpanded && e.PropertyName == nameof(DownloadItem.LogText))
+                _logLabel.Text = string.IsNullOrWhiteSpace(_item.LogText)
+                    ? "(no log yet)"
+                    : _item.LogText.TrimEnd();
+        });
     }
 
     private void Refresh()
     {
-        _titleLabel.Text      = _item.Title;
-        _authorLabel.Text     = _item.Author;
+        _titleLabel.Text       = _item.Title;
+        _authorLabel.Text      = _item.Author;
         _authorLabel.IsVisible = !string.IsNullOrEmpty(_item.Author);
-        _statusTextLabel.Text = _item.StatusText;
-        _pctLabel.Text        = _item.ProgressPct;
+        _statusTextLabel.Text  = _item.StatusText;
+        _pctLabel.Text         = _item.ProgressPct;
 
-        // Status dot color + icon
         _statusDot.BackgroundColor = _item.StatusColor.WithAlpha(0.15f);
         _statusIconLabel.Text      = _item.StatusIcon;
         _statusIconLabel.TextColor = _item.StatusColor;
 
-        // Progress fill
         UpdateProgressFill();
 
-        // Show/hide sections based on state
-        bool running  = _item.IsRunning;
-        bool done     = _item.IsDone;
-        bool finished = _item.IsFinished;
+        bool running = _item.IsRunning;
+        bool done    = _item.IsDone;
 
         _cancelBtn.IsVisible       = running;
         _progressSection.IsVisible = running;
         _actionRow.IsVisible       = done;
         _retryRow.IsVisible        = _item.IsFailed || _item.IsCancelled;
 
-        // Card border accent for done/failed
         if (done)
-        {
             ((Border)Content).SetDynamicResource(Border.StrokeProperty, "Success");
-        }
         else if (_item.IsFailed)
-        {
             ((Border)Content).SetDynamicResource(Border.StrokeProperty, "Danger");
-        }
         else if (_item.IsCancelled)
-        {
             ((Border)Content).SetDynamicResource(Border.StrokeProperty, "Warning");
-        }
         else
-        {
             ((Border)Content).SetDynamicResource(Border.StrokeProperty, "Stroke");
-        }
     }
 
     private void UpdateProgressFill()
     {
         if (_cardWidth <= 0) return;
-        double fillWidth = _cardWidth * _item.Progress;
-        _progressFill.WidthRequest = Math.Max(0, fillWidth);
+        _progressFill.WidthRequest = Math.Max(0, _cardWidth * _item.Progress);
+    }
+
+    // ── Helper ────────────────────────────────────────────────────────────────
+
+    private static Border MakeActionBtn(string icon, string text, string bgKey,
+        bool outlined, Action onTap)
+    {
+        var iconLbl = new Label
+        {
+            Text            = icon,
+            FontFamily      = "MaterialSymbols",
+            FontSize        = 18,
+            VerticalOptions = LayoutOptions.Center,
+            Margin          = new Thickness(0, 0, 8, 0)
+        };
+        var textLbl = new Label
+        {
+            Text            = text,
+            FontSize        = 13,
+            FontAttributes  = FontAttributes.Bold,
+            VerticalOptions = LayoutOptions.Center
+        };
+
+        string colorKey = outlined ? "TextSecondary" : "TextOnAccent";
+        iconLbl.SetDynamicResource(Label.TextColorProperty, colorKey);
+        textLbl.SetDynamicResource(Label.TextColorProperty, colorKey);
+
+        var inner = new Grid { Padding = new Thickness(14, 0) };
+        inner.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        inner.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
+        inner.Add(iconLbl, 0, 0);
+        inner.Add(textLbl, 1, 0);
+
+        var btn = new Border
+        {
+            StrokeThickness = outlined ? 1 : 0,
+            StrokeShape     = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 14 },
+            HeightRequest   = 46,
+            Padding         = new Thickness(0),
+            Content         = inner
+        };
+        btn.SetDynamicResource(Border.BackgroundColorProperty, bgKey);
+        if (outlined) btn.SetDynamicResource(Border.StrokeProperty, "Stroke");
+
+        btn.GestureRecognizers.Add(new TapGestureRecognizer
+        {
+            Command = new Command(onTap)
+        });
+        return btn;
     }
 }
