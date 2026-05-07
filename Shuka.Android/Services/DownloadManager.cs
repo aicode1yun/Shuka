@@ -223,6 +223,16 @@ public class DownloadManager
                 item.Status     = DownloadStatus.Cancelled;
             });
         }
+        catch (Shuka.Core.CloudflareExpiredException ex)
+        {
+            Log($"Cloudflare cookie expired for {ex.SiteUrl}.");
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                item.StatusText = "Failed: Cloudflare cookie expired";
+                item.Status     = DownloadStatus.Failed;
+            });
+            NotifyCloudflareCookieExpired(ex.SiteUrl);
+        }
         catch (Exception ex)
         {
             Log($"Error: {ex.Message}");
@@ -316,6 +326,67 @@ public class DownloadManager
 #endif
         Directory.CreateDirectory(dir);
         return dir;
+    }
+
+    /// <summary>
+    /// Posts a notification telling the user their Cloudflare cookie has expired.
+    /// Tapping the notification opens the site in the browser so they can solve
+    /// the challenge — after which the download can be retried.
+    /// </summary>
+    private static void NotifyCloudflareCookieExpired(string siteHost)
+    {
+#if ANDROID
+        const string ChannelId = "shuka_cf_channel";
+        var ctx = global::Android.App.Application.Context;
+
+        // Ensure notification channel exists
+        if (global::Android.OS.Build.VERSION.SdkInt >= global::Android.OS.BuildVersionCodes.O)
+        {
+#pragma warning disable CA1416
+            var nm = (global::Android.App.NotificationManager?)
+                ctx.GetSystemService(global::Android.Content.Context.NotificationService);
+            if (nm?.GetNotificationChannel(ChannelId) == null)
+            {
+                var ch = new global::Android.App.NotificationChannel(
+                    ChannelId, "Cloudflare Alerts",
+                    global::Android.App.NotificationImportance.High)
+                {
+                    Description = "Alerts when Cloudflare cookie needs renewal"
+                };
+                nm?.CreateNotificationChannel(ch);
+            }
+#pragma warning restore CA1416
+        }
+
+        // Intent: open the site in the browser so the user can solve the challenge
+        var browserIntent = new global::Android.Content.Intent(
+            global::Android.Content.Intent.ActionView,
+            global::Android.Net.Uri.Parse($"https://{siteHost}"));
+        browserIntent.AddFlags(global::Android.Content.ActivityFlags.NewTask);
+
+#pragma warning disable CA1416
+        var pendingFlags = global::Android.OS.Build.VERSION.SdkInt >=
+                           global::Android.OS.BuildVersionCodes.M
+            ? global::Android.App.PendingIntentFlags.UpdateCurrent |
+              global::Android.App.PendingIntentFlags.Immutable
+            : global::Android.App.PendingIntentFlags.UpdateCurrent;
+#pragma warning restore CA1416
+
+        var pi = global::Android.App.PendingIntent.GetActivity(
+            ctx, siteHost.GetHashCode(), browserIntent, pendingFlags);
+
+        var notification = new AndroidX.Core.App.NotificationCompat.Builder(ctx, ChannelId)
+            .SetContentTitle("Cloudflare verification needed")
+            .SetContentText($"Tap to open {siteHost} in your browser and complete the check, then retry the download.")
+            .SetSmallIcon(global::Android.Resource.Drawable.StatSysWarning)
+            .SetAutoCancel(true)
+            .SetContentIntent(pi!)
+            .SetPriority(AndroidX.Core.App.NotificationCompat.PriorityHigh)
+            .Build()!;
+
+        var mgr = AndroidX.Core.App.NotificationManagerCompat.From(ctx);
+        mgr?.Notify(Math.Abs(siteHost.GetHashCode() % 9000) + 3000, notification);
+#endif
     }
 
     public static string GetOutputDirectory()

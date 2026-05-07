@@ -55,6 +55,7 @@ public class WebViewCloudflareBypass : ICloudflareBypass
 
                 string? html = null;
                 int waited = 0;
+                bool timedOut = false;
 
                 while (waited < MaxWaitMs)
                 {
@@ -73,14 +74,28 @@ public class WebViewCloudflareBypass : ICloudflareBypass
                         (html.Contains("cloudflare") && html.Contains("checking"));
 
                     if (!isChallenge) break;
+
+                    // If we've exhausted the wait time, flag it
+                    if (waited >= MaxWaitMs) timedOut = true;
                 }
 
                 // For czbooks index pages, also wait for chapter links to render
-                if (url.Contains("czbooks.net/n/") &&
+                if (!timedOut && url.Contains("czbooks.net/n/") &&
                     !Regex.IsMatch(url, @"czbooks\.net/n/[^/]+/[^/]+"))
                 {
                     await WaitForCzBooksChaptersAsync(webView);
                     html = await GetPageHtmlAsync(webView);
+                }
+
+                // If we timed out still on a challenge page, the cookie has expired
+                if (timedOut || (html != null && (
+                    html.Contains("cf-chl-opt") ||
+                    html.Contains("cf-browser-verification") ||
+                    (html.Contains("cloudflare") && html.Contains("checking")))))
+                {
+                    tcs.TrySetException(new Shuka.Core.CloudflareExpiredException(
+                        new Uri(url).Host));
+                    return;
                 }
 
                 tcs.TrySetResult(html ?? "");
