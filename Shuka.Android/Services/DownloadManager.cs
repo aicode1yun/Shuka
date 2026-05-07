@@ -375,14 +375,18 @@ public class DownloadManager
         var pi = global::Android.App.PendingIntent.GetActivity(
             ctx, siteHost.GetHashCode(), browserIntent, pendingFlags);
 
+        if (pi == null) return;
+
+#pragma warning disable CS8602
         var notification = new AndroidX.Core.App.NotificationCompat.Builder(ctx, ChannelId)
             .SetContentTitle("Cloudflare verification needed")
             .SetContentText($"Tap to open {siteHost} in your browser and complete the check, then retry the download.")
             .SetSmallIcon(global::Android.Resource.Drawable.StatSysWarning)
             .SetAutoCancel(true)
-            .SetContentIntent(pi!)
+            .SetContentIntent(pi)
             .SetPriority(AndroidX.Core.App.NotificationCompat.PriorityHigh)
             .Build()!;
+#pragma warning restore CS8602
 
         var mgr = AndroidX.Core.App.NotificationManagerCompat.From(ctx);
         mgr?.Notify(Math.Abs(siteHost.GetHashCode() % 9000) + 3000, notification);
