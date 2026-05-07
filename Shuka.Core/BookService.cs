@@ -107,7 +107,7 @@ public class BookService
 
             // Fetch with per-chapter retry
             string html = "";
-            for (int fetchAttempt = 1; fetchAttempt <= 3; fetchAttempt++)
+            for (int fetchAttempt = 1; fetchAttempt <= 5; fetchAttempt++)
             {
                 try
                 {
@@ -117,24 +117,27 @@ public class BookService
                 catch (OperationCanceledException) { throw; }
                 catch (Exception ex)
                 {
-                    if (fetchAttempt == 3)
+                    if (fetchAttempt == 5)
                     {
-                        log?.Invoke($"[fetch failed ch{i + 1} after 3 attempts] {ex.Message}");
+                        log?.Invoke($"[fetch failed ch{i + 1} after 5 attempts] {ex.Message}");
                         html = "";
                     }
                     else
                     {
-                        await Task.Delay(1000 * fetchAttempt, ct);
+                        int delaySec = Math.Min(fetchAttempt * 2, 10);
+                        log?.Invoke($"[fetch retry {fetchAttempt}/5 ch{i + 1}] {ex.Message} — waiting {delaySec}s");
+                        await Task.Delay(delaySec * 1000, ct);
                     }
                 }
             }
 
-            // Translate with per-chapter retry
+            // Translate with per-chapter retry — more attempts + longer backoff
+            // for large novels where Google rate-limits more aggressively
             var paras = book.Adapter.ExtractChapterText(html);
             string text = "";
             if (paras.Count > 0)
             {
-                for (int transAttempt = 1; transAttempt <= 3; transAttempt++)
+                for (int transAttempt = 1; transAttempt <= 6; transAttempt++)
                 {
                     try
                     {
@@ -144,14 +147,17 @@ public class BookService
                     catch (OperationCanceledException) { throw; }
                     catch (Exception ex)
                     {
-                        if (transAttempt == 3)
+                        if (transAttempt == 6)
                         {
-                            log?.Invoke($"[translate failed ch{i + 1}] {ex.Message} — keeping original");
+                            log?.Invoke($"[translate failed ch{i + 1} after 6 attempts] {ex.Message} — keeping original");
                             text = string.Join("\n", paras);
                         }
                         else
                         {
-                            await Task.Delay(1000 * transAttempt, ct);
+                            // Exponential backoff: 2s, 4s, 8s, 16s, 30s max
+                            int delaySec = Math.Min((int)Math.Pow(2, transAttempt), 30);
+                            log?.Invoke($"[translate retry {transAttempt}/6 ch{i + 1}] waiting {delaySec}s...");
+                            await Task.Delay(delaySec * 1000, ct);
                         }
                     }
                 }

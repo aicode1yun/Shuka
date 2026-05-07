@@ -172,11 +172,12 @@ public class DownloadManager
             {
                 epubPath = await service.ProcessBook(book, tempPath, progress, Log, ct);
             }
-            catch (OperationCanceledException ex) when (ex is TaskCanceledException tce
-                && tce.CancellationToken != ct
-                && !ct.IsCancellationRequested)
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {
-                throw new Exception("Request timed out. Check your connection and retry.");
+                // A timeout on a single HTTP request — BookService already retries
+                // per-chapter, so this should not surface here. If it does, treat
+                // it as a generic failure rather than a connection error message.
+                throw new Exception("A request timed out during processing. Please retry.");
             }
 
             ct.ThrowIfCancellationRequested();
