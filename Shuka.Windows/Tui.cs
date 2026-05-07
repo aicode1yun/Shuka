@@ -242,16 +242,12 @@ internal static class Tui
 
     private static void RenderHeader()
     {
+        // Plain styled header — always fits regardless of terminal width
+        AnsiConsole.WriteLine();
         AnsiConsole.Write(
-            new FigletText("Shuka")
-                .Centered()
-                .Color(Color.IndianRed1));
-
-        AnsiConsole.Write(
-            new Rule("[grey]Chinese → English EPUB Downloader[/]")
-                .RuleStyle(Style.Parse("grey"))
-                .Centered());
-
+            new Markup("[bold indianred1]  ╔══════════════════════════════════════╗[/]\n" +
+                       "[bold indianred1]  ║[/]  [bold white]Shuka[/]  [grey]Chinese → English EPUB[/]  [bold indianred1]║[/]\n" +
+                       "[bold indianred1]  ╚══════════════════════════════════════╝[/]\n"));
         AnsiConsole.WriteLine();
     }
 }
