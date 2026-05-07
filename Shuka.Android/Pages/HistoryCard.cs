@@ -11,6 +11,7 @@ public class HistoryCard : ContentView
     public event Action<HistoryEntry>? OpenRequested;
     public event Action<HistoryEntry>? ShareRequested;
     public event Action<HistoryEntry>? DeleteRequested;
+    public event Action<HistoryEntry>? RedownloadRequested;
 
     private readonly HistoryEntry _entry;
 
@@ -114,26 +115,50 @@ public class HistoryCard : ContentView
             Children        = { titleLabel, authorLabel, metaLabel, fileLabel }
         };
 
-        // ── Action buttons ────────────────────────────────────────────────────
-        var openBtn  = MakeActionBtn("\uE2C7", "Open",   "Accent",    () => OpenRequested?.Invoke(_entry));
-        var shareBtn = MakeActionBtn("\uE6B8", "Share",  "BgInput",   () => ShareRequested?.Invoke(_entry), outlined: true);
-        var delBtn   = MakeActionBtn("\uE872", "Remove", "BgInput",   () => DeleteRequested?.Invoke(_entry), outlined: true, danger: true);
-
-        var btnRow = new Grid
+        // ── Action buttons — differ based on whether file exists ─────────────
+        Grid btnRow;
+        if (fileExists)
         {
-            ColumnDefinitions = new ColumnDefinitionCollection
+            // File present: Open · Share · Remove
+            var openBtn  = MakeActionBtn("\uE2C7", "Open",   "Accent",  () => OpenRequested?.Invoke(_entry));
+            var shareBtn = MakeActionBtn("\uE6B8", "Share",  "BgInput", () => ShareRequested?.Invoke(_entry),  outlined: true);
+            var delBtn   = MakeActionBtn("\uE872", "Remove", "BgInput", () => DeleteRequested?.Invoke(_entry), outlined: true, danger: true);
+
+            btnRow = new Grid
             {
-                new ColumnDefinition { Width = GridLength.Star },
-                new ColumnDefinition { Width = new GridLength(8) },
-                new ColumnDefinition { Width = GridLength.Star },
-                new ColumnDefinition { Width = new GridLength(8) },
-                new ColumnDefinition { Width = GridLength.Star },
-            },
-            Margin = new Thickness(0, 8, 0, 0),
-        };
-        btnRow.Add(openBtn,  0, 0);
-        btnRow.Add(shareBtn, 2, 0);
-        btnRow.Add(delBtn,   4, 0);
+                ColumnDefinitions = new ColumnDefinitionCollection
+                {
+                    new ColumnDefinition { Width = GridLength.Star },
+                    new ColumnDefinition { Width = new GridLength(8) },
+                    new ColumnDefinition { Width = GridLength.Star },
+                    new ColumnDefinition { Width = new GridLength(8) },
+                    new ColumnDefinition { Width = GridLength.Star },
+                },
+                Margin = new Thickness(0, 8, 0, 0),
+            };
+            btnRow.Add(openBtn,  0, 0);
+            btnRow.Add(shareBtn, 2, 0);
+            btnRow.Add(delBtn,   4, 0);
+        }
+        else
+        {
+            // File missing: Re-download · Remove
+            var redownloadBtn = MakeActionBtn("\uF090", "Re-download", "Accent",  () => RedownloadRequested?.Invoke(_entry));
+            var delBtn        = MakeActionBtn("\uE872", "Remove",      "BgInput", () => DeleteRequested?.Invoke(_entry), outlined: true, danger: true);
+
+            btnRow = new Grid
+            {
+                ColumnDefinitions = new ColumnDefinitionCollection
+                {
+                    new ColumnDefinition { Width = GridLength.Star },
+                    new ColumnDefinition { Width = new GridLength(8) },
+                    new ColumnDefinition { Width = GridLength.Star },
+                },
+                Margin = new Thickness(0, 8, 0, 0),
+            };
+            btnRow.Add(redownloadBtn, 0, 0);
+            btnRow.Add(delBtn,        2, 0);
+        }
 
         var rightStack = new VerticalStackLayout
         {
@@ -163,7 +188,11 @@ public class HistoryCard : ContentView
             Content         = contentGrid,
         };
         card.SetDynamicResource(Border.BackgroundColorProperty, "BgCard");
-        card.SetDynamicResource(Border.StrokeProperty, "Stroke");
+        // Amber border when file is missing so it stands out
+        if (fileExists)
+            card.SetDynamicResource(Border.StrokeProperty, "Stroke");
+        else
+            card.SetDynamicResource(Border.StrokeProperty, "Warning");
 
         Content = card;
     }

@@ -95,9 +95,10 @@ public partial class HistoryPage : ContentPage
     private HistoryCard BuildCard(HistoryEntry entry)
     {
         var card = new HistoryCard(entry);
-        card.OpenRequested   += OnOpenRequested;
-        card.ShareRequested  += OnShareRequested;
-        card.DeleteRequested += OnDeleteRequested;
+        card.OpenRequested        += OnOpenRequested;
+        card.ShareRequested       += OnShareRequested;
+        card.DeleteRequested      += OnDeleteRequested;
+        card.RedownloadRequested  += OnRedownloadRequested;
         return card;
     }
 
@@ -324,5 +325,32 @@ public partial class HistoryPage : ContentPage
 
         if (confirm)
             await HistoryService.Instance.RemoveAsync(entry);
+    }
+
+    private async void OnRedownloadRequested(HistoryEntry entry)
+    {
+        bool confirm = await DisplayAlertAsync(
+            "Re-download",
+            $"Re-download \"{entry.Title}\"?\n\nThis will queue a new download using the original URL.",
+            "Download", "Cancel");
+
+        if (!confirm) return;
+
+        // Check for an existing active download for this URL
+        var existing = DownloadManager.Instance.FindExisting(entry.Url);
+        if (existing != null && existing.IsRunning)
+        {
+            await DisplayAlertAsync("Already Downloading",
+                "This novel is already in the download queue.", "OK");
+            return;
+        }
+
+        // Enqueue via DownloadManager — same as tapping Download on the Home tab
+        DownloadManager.Instance.Enqueue(entry.Url, entry.ChapterCount,
+            string.IsNullOrWhiteSpace(entry.CoverUrl) ? null : entry.CoverUrl);
+
+        // Navigate to Downloads tab so the user can watch progress
+        if (Shell.Current != null)
+            await Shell.Current.GoToAsync("//DownloadsPage");
     }
 }
