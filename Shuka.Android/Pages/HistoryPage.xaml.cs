@@ -8,6 +8,10 @@ public partial class HistoryPage : ContentPage
     private readonly Dictionary<Guid, HistoryCard> _cards = new();
     private string _searchQuery = "";
 
+    private enum SortField { Date, Title, Author }
+    private SortField _sortField     = SortField.Date;
+    private bool      _sortAscending = false; // date defaults to newest-first
+
     public HistoryPage()
     {
         InitializeComponent();
@@ -16,7 +20,8 @@ public partial class HistoryPage : ContentPage
         foreach (var entry in HistoryService.Instance.Entries)
             AddCard(entry);
 
-        RefreshEmptyState();
+        RefreshSortPills();
+        ApplyFilter();
         UpdateCountLabel();
     }
 
@@ -59,7 +64,7 @@ public partial class HistoryPage : ContentPage
         if (_cards.ContainsKey(entry.Id)) return;
         var card = BuildCard(entry);
         _cards[entry.Id] = card;
-        CardList.Insert(0, card);
+        CardList.Add(card); // order managed by RebuildCardOrder
     }
 
     private async Task AddCardWithAnimationAsync(HistoryEntry entry)
@@ -70,7 +75,7 @@ public partial class HistoryPage : ContentPage
         card.TranslationY = -20;
         card.Scale = 0.95;
         _cards[entry.Id] = card;
-        CardList.Insert(0, card);
+        CardList.Add(card);
         await Task.WhenAll(
             card.FadeToAsync(1.0, 350, Easing.CubicOut),
             card.TranslateToAsync(0, 0, 350, Easing.CubicOut),
@@ -96,6 +101,78 @@ public partial class HistoryPage : ContentPage
         return card;
     }
 
+    // ── Sort ──────────────────────────────────────────────────────────────────
+
+    private void OnSortDateTapped(object sender, TappedEventArgs e)
+    {
+        if (_sortField == SortField.Date)
+            _sortAscending = !_sortAscending;
+        else
+        {
+            _sortField     = SortField.Date;
+            _sortAscending = false; // newest first by default
+        }
+        RefreshSortPills();
+        ApplyFilter();
+    }
+
+    private void OnSortTitleTapped(object sender, TappedEventArgs e)
+    {
+        if (_sortField == SortField.Title)
+            _sortAscending = !_sortAscending;
+        else
+        {
+            _sortField     = SortField.Title;
+            _sortAscending = true; // A→Z by default
+        }
+        RefreshSortPills();
+        ApplyFilter();
+    }
+
+    private void OnSortAuthorTapped(object sender, TappedEventArgs e)
+    {
+        if (_sortField == SortField.Author)
+            _sortAscending = !_sortAscending;
+        else
+        {
+            _sortField     = SortField.Author;
+            _sortAscending = true; // A→Z by default
+        }
+        RefreshSortPills();
+        ApplyFilter();
+    }
+
+    private void RefreshSortPills()
+    {
+        SetPill(SortDatePill,   SortDateIcon,   SortDateLabel,   SortDateArrow,   SortField.Date);
+        SetPill(SortTitlePill,  SortTitleIcon,  SortTitleLabel,  SortTitleArrow,  SortField.Title);
+        SetPill(SortAuthorPill, SortAuthorIcon, SortAuthorLabel, SortAuthorArrow, SortField.Author);
+    }
+
+    private void SetPill(Border pill, Label icon, Label label, Label arrow, SortField field)
+    {
+        bool active = _sortField == field;
+
+        if (active)
+        {
+            pill.SetDynamicResource(Border.BackgroundColorProperty, "AccentContainer");
+            pill.SetDynamicResource(Border.StrokeProperty, "AccentLight");
+            icon.SetDynamicResource(Label.TextColorProperty, "AccentLight");
+            label.SetDynamicResource(Label.TextColorProperty, "AccentLight");
+            arrow.IsVisible = true;
+            arrow.Text = _sortAscending ? "\uE5C7" : "\uE5C5"; // arrow_drop_up / arrow_drop_down
+            arrow.SetDynamicResource(Label.TextColorProperty, "AccentLight");
+        }
+        else
+        {
+            pill.SetDynamicResource(Border.BackgroundColorProperty, "BgInput");
+            pill.SetDynamicResource(Border.StrokeProperty, "Stroke");
+            icon.SetDynamicResource(Label.TextColorProperty, "TextMuted");
+            label.SetDynamicResource(Label.TextColorProperty, "TextMuted");
+            arrow.IsVisible = false;
+        }
+    }
+
     // ── Search ────────────────────────────────────────────────────────────────
 
     private void OnSearchTextChanged(object sender, TextChangedEventArgs e)
@@ -113,35 +190,39 @@ public partial class HistoryPage : ContentPage
         ApplyFilter();
     }
 
-    /// <summary>
-    /// Shows/hides cards based on the current search query.
-    /// Matches against title and author (case-insensitive).
-    /// </summary>
+    // ── Filter + Sort ─────────────────────────────────────────────────────────
+
     private void ApplyFilter()
     {
-        bool hasEntries = HistoryService.Instance.Entries.Count > 0;
+        bool hasEntries  = HistoryService.Instance.Entries.Count > 0;
         bool isSearching = !string.IsNullOrEmpty(_searchQuery);
 
         if (!hasEntries)
         {
-            EmptyState.IsVisible    = true;
+            EmptyState.IsVisible     = true;
             NoResultsState.IsVisible = false;
-            ListScroll.IsVisible    = false;
+            ListScroll.IsVisible     = false;
             return;
         }
 
-        int visibleCount = 0;
-        foreach (var entry in HistoryService.Instance.Entries)
+        // Get sorted + filtered entries
+        var sorted = GetSortedEntries();
+        var filtered = isSearching
+            ? sorted.Where(e =>
+                e.Title.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase) ||
+                e.Author.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase))
+              .ToList()
+            : sorted;
+
+        // Rebuild card order in CardList to match sorted order
+        CardList.Clear();
+        foreach (var entry in filtered)
         {
-            if (!_cards.TryGetValue(entry.Id, out var card)) continue;
-
-            bool matches = !isSearching ||
-                entry.Title.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase) ||
-                entry.Author.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase);
-
-            card.IsVisible = matches;
-            if (matches) visibleCount++;
+            if (_cards.TryGetValue(entry.Id, out var card))
+                CardList.Add(card);
         }
+
+        int visibleCount = filtered.Count();
 
         EmptyState.IsVisible     = false;
         ListScroll.IsVisible     = visibleCount > 0;
@@ -151,10 +232,22 @@ public partial class HistoryPage : ContentPage
             NoResultsLabel.Text = $"No results for \"{_searchQuery}\"";
     }
 
-    private void RefreshEmptyState()
+    private IEnumerable<HistoryEntry> GetSortedEntries()
     {
-        ApplyFilter();
+        var entries = HistoryService.Instance.Entries.AsEnumerable();
+        return (_sortField, _sortAscending) switch
+        {
+            (SortField.Date,   false) => entries.OrderByDescending(e => e.CompletedAt),
+            (SortField.Date,   true)  => entries.OrderBy(e => e.CompletedAt),
+            (SortField.Title,  true)  => entries.OrderBy(e => e.Title, StringComparer.OrdinalIgnoreCase),
+            (SortField.Title,  false) => entries.OrderByDescending(e => e.Title, StringComparer.OrdinalIgnoreCase),
+            (SortField.Author, true)  => entries.OrderBy(e => e.Author, StringComparer.OrdinalIgnoreCase),
+            (SortField.Author, false) => entries.OrderByDescending(e => e.Author, StringComparer.OrdinalIgnoreCase),
+            _                         => entries.OrderByDescending(e => e.CompletedAt),
+        };
     }
+
+    private void RefreshEmptyState() => ApplyFilter();
 
     private void UpdateCountLabel()
     {

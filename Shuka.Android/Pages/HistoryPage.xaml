@@ -4,7 +4,7 @@
              x:Class="Shuka.Android.Pages.HistoryPage"
              BackgroundColor="{DynamicResource BgPage}">
 
-    <Grid RowDefinitions="Auto,Auto,*">
+    <Grid RowDefinitions="Auto,Auto,Auto,*">
 
         <!-- ── Top App Bar ──────────────────────────────────── -->
         <Grid Grid.Row="0"
@@ -68,7 +68,7 @@
         <Border Grid.Row="1"
                 BackgroundColor="{DynamicResource BgCard}"
                 StrokeThickness="0"
-                Padding="16,10,16,14">
+                Padding="16,10,16,0">
             <Border Stroke="{DynamicResource Stroke}"
                     StrokeThickness="1.5"
                     StrokeShape="RoundRectangle 14"
@@ -104,8 +104,97 @@
             </Border>
         </Border>
 
+        <!-- ── Sort pills ─────────────────────────────────────── -->
+        <Border Grid.Row="2"
+                BackgroundColor="{DynamicResource BgCard}"
+                StrokeThickness="0"
+                Padding="16,10,16,14">
+            <HorizontalStackLayout Spacing="8">
+                <!-- Date pill -->
+                <Border x:Name="SortDatePill"
+                        StrokeThickness="1"
+                        StrokeShape="RoundRectangle 20"
+                        Padding="12,6">
+                    <HorizontalStackLayout Spacing="5">
+                        <Label x:Name="SortDateIcon"
+                               Text="&#xE8B6;"
+                               FontFamily="{DynamicResource IconFont}"
+                               FontSize="13"
+                               VerticalOptions="Center" />
+                        <Label x:Name="SortDateLabel"
+                               Text="Date"
+                               FontSize="12"
+                               FontAttributes="Bold"
+                               VerticalOptions="Center" />
+                        <Label x:Name="SortDateArrow"
+                               FontFamily="{DynamicResource IconFont}"
+                               FontSize="13"
+                               VerticalOptions="Center"
+                               IsVisible="False" />
+                    </HorizontalStackLayout>
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnSortDateTapped" />
+                    </Border.GestureRecognizers>
+                </Border>
+
+                <!-- Title pill -->
+                <Border x:Name="SortTitlePill"
+                        StrokeThickness="1"
+                        StrokeShape="RoundRectangle 20"
+                        Padding="12,6">
+                    <HorizontalStackLayout Spacing="5">
+                        <Label x:Name="SortTitleIcon"
+                               Text="&#xE264;"
+                               FontFamily="{DynamicResource IconFont}"
+                               FontSize="13"
+                               VerticalOptions="Center" />
+                        <Label x:Name="SortTitleLabel"
+                               Text="Title"
+                               FontSize="12"
+                               FontAttributes="Bold"
+                               VerticalOptions="Center" />
+                        <Label x:Name="SortTitleArrow"
+                               FontFamily="{DynamicResource IconFont}"
+                               FontSize="13"
+                               VerticalOptions="Center"
+                               IsVisible="False" />
+                    </HorizontalStackLayout>
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnSortTitleTapped" />
+                    </Border.GestureRecognizers>
+                </Border>
+
+                <!-- Author pill -->
+                <Border x:Name="SortAuthorPill"
+                        StrokeThickness="1"
+                        StrokeShape="RoundRectangle 20"
+                        Padding="12,6">
+                    <HorizontalStackLayout Spacing="5">
+                        <Label x:Name="SortAuthorIcon"
+                               Text="&#xE7FD;"
+                               FontFamily="{DynamicResource IconFont}"
+                               FontSize="13"
+                               VerticalOptions="Center" />
+                        <Label x:Name="SortAuthorLabel"
+                               Text="Author"
+                               FontSize="12"
+                               FontAttributes="Bold"
+                               VerticalOptions="Center" />
+                        <Label x:Name="SortAuthorArrow"
+                               FontFamily="{DynamicResource IconFont}"
+                               FontSize="13"
+                               VerticalOptions="Center"
+                               IsVisible="False" />
+                    </HorizontalStackLayout>
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnSortAuthorTapped" />
+                    </Border.GestureRecognizers>
+                </Border>
+            </HorizontalStackLayout>
+        </Border>
+
         <!-- ── Body ─────────────────────────────────────────── -->
-        <Grid Grid.Row="2" x:Name="BodyGrid">
+        <Grid Grid.Row="3" x:Name="BodyGrid">
 
             <!-- Empty state (no novels at all) -->
             <VerticalStackLayout x:Name="EmptyState"
