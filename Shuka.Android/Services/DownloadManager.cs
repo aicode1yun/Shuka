@@ -94,7 +94,6 @@ public class DownloadManager
 
     private const string PrefKeyDownloadPath    = "download_output_path";
     private const string PrefKeyDownloadTreeUri = "download_tree_uri";
-    private const int MaxRetries = 5;
 
     private async Task RunAsync(DownloadItem item)
     {
@@ -169,36 +168,15 @@ public class DownloadManager
             tempPath = Path.Combine(cacheDir, $"_shuka_{item.Id:N}.epub");
 
             string epubPath = "";
-            int attempt = 0;
-            while (true)
+            try
             {
-                ct.ThrowIfCancellationRequested();
-                try
-                {
-                    epubPath = await service.ProcessBook(book, tempPath, progress, Log, ct);
-                    break;
-                }
-                catch (OperationCanceledException ex) when (ex is TaskCanceledException tce
-                    && tce.CancellationToken != ct
-                    && !ct.IsCancellationRequested)
-                {
-                    // HttpClient timeout — treat as a retryable failure, not a user cancellation
-                    Log($"Error (attempt {attempt}/{MaxRetries}): Request timed out. Retrying...");
-                    MainThread.BeginInvokeOnMainThread(() =>
-                        item.StatusText = $"Retrying ({attempt}/{MaxRetries})...");
-                    attempt++;
-                    if (attempt > MaxRetries) throw new Exception("Too many timeouts — check your connection.");
-                    await Task.Delay(TimeSpan.FromSeconds(Math.Min(attempt * 2, 8)), ct);
-                }
-                catch (Exception ex) when (attempt < MaxRetries)
-                {
-                    attempt++;
-                    int delaySec = Math.Min(attempt * 2, 8);
-                    Log($"Error (attempt {attempt}/{MaxRetries}): {ex.Message}. Retrying in {delaySec}s...");
-                    MainThread.BeginInvokeOnMainThread(() =>
-                        item.StatusText = $"Retrying ({attempt}/{MaxRetries})...");
-                    await Task.Delay(TimeSpan.FromSeconds(delaySec), ct);
-                }
+                epubPath = await service.ProcessBook(book, tempPath, progress, Log, ct);
+            }
+            catch (OperationCanceledException ex) when (ex is TaskCanceledException tce
+                && tce.CancellationToken != ct
+                && !ct.IsCancellationRequested)
+            {
+                throw new Exception("Request timed out. Check your connection and retry.");
             }
 
             ct.ThrowIfCancellationRequested();

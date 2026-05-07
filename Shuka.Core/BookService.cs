@@ -105,33 +105,55 @@ public class BookService
 
             var ch = chapterList[i];
 
-            // Fetch
-            string html;
-            try
-            {
-                html = await _fetcher.Fetch(ch.Url, log: log, ct: ct);
-            }
-            catch (OperationCanceledException) { throw; }
-            catch (Exception ex)
-            {
-                log?.Invoke($"[fetch error ch{i + 1}] {ex.Message}");
-                html = "";
-            }
-
-            // Translate
-            var paras = book.Adapter.ExtractChapterText(html);
-            string text = "";
-            if (paras.Count > 0)
+            // Fetch with per-chapter retry
+            string html = "";
+            for (int fetchAttempt = 1; fetchAttempt <= 3; fetchAttempt++)
             {
                 try
                 {
-                    text = await _translator.Translate(string.Join("\n", paras), log, ct);
+                    html = await _fetcher.Fetch(ch.Url, log: log, ct: ct);
+                    break;
                 }
                 catch (OperationCanceledException) { throw; }
                 catch (Exception ex)
                 {
-                    log?.Invoke($"[translate error ch{i + 1}] {ex.Message}");
-                    text = string.Join("\n", paras); // keep original on failure
+                    if (fetchAttempt == 3)
+                    {
+                        log?.Invoke($"[fetch failed ch{i + 1} after 3 attempts] {ex.Message}");
+                        html = "";
+                    }
+                    else
+                    {
+                        await Task.Delay(1000 * fetchAttempt, ct);
+                    }
+                }
+            }
+
+            // Translate with per-chapter retry
+            var paras = book.Adapter.ExtractChapterText(html);
+            string text = "";
+            if (paras.Count > 0)
+            {
+                for (int transAttempt = 1; transAttempt <= 3; transAttempt++)
+                {
+                    try
+                    {
+                        text = await _translator.Translate(string.Join("\n", paras), log, ct);
+                        break;
+                    }
+                    catch (OperationCanceledException) { throw; }
+                    catch (Exception ex)
+                    {
+                        if (transAttempt == 3)
+                        {
+                            log?.Invoke($"[translate failed ch{i + 1}] {ex.Message} — keeping original");
+                            text = string.Join("\n", paras);
+                        }
+                        else
+                        {
+                            await Task.Delay(1000 * transAttempt, ct);
+                        }
+                    }
                 }
             }
 
