@@ -13,7 +13,7 @@
     <!-- App identity -->
     <ApplicationId>com.seizue.shuka</ApplicationId>
     <ApplicationVersion>100</ApplicationVersion>
-    <ApplicationDisplayVersion>1.0.9</ApplicationDisplayVersion>
+    <ApplicationDisplayVersion>1.0.10</ApplicationDisplayVersion>
 
     <!-- Android -->
     <SupportedOSPlatformVersion>21.0</SupportedOSPlatformVersion>
@@ -37,6 +37,7 @@
     <MauiImage Include="Resources\Images\tab_home.svg" />
     <MauiImage Include="Resources\Images\tab_settings.svg" />
     <MauiImage Include="Resources\Images\tab_downloads.svg" />
+    <MauiImage Include="Resources\Images\tab_history.svg" />
     <MauiImage Include="Resources\Images\lily.svg" />
   </ItemGroup>
 

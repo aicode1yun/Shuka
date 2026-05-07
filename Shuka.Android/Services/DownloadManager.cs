@@ -207,6 +207,9 @@ public class DownloadManager
                 item.Status     = DownloadStatus.Done;
             });
 
+            // Save to persistent history (cover cached locally)
+            _ = HistoryService.Instance.AddAsync(item);
+
 #if ANDROID
             DownloadForegroundService.NotifyDone(book.TitleEn ?? book.Title);
 #endif

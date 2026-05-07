@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="Shuka.Android.Pages.HistoryPage"
+             BackgroundColor="{DynamicResource BgPage}">
+
+    <Grid RowDefinitions="Auto,*">
+
+        <!-- ── Top App Bar ──────────────────────────────────── -->
+        <Grid Grid.Row="0"
+              ColumnDefinitions="Auto,*,Auto"
+              Padding="20,52,20,20"
+              BackgroundColor="{DynamicResource BgCard}"
+              HeightRequest="120">
+
+            <Border Grid.Column="0"
+                    BackgroundColor="{DynamicResource AccentContainer}"
+                    StrokeThickness="0"
+                    StrokeShape="RoundRectangle 12"
+                    WidthRequest="40" HeightRequest="40"
+                    VerticalOptions="Center"
+                    Margin="0,0,14,0">
+                <Label Text="&#xE889;"
+                       FontFamily="{DynamicResource IconFont}"
+                       FontSize="20"
+                       TextColor="{DynamicResource AccentLight}"
+                       HorizontalOptions="Center"
+                       VerticalOptions="Center" />
+            </Border>
+
+            <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                <Label Text="Library"
+                       FontSize="22" FontAttributes="Bold"
+                       TextColor="{DynamicResource TextPrimary}" />
+                <Label Text="Your downloaded novels"
+                       FontSize="12"
+                       TextColor="{DynamicResource TextMuted}" />
+            </VerticalStackLayout>
+
+            <!-- Clear All -->
+            <Border Grid.Column="2"
+                    x:Name="ClearAllBtn"
+                    BackgroundColor="{DynamicResource BgInput}"
+                    Stroke="{DynamicResource Stroke}"
+                    StrokeThickness="1"
+                    StrokeShape="RoundRectangle 10"
+                    Padding="12,8"
+                    VerticalOptions="Center">
+                <HorizontalStackLayout Spacing="6">
+                    <Label Text="&#xE872;"
+                           FontFamily="{DynamicResource IconFont}"
+                           FontSize="16"
+                           TextColor="{DynamicResource TextMuted}"
+                           VerticalOptions="Center" />
+                    <Label Text="Clear"
+                           FontSize="12" FontAttributes="Bold"
+                           TextColor="{DynamicResource TextMuted}"
+                           VerticalOptions="Center" />
+                </HorizontalStackLayout>
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnClearAllTapped" />
+                </Border.GestureRecognizers>
+            </Border>
+        </Grid>
+
+        <!-- ── Body ─────────────────────────────────────────── -->
+        <Grid Grid.Row="1" x:Name="BodyGrid">
+
+            <!-- Empty state -->
+            <VerticalStackLayout x:Name="EmptyState"
+                                 Spacing="14"
+                                 HorizontalOptions="Center"
+                                 VerticalOptions="Center">
+                <Border BackgroundColor="{DynamicResource BgCard}"
+                        StrokeThickness="0"
+                        StrokeShape="RoundRectangle 32"
+                        WidthRequest="80" HeightRequest="80"
+                        HorizontalOptions="Center">
+                    <Label Text="&#xE889;"
+                           FontFamily="{DynamicResource IconFont}"
+                           FontSize="40"
+                           TextColor="{DynamicResource TextMuted}"
+                           HorizontalOptions="Center"
+                           VerticalOptions="Center" />
+                </Border>
+                <Label Text="No novels yet"
+                       FontSize="16" FontAttributes="Bold"
+                       TextColor="{DynamicResource TextSecondary}"
+                       HorizontalOptions="Center" />
+                <Label Text="Completed downloads will appear here"
+                       FontSize="13"
+                       TextColor="{DynamicResource TextMuted}"
+                       HorizontalOptions="Center" />
+            </VerticalStackLayout>
+
+            <!-- Scrollable grid of novel cards -->
+            <ScrollView x:Name="ListScroll" IsVisible="False">
+                <VerticalStackLayout x:Name="CardList"
+                                     Padding="16,20,16,40"
+                                     Spacing="12" />
+            </ScrollView>
+
+        </Grid>
+    </Grid>
+
+</ContentPage>
