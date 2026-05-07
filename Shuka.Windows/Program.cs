@@ -7,19 +7,24 @@ Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 // ── Usage ─────────────────────────────────────────────────────────────────────
 if (args.Length == 0)
 {
-    Console.WriteLine("Usage:");
-    Console.WriteLine("  Normal:  Shuka <index-url> [chapters] [output.epub] [cover-url]");
-    Console.WriteLine("  Batch:   Shuka --batch <urls-file.txt>");
-    Console.WriteLine("  CF fix:  Shuka --solve-cf <site-url>");
-    Console.WriteLine();
-    Console.WriteLine("  chapters = how many chapters to download (0 = all)");
-    Console.WriteLine();
-    Console.WriteLine("  Supported sites:");
-    Console.WriteLine("    52shuku.net  — e.g. https://www.52shuku.net/bl/09_b/bkd7d.html");
-    Console.WriteLine("    czbooks.net  — e.g. https://czbooks.net/n/clgajm");
-    Console.WriteLine("    dmxs.org     — e.g. https://www.dmxs.org/GLBH/1840.html");
-    Console.WriteLine("    69shuba.com  — e.g. https://www.69shuba.com/book/90488.htm");
-    Console.WriteLine("    quanben.io   — e.g. https://www.quanben.io/n/aoshidanshen/list.html");
+    // No arguments — launch the interactive TUI
+    var siteHandlerTui = new HttpClientHandler { AutomaticDecompression = System.Net.DecompressionMethods.All };
+    using var siteClientTui = new HttpClient(siteHandlerTui) { Timeout = TimeSpan.FromSeconds(30) };
+    siteClientTui.DefaultRequestHeaders.Add("User-Agent",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36");
+    siteClientTui.DefaultRequestHeaders.Add("Accept-Language", "zh-TW,zh;q=0.9,zh-CN;q=0.8");
+    siteClientTui.DefaultRequestHeaders.Add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
+
+    var httpHandlerTui = new HttpClientHandler { AutomaticDecompression = System.Net.DecompressionMethods.All };
+    using var httpClientTui = new HttpClient(httpHandlerTui) { Timeout = TimeSpan.FromSeconds(45) };
+    httpClientTui.DefaultRequestHeaders.Add("User-Agent",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36");
+
+    await using var fetcherTui    = new PlaywrightFetcher(siteClientTui);
+    var             translatorTui = new Translator(httpClientTui);
+    var             downloaderTui = new Downloader(fetcherTui, translatorTui, httpClientTui);
+
+    await Tui.RunAsync(downloaderTui);
     return;
 }
 

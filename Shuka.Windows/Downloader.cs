@@ -41,6 +41,7 @@ internal sealed class Downloader
 
     // ── Full pipeline ─────────────────────────────────────────────────────────
 
+    /// <summary>CLI mode — prints progress to Console.</summary>
     public async Task ProcessBookAsync(BookInfo book, string? outFile = null)
     {
         Console.WriteLine($"\n--- {book.Title} ({book.Total} chapters) [{book.Adapter.SiteName}] ---");
@@ -53,7 +54,7 @@ internal sealed class Downloader
         Console.WriteLine($"  Author (EN): {book.AuthorEn}");
 
         var (coverBytes, coverMime) = await DownloadCoverAsync(book.CoverUrl);
-        var chapters = await DownloadChaptersAsync(book);
+        var chapters = await DownloadChaptersAsync(book, null);
 
         Console.WriteLine("\n  Building EPUB...");
         string path = BuildOutputPath(book, outFile);
@@ -63,11 +64,27 @@ internal sealed class Downloader
         Console.WriteLine($"  Saved: {Path.GetFullPath(path)}");
     }
 
+    /// <summary>TUI mode — reports progress via callback instead of Console.Write.</summary>
+    public async Task ProcessBookAsync(BookInfo book, string? outFile,
+        Action<int, int, string> onProgress)
+    {
+        book.TitleEn  = await _translator.Translate(book.Title);
+        book.AuthorEn = await _translator.Translate(book.Author);
+
+        var (coverBytes, coverMime) = await DownloadCoverAsync(book.CoverUrl, silent: true);
+        var chapters = await DownloadChaptersAsync(book, onProgress);
+
+        string path = BuildOutputPath(book, outFile);
+        if (File.Exists(path)) File.Delete(path);
+        EpubBuilder.Build(path, book.Title, book.TitleEn!, book.Author, book.AuthorEn!,
+            chapters, coverBytes, coverMime);
+    }
+
     // ── Chapter download pipeline ─────────────────────────────────────────────
 
-    private async Task<List<(int Idx, string Title, string Text)>> DownloadChaptersAsync(BookInfo book)
+    private async Task<List<(int Idx, string Title, string Text)>> DownloadChaptersAsync(
+        BookInfo book, Action<int, int, string>? onProgress)
     {
-        // Serialize fetches for CF-protected sites so the cookie is established first
         var fetchSem = new SemaphoreSlim(1);
         var t0 = DateTime.Now;
 
@@ -82,16 +99,21 @@ internal sealed class Downloader
 
         for (int i = 0; i < book.Total; i++)
         {
-            double elapsed = (DateTime.Now - t0).TotalSeconds;
-            string eta = i > 0
-                ? $"~{TimeSpan.FromSeconds(elapsed / i * (book.Total - i)):mm\\:ss} left"
-                : "";
-            Console.Write($"\r  [{i + 1}/{book.Total}] Translating... {eta}      ");
+            if (onProgress == null)
+            {
+                double elapsed = (DateTime.Now - t0).TotalSeconds;
+                string eta = i > 0
+                    ? $"~{TimeSpan.FromSeconds(elapsed / i * (book.Total - i)):mm\\:ss} left"
+                    : "";
+                Console.Write($"\r  [{i + 1}/{book.Total}] Translating... {eta}      ");
+            }
 
             var (_, chTitle, html) = await fetchTasks[i];
             var paras = book.Adapter.ExtractChapterText(html);
             string english = await _translator.Translate(string.Join("\n", paras));
             chapters.Add((i + 1, chTitle, english));
+
+            onProgress?.Invoke(i + 1, book.Total, $"Chapter {i + 1} of {book.Total}");
         }
 
         return chapters;
@@ -99,10 +121,11 @@ internal sealed class Downloader
 
     // ── Cover download ────────────────────────────────────────────────────────
 
-    private async Task<(byte[]? bytes, string mime)> DownloadCoverAsync(string? coverUrl)
+    private async Task<(byte[]? bytes, string mime)> DownloadCoverAsync(
+        string? coverUrl, bool silent = false)
     {
         if (string.IsNullOrWhiteSpace(coverUrl)) return (null, "image/jpeg");
-        Console.Write("  Downloading cover...");
+        if (!silent) Console.Write("  Downloading cover...");
         try
         {
             byte[] bytes = await _http.GetByteArrayAsync(coverUrl);
@@ -113,12 +136,12 @@ internal sealed class Downloader
                 else if (bytes[0] == 0xFF && bytes[1] == 0xD8) mime = "image/jpeg";
                 else if (bytes[0] == 0x47 && bytes[1] == 0x49) mime = "image/gif";
             }
-            Console.WriteLine($" OK ({bytes.Length / 1024}KB, {mime})");
+            if (!silent) Console.WriteLine($" OK ({bytes.Length / 1024}KB, {mime})");
             return (bytes, mime);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($" Failed: {ex.Message} (using generated cover)");
+            if (!silent) Console.WriteLine($" Failed: {ex.Message} (using generated cover)");
             return (null, "image/jpeg");
         }
     }
