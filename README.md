@@ -65,9 +65,9 @@ Default save location is `Downloads/Shuka` on internal storage. You can change t
 Launch **Shuka** from the Start Menu or desktop shortcut. The interactive TUI opens automatically:
 
 ```
-  ╔══════════════════════════════════════╗
+  ╔══════════════════════════════════╗
   ║  Shuka  Chinese To English EPUB  ║
-  ╚══════════════════════════════════════╝
+  ╚══════════════════════════════════╝
 
   What would you like to do?
   > Download single novel

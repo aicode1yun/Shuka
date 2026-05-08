@@ -286,12 +286,13 @@ internal static class Tui
 
     private static void RenderHeader()
     {
-        // Plain styled header — always fits regardless of terminal width
+        // Inner content: "  Shuka  Chinese To English EPUB  " = 34 chars
+        // Box width: ║ + 34 + ║ → top/bottom need 34 ═ chars
         AnsiConsole.WriteLine();
         AnsiConsole.Write(
-            new Markup("[bold indianred1]  ╔══════════════════════════════════════╗[/]\n" +
+            new Markup("[bold indianred1]  ╔══════════════════════════════════╗[/]\n" +
                        "[bold indianred1]  ║[/]  [bold white]Shuka[/]  [grey]Chinese To English EPUB[/]  [bold indianred1]║[/]\n" +
-                       "[bold indianred1]  ╚══════════════════════════════════════╝[/]\n"));
+                       "[bold indianred1]  ╚══════════════════════════════════╝[/]\n"));
         AnsiConsole.WriteLine();
     }
 }

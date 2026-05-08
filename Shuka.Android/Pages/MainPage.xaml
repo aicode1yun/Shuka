@@ -21,7 +21,7 @@
                     VerticalOptions="Center"
                     Margin="0,0,14,0">
                 <Image Source="lily.png"
-                       WidthRequest="22" HeightRequest="22"
+                       WidthRequest="38" HeightRequest="38"
                        HorizontalOptions="Center"
                        VerticalOptions="Center" />
             </Border>
