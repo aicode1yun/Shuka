@@ -204,11 +204,12 @@ public partial class SourceBrowsePage : ContentPage
     {
         // Cover
         View coverView;
-        if (!string.IsNullOrWhiteSpace(novel.CoverUrl))
+        if (!string.IsNullOrWhiteSpace(novel.CoverUrl) &&
+            Uri.TryCreate(novel.CoverUrl, UriKind.Absolute, out var coverUri))
         {
             var img = new Image
             {
-                Source            = ImageSource.FromUri(new Uri(novel.CoverUrl)),
+                Source            = ImageSource.FromUri(coverUri),
                 Aspect            = Aspect.AspectFill,
                 WidthRequest      = 64,
                 HeightRequest     = 92,

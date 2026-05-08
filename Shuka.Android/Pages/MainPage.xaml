@@ -4,14 +4,14 @@
              x:Class="Shuka.Android.Pages.MainPage"
              BackgroundColor="{DynamicResource BgPage}">
 
-    <Grid RowDefinitions="Auto,*">
+    <Grid RowDefinitions="Auto,Auto,*">
 
         <!-- ── Top App Bar ──────────────────────────────────── -->
         <Grid Grid.Row="0"
               ColumnDefinitions="Auto,*"
-              Padding="20,52,20,20"
+              Padding="20,52,20,16"
               BackgroundColor="{DynamicResource BgCard}"
-              HeightRequest="120">
+              HeightRequest="110">
 
             <Border Grid.Column="0"
                     BackgroundColor="{DynamicResource AccentContainer}"
@@ -36,256 +36,388 @@
             </VerticalStackLayout>
         </Grid>
 
-        <!-- ── Body ─────────────────────────────────────────── -->
-        <ScrollView Grid.Row="1" x:Name="BodyScrollView">
-            <VerticalStackLayout Padding="16,20,16,40" Spacing="14">
+        <!-- ── Top tab switcher: Download | Discover ─────────── -->
+        <Border Grid.Row="1"
+                BackgroundColor="{DynamicResource BgCard}"
+                StrokeThickness="0"
+                Padding="16,0,16,12">
+            <Grid ColumnDefinitions="*,*"
+                  BackgroundColor="{DynamicResource BgInput}"
+                  HeightRequest="40">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="12" />
+                </Border.StrokeShape>
 
-                <!-- ── Input card ──────────────────────────── -->
-                <Border BackgroundColor="{DynamicResource BgCard}"
-                        Stroke="{DynamicResource Stroke}"
-                        StrokeThickness="1"
-                        StrokeShape="RoundRectangle 20"
-                        Padding="20,16,20,20">
-                    <VerticalStackLayout Spacing="18">
-
-                        <!-- Novel URL -->
-                        <VerticalStackLayout Spacing="8">
-                            <HorizontalStackLayout Spacing="6" VerticalOptions="Center">
-                                <Label Text="{DynamicResource IconLink}"
-                                       FontFamily="{DynamicResource IconFont}"
-                                       FontSize="14"
-                                       TextColor="{DynamicResource AccentLight}"
-                                       VerticalOptions="Center" />
-                                <Label Text="Novel URL"
-                                       FontSize="12" FontAttributes="Bold"
-                                       TextColor="{DynamicResource TextSecondary}"
-                                       VerticalOptions="Center" />
-                            </HorizontalStackLayout>
-                            <Border Stroke="{DynamicResource Stroke}"
-                                    StrokeThickness="1.5"
-                                    StrokeShape="RoundRectangle 12"
-                                    BackgroundColor="{DynamicResource BgInput}"
-                                    Padding="14,0,4,0">
-                                <Grid ColumnDefinitions="*,Auto,Auto">
-                                    <Entry Grid.Column="0"
-                                           x:Name="UrlEntry"
-                                           Placeholder="https://czbooks.net/n/... or quanben.io/n/..."
-                                           Keyboard="Url"
-                                           ReturnType="Next"
-                                           HeightRequest="48" />
-                                    <!-- Paste button -->
-                                    <Border Grid.Column="1"
-                                            x:Name="UrlPasteBtn"
-                                            BackgroundColor="Transparent"
-                                            StrokeThickness="0"
-                                            Padding="6,0"
-                                            VerticalOptions="Center">
-                                        <Label Text="&#xE22B;"
-                                               FontFamily="{DynamicResource IconFont}"
-                                               FontSize="18"
-                                               TextColor="{DynamicResource TextMuted}"
-                                               VerticalOptions="Center" />
-                                        <Border.GestureRecognizers>
-                                            <TapGestureRecognizer Tapped="OnUrlPasteTapped" />
-                                        </Border.GestureRecognizers>
-                                    </Border>
-                                    <!-- Clear button — only visible when entry has text -->
-                                    <Border Grid.Column="2"
-                                            x:Name="UrlClearBtn"
-                                            BackgroundColor="Transparent"
-                                            StrokeThickness="0"
-                                            Padding="6,0,8,0"
-                                            VerticalOptions="Center"
-                                            IsVisible="False">
-                                        <Label Text="&#xE5CD;"
-                                               FontFamily="{DynamicResource IconFont}"
-                                               FontSize="18"
-                                               TextColor="{DynamicResource TextMuted}"
-                                               VerticalOptions="Center" />
-                                        <Border.GestureRecognizers>
-                                            <TapGestureRecognizer Tapped="OnUrlClearTapped" />
-                                        </Border.GestureRecognizers>
-                                    </Border>
-                                </Grid>
-                            </Border>
-                        </VerticalStackLayout>
-
-                        <!-- Cover URL -->
-                        <VerticalStackLayout Spacing="8">
-                            <HorizontalStackLayout Spacing="6" VerticalOptions="Center">
-                                <Label Text="{DynamicResource IconImage}"
-                                       FontFamily="{DynamicResource IconFont}"
-                                       FontSize="14"
-                                       TextColor="{DynamicResource TextMuted}"
-                                       VerticalOptions="Center" />
-                                <Label Text="Cover URL"
-                                       FontSize="12" FontAttributes="Bold"
-                                       TextColor="{DynamicResource TextSecondary}"
-                                       VerticalOptions="Center" />
-                                <Label Text="· optional"
-                                       FontSize="11"
-                                       TextColor="{DynamicResource TextMuted}"
-                                       VerticalOptions="Center" />
-                            </HorizontalStackLayout>
-                            <Border Stroke="{DynamicResource Stroke}"
-                                    StrokeThickness="1.5"
-                                    StrokeShape="RoundRectangle 12"
-                                    BackgroundColor="{DynamicResource BgInput}"
-                                    Padding="14,0,4,0">
-                                <Grid ColumnDefinitions="*,Auto,Auto">
-                                    <Entry Grid.Column="0"
-                                           x:Name="CoverEntry"
-                                           Placeholder="https://..."
-                                           Keyboard="Url"
-                                           ReturnType="Next"
-                                           HeightRequest="48" />
-                                    <!-- Paste button -->
-                                    <Border Grid.Column="1"
-                                            BackgroundColor="Transparent"
-                                            StrokeThickness="0"
-                                            Padding="6,0"
-                                            VerticalOptions="Center">
-                                        <Label Text="&#xE22B;"
-                                               FontFamily="{DynamicResource IconFont}"
-                                               FontSize="18"
-                                               TextColor="{DynamicResource TextMuted}"
-                                               VerticalOptions="Center" />
-                                        <Border.GestureRecognizers>
-                                            <TapGestureRecognizer Tapped="OnCoverPasteTapped" />
-                                        </Border.GestureRecognizers>
-                                    </Border>
-                                    <!-- Clear button -->
-                                    <Border Grid.Column="2"
-                                            x:Name="CoverClearBtn"
-                                            BackgroundColor="Transparent"
-                                            StrokeThickness="0"
-                                            Padding="6,0,8,0"
-                                            VerticalOptions="Center"
-                                            IsVisible="False">
-                                        <Label Text="&#xE5CD;"
-                                               FontFamily="{DynamicResource IconFont}"
-                                               FontSize="18"
-                                               TextColor="{DynamicResource TextMuted}"
-                                               VerticalOptions="Center" />
-                                        <Border.GestureRecognizers>
-                                            <TapGestureRecognizer Tapped="OnCoverClearTapped" />
-                                        </Border.GestureRecognizers>
-                                    </Border>
-                                </Grid>
-                            </Border>
-                        </VerticalStackLayout>
-
-                        <!-- Chapters -->
-                        <VerticalStackLayout Spacing="8">
-                            <HorizontalStackLayout Spacing="6" VerticalOptions="Center">
-                                <Label Text="{DynamicResource IconNumbers}"
-                                       FontFamily="{DynamicResource IconFont}"
-                                       FontSize="14"
-                                       TextColor="{DynamicResource TextMuted}"
-                                       VerticalOptions="Center" />
-                                <Label Text="Chapters"
-                                       FontSize="12" FontAttributes="Bold"
-                                       TextColor="{DynamicResource TextSecondary}"
-                                       VerticalOptions="Center" />
-                                <Label Text="· 0 = all  ·  e.g. 100-200"
-                                       FontSize="11"
-                                       TextColor="{DynamicResource TextMuted}"
-                                       VerticalOptions="Center" />
-                            </HorizontalStackLayout>
-                            <Border Stroke="{DynamicResource Stroke}"
-                                    StrokeThickness="1.5"
-                                    StrokeShape="RoundRectangle 12"
-                                    BackgroundColor="{DynamicResource BgInput}"
-                                    Padding="14,0">
-                                <Entry x:Name="ChaptersEntry"
-                                       Text="0"
-                                       Placeholder="0  or  100-200"
-                                       Keyboard="Text"
-                                       HeightRequest="48" />
-                            </Border>
-                        </VerticalStackLayout>
-
-                    </VerticalStackLayout>
-                </Border>
-
-                <!-- ── Download button ─────────────────────── -->
-                <Border x:Name="DownloadBtn"
-                        BackgroundColor="{DynamicResource Accent}"
+                <!-- Download tab -->
+                <Border x:Name="TabDownloadPill"
+                        Grid.Column="0"
                         StrokeThickness="0"
-                        StrokeShape="RoundRectangle 20"
-                        HeightRequest="58"
-                        Padding="0">
-                    <Grid ColumnDefinitions="Auto,*" Padding="22,0">
-                        <Label Grid.Column="0"
-                               Text="{DynamicResource IconDownload}"
-                               FontFamily="{DynamicResource IconFont}"
-                               FontSize="22"
-                               TextColor="{DynamicResource TextOnAccent}"
-                               VerticalOptions="Center"
-                               Margin="0,0,14,0" />
-                        <Label Grid.Column="1"
-                               x:Name="DownloadBtnLabel"
-                               Text="Download &amp; Translate"
-                               FontSize="15" FontAttributes="Bold"
-                               TextColor="{DynamicResource TextOnAccent}"
-                               VerticalOptions="Center" />
-                        <Grid.GestureRecognizers>
-                            <TapGestureRecognizer Tapped="OnDownloadClicked" />
-                        </Grid.GestureRecognizers>
-                    </Grid>
+                        StrokeShape="RoundRectangle 10"
+                        Margin="3,3,1.5,3">
+                    <Label x:Name="TabDownloadLabel"
+                           Text="Download"
+                           FontSize="13" FontAttributes="Bold"
+                           HorizontalOptions="Center"
+                           VerticalOptions="Center" />
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnTabDownloadTapped" />
+                    </Border.GestureRecognizers>
                 </Border>
 
-                <!-- ── Queued confirmation banner ──────────── -->
-                <Border x:Name="QueuedBanner"
-                        BackgroundColor="{DynamicResource AccentContainer}"
-                        Stroke="{DynamicResource AccentLight}"
-                        StrokeThickness="1"
-                        StrokeShape="RoundRectangle 16"
-                        Padding="16,14"
-                        IsVisible="False">
-                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
-                        <Label Grid.Column="0"
-                               Text="{DynamicResource IconDownload}"
-                               FontFamily="{DynamicResource IconFont}"
-                               FontSize="20"
-                               TextColor="{DynamicResource AccentLight}"
-                               VerticalOptions="Center" />
-                        <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
-                            <Label Text="Download queued!"
-                                   FontSize="13" FontAttributes="Bold"
-                                   TextColor="{DynamicResource AccentLight}" />
-                            <Label Text="Check the Downloads tab to track progress."
-                                   FontSize="12"
-                                   TextColor="{DynamicResource TextSecondary}"
-                                   LineBreakMode="WordWrap" />
+                <!-- Discover tab -->
+                <Border x:Name="TabDiscoverPill"
+                        Grid.Column="1"
+                        StrokeThickness="0"
+                        StrokeShape="RoundRectangle 10"
+                        Margin="1.5,3,3,3">
+                    <Label x:Name="TabDiscoverLabel"
+                           Text="Discover"
+                           FontSize="13" FontAttributes="Bold"
+                           HorizontalOptions="Center"
+                           VerticalOptions="Center" />
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnTabDiscoverTapped" />
+                    </Border.GestureRecognizers>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- ── Body ─────────────────────────────────────────── -->
+        <Grid Grid.Row="2">
+
+            <!-- ══ DOWNLOAD PANEL ══════════════════════════════ -->
+            <ScrollView x:Name="DownloadPanel">
+                <VerticalStackLayout x:Name="BodyScrollView" Padding="16,12,16,40" Spacing="14">
+
+                    <!-- ── Input card ──────────────────────────── -->
+                    <Border BackgroundColor="{DynamicResource BgCard}"
+                            Stroke="{DynamicResource Stroke}"
+                            StrokeThickness="1"
+                            StrokeShape="RoundRectangle 20"
+                            Padding="20,16,20,20">
+                        <VerticalStackLayout Spacing="18">
+
+                            <!-- Novel URL -->
+                            <VerticalStackLayout Spacing="8">
+                                <HorizontalStackLayout Spacing="6" VerticalOptions="Center">
+                                    <Label Text="{DynamicResource IconLink}"
+                                           FontFamily="{DynamicResource IconFont}"
+                                           FontSize="14"
+                                           TextColor="{DynamicResource AccentLight}"
+                                           VerticalOptions="Center" />
+                                    <Label Text="Novel URL"
+                                           FontSize="12" FontAttributes="Bold"
+                                           TextColor="{DynamicResource TextSecondary}"
+                                           VerticalOptions="Center" />
+                                </HorizontalStackLayout>
+                                <Border Stroke="{DynamicResource Stroke}"
+                                        StrokeThickness="1.5"
+                                        StrokeShape="RoundRectangle 12"
+                                        BackgroundColor="{DynamicResource BgInput}"
+                                        Padding="14,0,4,0">
+                                    <Grid ColumnDefinitions="*,Auto,Auto">
+                                        <Entry Grid.Column="0"
+                                               x:Name="UrlEntry"
+                                               Placeholder="https://czbooks.net/n/... or quanben.io/n/..."
+                                               Keyboard="Url"
+                                               ReturnType="Next"
+                                               HeightRequest="48" />
+                                        <Border Grid.Column="1"
+                                                x:Name="UrlPasteBtn"
+                                                BackgroundColor="Transparent"
+                                                StrokeThickness="0"
+                                                Padding="6,0"
+                                                VerticalOptions="Center">
+                                            <Label Text="&#xE22B;"
+                                                   FontFamily="{DynamicResource IconFont}"
+                                                   FontSize="18"
+                                                   TextColor="{DynamicResource TextMuted}"
+                                                   VerticalOptions="Center" />
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Tapped="OnUrlPasteTapped" />
+                                            </Border.GestureRecognizers>
+                                        </Border>
+                                        <Border Grid.Column="2"
+                                                x:Name="UrlClearBtn"
+                                                BackgroundColor="Transparent"
+                                                StrokeThickness="0"
+                                                Padding="6,0,8,0"
+                                                VerticalOptions="Center"
+                                                IsVisible="False">
+                                            <Label Text="&#xE5CD;"
+                                                   FontFamily="{DynamicResource IconFont}"
+                                                   FontSize="18"
+                                                   TextColor="{DynamicResource TextMuted}"
+                                                   VerticalOptions="Center" />
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Tapped="OnUrlClearTapped" />
+                                            </Border.GestureRecognizers>
+                                        </Border>
+                                    </Grid>
+                                </Border>
+                            </VerticalStackLayout>
+
+                            <!-- Cover URL -->
+                            <VerticalStackLayout Spacing="8">
+                                <HorizontalStackLayout Spacing="6" VerticalOptions="Center">
+                                    <Label Text="{DynamicResource IconImage}"
+                                           FontFamily="{DynamicResource IconFont}"
+                                           FontSize="14"
+                                           TextColor="{DynamicResource TextMuted}"
+                                           VerticalOptions="Center" />
+                                    <Label Text="Cover URL"
+                                           FontSize="12" FontAttributes="Bold"
+                                           TextColor="{DynamicResource TextSecondary}"
+                                           VerticalOptions="Center" />
+                                    <Label Text="· optional"
+                                           FontSize="11"
+                                           TextColor="{DynamicResource TextMuted}"
+                                           VerticalOptions="Center" />
+                                </HorizontalStackLayout>
+                                <Border Stroke="{DynamicResource Stroke}"
+                                        StrokeThickness="1.5"
+                                        StrokeShape="RoundRectangle 12"
+                                        BackgroundColor="{DynamicResource BgInput}"
+                                        Padding="14,0,4,0">
+                                    <Grid ColumnDefinitions="*,Auto,Auto">
+                                        <Entry Grid.Column="0"
+                                               x:Name="CoverEntry"
+                                               Placeholder="https://..."
+                                               Keyboard="Url"
+                                               ReturnType="Next"
+                                               HeightRequest="48" />
+                                        <Border Grid.Column="1"
+                                                BackgroundColor="Transparent"
+                                                StrokeThickness="0"
+                                                Padding="6,0"
+                                                VerticalOptions="Center">
+                                            <Label Text="&#xE22B;"
+                                                   FontFamily="{DynamicResource IconFont}"
+                                                   FontSize="18"
+                                                   TextColor="{DynamicResource TextMuted}"
+                                                   VerticalOptions="Center" />
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Tapped="OnCoverPasteTapped" />
+                                            </Border.GestureRecognizers>
+                                        </Border>
+                                        <Border Grid.Column="2"
+                                                x:Name="CoverClearBtn"
+                                                BackgroundColor="Transparent"
+                                                StrokeThickness="0"
+                                                Padding="6,0,8,0"
+                                                VerticalOptions="Center"
+                                                IsVisible="False">
+                                            <Label Text="&#xE5CD;"
+                                                   FontFamily="{DynamicResource IconFont}"
+                                                   FontSize="18"
+                                                   TextColor="{DynamicResource TextMuted}"
+                                                   VerticalOptions="Center" />
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Tapped="OnCoverClearTapped" />
+                                            </Border.GestureRecognizers>
+                                        </Border>
+                                    </Grid>
+                                </Border>
+                            </VerticalStackLayout>
+
+                            <!-- Chapters -->
+                            <VerticalStackLayout Spacing="8">
+                                <HorizontalStackLayout Spacing="6" VerticalOptions="Center">
+                                    <Label Text="{DynamicResource IconNumbers}"
+                                           FontFamily="{DynamicResource IconFont}"
+                                           FontSize="14"
+                                           TextColor="{DynamicResource TextMuted}"
+                                           VerticalOptions="Center" />
+                                    <Label Text="Chapters"
+                                           FontSize="12" FontAttributes="Bold"
+                                           TextColor="{DynamicResource TextSecondary}"
+                                           VerticalOptions="Center" />
+                                    <Label Text="· 0 = all  ·  e.g. 100-200"
+                                           FontSize="11"
+                                           TextColor="{DynamicResource TextMuted}"
+                                           VerticalOptions="Center" />
+                                </HorizontalStackLayout>
+                                <Border Stroke="{DynamicResource Stroke}"
+                                        StrokeThickness="1.5"
+                                        StrokeShape="RoundRectangle 12"
+                                        BackgroundColor="{DynamicResource BgInput}"
+                                        Padding="14,0">
+                                    <Entry x:Name="ChaptersEntry"
+                                           Text="0"
+                                           Placeholder="0  or  100-200"
+                                           Keyboard="Text"
+                                           HeightRequest="48" />
+                                </Border>
+                            </VerticalStackLayout>
+
                         </VerticalStackLayout>
-                    </Grid>
+                    </Border>
+
+                    <!-- ── Download button ─────────────────────── -->
+                    <Border x:Name="DownloadBtn"
+                            BackgroundColor="{DynamicResource Accent}"
+                            StrokeThickness="0"
+                            StrokeShape="RoundRectangle 20"
+                            HeightRequest="58"
+                            Padding="0">
+                        <Grid ColumnDefinitions="Auto,*" Padding="22,0">
+                            <Label Grid.Column="0"
+                                   Text="{DynamicResource IconDownload}"
+                                   FontFamily="{DynamicResource IconFont}"
+                                   FontSize="22"
+                                   TextColor="{DynamicResource TextOnAccent}"
+                                   VerticalOptions="Center"
+                                   Margin="0,0,14,0" />
+                            <Label Grid.Column="1"
+                                   x:Name="DownloadBtnLabel"
+                                   Text="Download &amp; Translate"
+                                   FontSize="15" FontAttributes="Bold"
+                                   TextColor="{DynamicResource TextOnAccent}"
+                                   VerticalOptions="Center" />
+                            <Grid.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnDownloadClicked" />
+                            </Grid.GestureRecognizers>
+                        </Grid>
+                    </Border>
+
+                    <!-- ── Queued confirmation banner ──────────── -->
+                    <Border x:Name="QueuedBanner"
+                            BackgroundColor="{DynamicResource AccentContainer}"
+                            Stroke="{DynamicResource AccentLight}"
+                            StrokeThickness="1"
+                            StrokeShape="RoundRectangle 16"
+                            Padding="16,14"
+                            IsVisible="False">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                            <Label Grid.Column="0"
+                                   Text="{DynamicResource IconDownload}"
+                                   FontFamily="{DynamicResource IconFont}"
+                                   FontSize="20"
+                                   TextColor="{DynamicResource AccentLight}"
+                                   VerticalOptions="Center" />
+                            <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                                <Label Text="Download queued!"
+                                       FontSize="13" FontAttributes="Bold"
+                                       TextColor="{DynamicResource AccentLight}" />
+                                <Label Text="Check the Downloads tab to track progress."
+                                       FontSize="12"
+                                       TextColor="{DynamicResource TextSecondary}"
+                                       LineBreakMode="WordWrap" />
+                            </VerticalStackLayout>
+                        </Grid>
+                    </Border>
+
+                    <!-- ── Tip card ────────────────────────────── -->
+                    <Border BackgroundColor="{DynamicResource BgCard}"
+                            Stroke="{DynamicResource Stroke}"
+                            StrokeThickness="1"
+                            StrokeShape="RoundRectangle 16"
+                            Padding="16,14">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                            <Label Grid.Column="0"
+                                   Text="{DynamicResource IconInfo}"
+                                   FontFamily="{DynamicResource IconFont}"
+                                   FontSize="18"
+                                   TextColor="{DynamicResource TextMuted}"
+                                   VerticalOptions="Start"
+                                   Margin="0,1,0,0" />
+                            <Label Grid.Column="1"
+                                   Text="You can queue multiple novels at once. Each download runs independently — switch to the Downloads tab to monitor progress or cancel."
+                                   FontSize="12"
+                                   TextColor="{DynamicResource TextMuted}"
+                                   LineBreakMode="WordWrap" />
+                        </Grid>
+                    </Border>
+
+                </VerticalStackLayout>
+            </ScrollView>
+
+            <!-- ══ DISCOVER PANEL ══════════════════════════════ -->
+            <Grid x:Name="DiscoverPanel" IsVisible="False" RowDefinitions="Auto,*">
+
+                <!-- Global search bar -->
+                <Border Grid.Row="0"
+                        BackgroundColor="{DynamicResource BgPage}"
+                        StrokeThickness="0"
+                        Padding="16,12,16,8">
+                    <Border Stroke="{DynamicResource Stroke}"
+                            StrokeThickness="1.5"
+                            StrokeShape="RoundRectangle 14"
+                            BackgroundColor="{DynamicResource BgInput}"
+                            Padding="12,0">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <Label Grid.Column="0"
+                                   Text="&#xE8B6;"
+                                   FontFamily="{DynamicResource IconFont}"
+                                   FontSize="18"
+                                   TextColor="{DynamicResource TextMuted}"
+                                   VerticalOptions="Center"
+                                   Margin="0,0,8,0" />
+                            <Entry Grid.Column="1"
+                                   x:Name="GlobalSearchEntry"
+                                   Placeholder="Search all sources..."
+                                   Keyboard="Text"
+                                   HeightRequest="44"
+                                   ReturnType="Search"
+                                   Completed="OnGlobalSearchCompleted" />
+                            <Label Grid.Column="2"
+                                   x:Name="GlobalSearchClearBtn"
+                                   Text="&#xE5CD;"
+                                   FontFamily="{DynamicResource IconFont}"
+                                   FontSize="18"
+                                   TextColor="{DynamicResource TextMuted}"
+                                   VerticalOptions="Center"
+                                   IsVisible="False">
+                                <Label.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnGlobalSearchClearTapped" />
+                                </Label.GestureRecognizers>
+                            </Label>
+                        </Grid>
+                    </Border>
                 </Border>
 
-                <!-- ── Tip card ────────────────────────────── -->
-                <Border BackgroundColor="{DynamicResource BgCard}"
-                        Stroke="{DynamicResource Stroke}"
-                        StrokeThickness="1"
-                        StrokeShape="RoundRectangle 16"
-                        Padding="16,14">
-                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
-                        <Label Grid.Column="0"
-                               Text="{DynamicResource IconInfo}"
-                               FontFamily="{DynamicResource IconFont}"
-                               FontSize="18"
-                               TextColor="{DynamicResource TextMuted}"
-                               VerticalOptions="Start"
-                               Margin="0,1,0,0" />
-                        <Label Grid.Column="1"
-                               Text="You can queue multiple novels at once. Each download runs independently — switch to the Downloads tab to monitor progress or cancel."
-                               FontSize="12"
-                               TextColor="{DynamicResource TextMuted}"
-                               LineBreakMode="WordWrap" />
-                    </Grid>
-                </Border>
+                <!-- Discover body -->
+                <Grid Grid.Row="1" x:Name="DiscoverBodyGrid">
 
-            </VerticalStackLayout>
-        </ScrollView>
+                    <!-- Source list -->
+                    <ScrollView x:Name="DiscoverSourceScrollView">
+                        <VerticalStackLayout Padding="16,4,16,40" Spacing="12"
+                                             x:Name="DiscoverSourceList" />
+                    </ScrollView>
+
+                    <!-- Global search results -->
+                    <Grid x:Name="DiscoverSearchResultsView" IsVisible="False"
+                          RowDefinitions="Auto,*">
+                        <Label Grid.Row="0"
+                               x:Name="DiscoverSearchResultsLabel"
+                               FontSize="13" FontAttributes="Bold"
+                               TextColor="{DynamicResource TextMuted}"
+                               Margin="20,8,20,4" />
+                        <ScrollView Grid.Row="1">
+                            <VerticalStackLayout Padding="16,4,16,40" Spacing="16"
+                                                 x:Name="DiscoverSearchResultsList" />
+                        </ScrollView>
+                    </Grid>
+
+                    <!-- Loading -->
+                    <VerticalStackLayout x:Name="DiscoverSearchLoadingState"
+                                         IsVisible="False"
+                                         HorizontalOptions="Center"
+                                         VerticalOptions="Center"
+                                         Spacing="12">
+                        <ActivityIndicator IsRunning="True"
+                                           Color="{DynamicResource AccentLight}"
+                                           WidthRequest="40" HeightRequest="40" />
+                        <Label Text="Searching all sources..."
+                               FontSize="13"
+                               TextColor="{DynamicResource TextMuted}"
+                               HorizontalOptions="Center" />
+                    </VerticalStackLayout>
+
+                </Grid>
+            </Grid>
+
+        </Grid>
     </Grid>
 
 </ContentPage>

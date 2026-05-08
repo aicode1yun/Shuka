@@ -191,14 +191,11 @@ public partial class DiscoverPage : ContentPage
     private View BuildSearchResultCard(NovelEntry novel)
     {
         View coverView;
-        if (!string.IsNullOrWhiteSpace(novel.CoverUrl))
+        if (!string.IsNullOrWhiteSpace(novel.CoverUrl) &&
+            Uri.TryCreate(novel.CoverUrl, UriKind.Absolute, out var coverUri))
         {
-            var img = new Image
-            {
-                Source = ImageSource.FromUri(new Uri(novel.CoverUrl)),
-                Aspect = Aspect.AspectFill,
-                WidthRequest = 52, HeightRequest = 74,
-            };
+            var img = new Image { Source = ImageSource.FromUri(coverUri),
+                Aspect = Aspect.AspectFill, WidthRequest = 52, HeightRequest = 74 };
             coverView = new Border
             {
                 StrokeThickness = 0,
