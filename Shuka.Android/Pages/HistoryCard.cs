@@ -98,8 +98,7 @@ public class HistoryCard : ContentView
         metaLabel.SetDynamicResource(Label.TextColorProperty, "TextMuted");
 
         // ── File exists indicator ─────────────────────────────────────────────
-        bool fileExists = !string.IsNullOrWhiteSpace(entry.EpubPath) &&
-                          File.Exists(entry.EpubPath);
+        bool fileExists = IsEpubAccessible(entry.EpubPath);
         var fileLabel = new Label
         {
             Text      = fileExists ? "\uE876  File available" : "\uE5CD  File missing",
@@ -197,9 +196,21 @@ public class HistoryCard : ContentView
         Content = card;
     }
 
-    private static Border MakeActionBtn(string icon, string label, string bgKey,
-        Action onTap, bool outlined = false, bool danger = false)
+    /// <summary>
+    /// Returns true if the EPUB path is accessible — handles both regular file
+    /// paths and Android SAF content:// URIs (which are always considered present
+    /// since we can't check them with File.Exists).
+    /// </summary>
+    private static bool IsEpubAccessible(string? path)
     {
+        if (string.IsNullOrWhiteSpace(path)) return false;
+        // SAF content URI — assume accessible (can't use File.Exists on content URIs)
+        if (path.StartsWith("content://", StringComparison.OrdinalIgnoreCase)) return true;
+        return File.Exists(path);
+    }
+
+    private static Border MakeActionBtn(string icon, string label, string bgKey,
+        Action onTap, bool outlined = false, bool danger = false)    {
         var iconLabel = new Label
         {
             Text            = icon,

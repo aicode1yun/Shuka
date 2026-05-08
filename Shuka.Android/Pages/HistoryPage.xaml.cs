@@ -282,7 +282,9 @@ public partial class HistoryPage : ContentPage
 
     private async void OnOpenRequested(HistoryEntry entry)
     {
-        if (entry.EpubPath == null || !File.Exists(entry.EpubPath))
+        if (string.IsNullOrWhiteSpace(entry.EpubPath) ||
+            (!entry.EpubPath.StartsWith("content://", StringComparison.OrdinalIgnoreCase) &&
+             !File.Exists(entry.EpubPath)))
         {
             await DisplayAlertAsync("File Not Found",
                 "The EPUB file could not be found. It may have been moved or deleted.", "OK");
@@ -308,7 +310,10 @@ public partial class HistoryPage : ContentPage
 
     private async void OnShareRequested(HistoryEntry entry)
     {
-        if (entry.EpubPath == null || !File.Exists(entry.EpubPath)) return;
+        if (string.IsNullOrWhiteSpace(entry.EpubPath)) return;
+        // SAF content URIs can't be shared directly via file path — skip if content URI
+        if (entry.EpubPath.StartsWith("content://", StringComparison.OrdinalIgnoreCase)) return;
+        if (!File.Exists(entry.EpubPath)) return;
         await Share.Default.RequestAsync(new ShareFileRequest
         {
             Title = "Share EPUB",
