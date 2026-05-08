@@ -77,14 +77,15 @@ public class DownloadManager
         });
     }
 
-    /// <summary>Retry a failed or cancelled download by re-enqueuing it.</summary>
+    /// <summary>Retry a failed or cancelled download — resumes from checkpoint if available.</summary>
     public DownloadItem? Retry(DownloadItem failed)
     {
         if (!failed.IsFailed && !failed.IsCancelled) return null;
 
         MainThread.BeginInvokeOnMainThread(() => Downloads.Remove(failed));
 
-        return Enqueue(failed.Url, failed.Chapters, failed.CoverUrl);
+        // Re-enqueue with the same URL — RunAsync will find the checkpoint automatically
+        return Enqueue(failed.Url, failed.Chapters, failed.CoverUrl, failed.ChapterFrom);
     }
 
     /// <summary>Dismiss a failed or cancelled item from the list without retrying.</summary>
@@ -166,19 +167,22 @@ public class DownloadManager
             // Always write the EPUB to app-private cache first — avoids
             // UnauthorizedAccessException on scoped storage (Android 10+).
             // We copy/move to the user's chosen folder afterwards via SAF.
-            string cacheDir = GetCacheDirectory();
-            tempPath = Path.Combine(cacheDir, $"_shuka_{item.Id:N}.epub");
+            string cacheDir        = GetCacheDirectory();
+            tempPath               = Path.Combine(cacheDir, $"_shuka_{item.Id:N}.epub");
+            string checkpointPath  = CheckpointService.GetCheckpointPath(cacheDir, item.Url);
+
+            int savedCount = CheckpointService.CountSaved(checkpointPath);
+            if (savedCount > 0)
+                Log($"Resuming: {savedCount} chapters already done, continuing from ch{savedCount + 1}...");
 
             string epubPath = "";
             try
             {
-                epubPath = await service.ProcessBook(book, tempPath, progress, Log, ct);
+                epubPath = await service.ProcessBook(book, tempPath, progress, Log, ct,
+                    checkpointPath);
             }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {
-                // A timeout on a single HTTP request — BookService already retries
-                // per-chapter, so this should not surface here. If it does, treat
-                // it as a generic failure rather than a connection error message.
                 throw new Exception("A request timed out during processing. Please retry.");
             }
 

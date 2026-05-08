@@ -67,7 +67,7 @@ public class BookService
 
     public async Task<string> ProcessBook(BookInfo book, string outputPath,
         IProgress<ProgressEventArgs>? progress = null, Action<string>? log = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default, string? checkpointPath = null)
     {
         ct.ThrowIfCancellationRequested();
         log?.Invoke("Translating title/author...");
@@ -86,13 +86,16 @@ public class BookService
         log?.Invoke($"Title (EN): {book.TitleEn}  Author (EN): {book.AuthorEn}");
 
         ct.ThrowIfCancellationRequested();
-        var chapters = await DownloadChapters(book, progress, log, ct);
+        var chapters = await DownloadChapters(book, progress, log, ct, checkpointPath);
 
         ct.ThrowIfCancellationRequested();
         log?.Invoke("Building EPUB...");
         if (File.Exists(outputPath)) File.Delete(outputPath);
         EpubBuilder.Build(outputPath, book.Title, book.TitleEn!, book.Author, book.AuthorEn!,
             chapters, coverBytes, coverMime);
+
+        // Delete checkpoint on success — no longer needed
+        if (checkpointPath != null) CheckpointService.Delete(checkpointPath);
 
         return outputPath;
     }
@@ -106,15 +109,40 @@ public class BookService
     /// </summary>
     private async Task<List<(int Idx, string Title, string Text)>> DownloadChapters(
         BookInfo book, IProgress<ProgressEventArgs>? progress, Action<string>? log,
-        CancellationToken ct = default)
+        CancellationToken ct = default, string? checkpointPath = null)
     {
         var chapterList = book.ChapterUrls.Take(book.Total).ToList();
         int total = chapterList.Count;
         var results = new List<(int Idx, string Title, string Text)>(total);
 
+        // Load checkpoint — skip already-completed chapters
+        var saved = checkpointPath != null
+            ? await CheckpointService.LoadAsync(checkpointPath, total)
+            : new (string title, string text)?[total];
+
+        int alreadyDone = saved.Count(r => r != null);
+        if (alreadyDone > 0)
+            log?.Invoke($"Resuming from chapter {alreadyDone + 1} of {total} ({alreadyDone} already done)...");
+
+        // Semaphore to serialize checkpoint writes
+        var writeLock = new SemaphoreSlim(1, 1);
+
         for (int i = 0; i < total; i++)
         {
             ct.ThrowIfCancellationRequested();
+
+            // Skip chapters already in the checkpoint
+            if (saved[i] != null)
+            {
+                results.Add((i + 1, saved[i]!.Value.title, saved[i]!.Value.text));
+                progress?.Report(new ProgressEventArgs
+                {
+                    Current = i + 1,
+                    Total   = total,
+                    Message = $"Translated chapter {i + 1} of {total}..."
+                });
+                continue;
+            }
 
             var ch = chapterList[i];
 
@@ -177,6 +205,11 @@ public class BookService
             }
 
             results.Add((i + 1, ch.Title, text));
+
+            // Save to checkpoint so this chapter isn't re-downloaded on retry
+            if (checkpointPath != null)
+                await CheckpointService.SaveChapterAsync(
+                    checkpointPath, book.IndexUrl, i, ch.Title, text, writeLock);
 
             progress?.Report(new ProgressEventArgs
             {

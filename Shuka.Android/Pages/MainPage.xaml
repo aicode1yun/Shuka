@@ -202,9 +202,6 @@
                                        Placeholder="0  or  100-200"
                                        Keyboard="Text"
                                        HeightRequest="48" />
-                                       Text="0"
-                                       Keyboard="Numeric"
-                                       HeightRequest="48" />
                             </Border>
                         </VerticalStackLayout>
 
