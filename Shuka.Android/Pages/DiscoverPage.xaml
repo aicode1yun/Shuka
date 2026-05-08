@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="Shuka.Android.Pages.DiscoverPage"
+             BackgroundColor="{DynamicResource BgPage}">
+
+    <Grid RowDefinitions="Auto,*">
+
+        <!-- ── Top App Bar ──────────────────────────────────── -->
+        <Grid Grid.Row="0"
+              ColumnDefinitions="Auto,*"
+              Padding="20,52,20,20"
+              BackgroundColor="{DynamicResource BgCard}"
+              HeightRequest="120">
+
+            <Border Grid.Column="0"
+                    BackgroundColor="{DynamicResource AccentContainer}"
+                    StrokeThickness="0"
+                    StrokeShape="RoundRectangle 12"
+                    WidthRequest="40" HeightRequest="40"
+                    VerticalOptions="Center"
+                    Margin="0,0,14,0">
+                <Label Text="&#xE8F4;"
+                       FontFamily="{DynamicResource IconFont}"
+                       FontSize="20"
+                       TextColor="{DynamicResource AccentLight}"
+                       HorizontalOptions="Center"
+                       VerticalOptions="Center" />
+            </Border>
+
+            <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                <Label Text="Discover"
+                       FontSize="22" FontAttributes="Bold"
+                       TextColor="{DynamicResource TextPrimary}" />
+                <Label Text="Browse novels by source"
+                       FontSize="12"
+                       TextColor="{DynamicResource TextMuted}" />
+            </VerticalStackLayout>
+        </Grid>
+
+        <!-- ── Source list ───────────────────────────────────── -->
+        <ScrollView Grid.Row="1" x:Name="BodyScrollView">
+            <VerticalStackLayout Padding="16,20,16,40" Spacing="12" x:Name="SourceList" />
+        </ScrollView>
+
+    </Grid>
+</ContentPage>

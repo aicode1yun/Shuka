@@ -25,6 +25,7 @@ internal static class Tui
                         "Download single novel",
                         "Batch download (multiple novels)",
                         "Fix Cloudflare (--solve-cf)",
+                        "View supported sites",
                         "Exit"));
 
             switch (choice)
@@ -37,6 +38,9 @@ internal static class Tui
                     break;
                 case "Fix Cloudflare (--solve-cf)":
                     await RunSolveCfAsync();
+                    break;
+                case "View supported sites":
+                    RunViewSites();
                     break;
                 case "Exit":
                     AnsiConsole.MarkupLine("\n[grey]Goodbye![/]");
@@ -238,7 +242,47 @@ internal static class Tui
             });
     }
 
-    // ── Header ────────────────────────────────────────────────────────────────
+    // ── View supported sites ──────────────────────────────────────────────────
+
+    private static void RunViewSites()
+    {
+        AnsiConsole.Clear();
+        RenderHeader();
+        AnsiConsole.MarkupLine("[bold yellow]  Supported Sites[/]\n");
+
+        var table = new Table()
+            .Border(TableBorder.Rounded)
+            .BorderColor(Color.Grey)
+            .AddColumn(new TableColumn("[grey]Site[/]"))
+            .AddColumn(new TableColumn("[grey]Example URL[/]"))
+            .AddColumn(new TableColumn("[grey]Notes[/]").Centered());
+
+        table.AddRow(
+            "[cyan]52shuku.net[/]",
+            "[dim]https://www.52shuku.net/bl/09_b/bkd7d.html[/]",
+            "");
+        table.AddRow(
+            "[cyan]czbooks.net[/]",
+            "[dim]https://czbooks.net/n/clgajm[/]",
+            "[yellow]CF bypass[/]");
+        table.AddRow(
+            "[cyan]dmxs.org[/]",
+            "[dim]https://www.dmxs.org/GLBH/1840.html[/]",
+            "");
+        table.AddRow(
+            "[cyan]69shuba.com[/]",
+            "[dim]https://www.69shuba.com/book/90488.htm[/]",
+            "[yellow]CF bypass[/]");
+        table.AddRow(
+            "[cyan]quanben.io[/]",
+            "[dim]https://www.quanben.io/n/aoshidanshen/list.html[/]",
+            "");
+
+        AnsiConsole.Write(table);
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine("[grey]Sites marked [yellow]CF bypass[/][grey] require running [/][indianred1]Fix Cloudflare[/][grey] once before downloading.[/]");
+    }
 
     private static void RenderHeader()
     {
@@ -246,7 +290,7 @@ internal static class Tui
         AnsiConsole.WriteLine();
         AnsiConsole.Write(
             new Markup("[bold indianred1]  ╔══════════════════════════════════════╗[/]\n" +
-                       "[bold indianred1]  ║[/]  [bold white]Shuka[/]  [grey]Chinese → English EPUB[/]  [bold indianred1]║[/]\n" +
+                       "[bold indianred1]  ║[/]  [bold white]Shuka[/]  [grey]Chinese To English EPUB[/]  [bold indianred1]║[/]\n" +
                        "[bold indianred1]  ╚══════════════════════════════════════╝[/]\n"));
         AnsiConsole.WriteLine();
     }

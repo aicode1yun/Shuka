@@ -38,6 +38,7 @@
     <MauiImage Include="Resources\Images\tab_settings.svg" />
     <MauiImage Include="Resources\Images\tab_downloads.svg" />
     <MauiImage Include="Resources\Images\tab_history.svg" />
+    <MauiImage Include="Resources\Images\tab_discover.svg" />
     <MauiImage Include="Resources\Images\lily.svg" />
   </ItemGroup>
 

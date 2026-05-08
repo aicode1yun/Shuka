@@ -15,6 +15,10 @@
                       Icon="tab_home.png"
                       ContentTemplate="{DataTemplate pages:MainPage}"
                       Route="MainPage" />
+        <ShellContent Title="Discover"
+                      Icon="tab_discover.png"
+                      ContentTemplate="{DataTemplate pages:DiscoverPage}"
+                      Route="DiscoverPage" />
         <ShellContent Title="Downloads"
                       Icon="tab_downloads.png"
                       ContentTemplate="{DataTemplate pages:DownloadsPage}"

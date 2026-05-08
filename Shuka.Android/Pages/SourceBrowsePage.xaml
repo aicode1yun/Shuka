@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="Shuka.Android.Pages.SourceBrowsePage"
+             BackgroundColor="{DynamicResource BgPage}">
+
+    <Grid RowDefinitions="Auto,Auto,Auto,*">
+
+        <!-- ── Top bar ───────────────────────────────────────── -->
+        <Grid Grid.Row="0"
+              ColumnDefinitions="Auto,*"
+              Padding="16,52,16,16"
+              BackgroundColor="{DynamicResource BgCard}">
+            <Border Grid.Column="0"
+                    BackgroundColor="Transparent"
+                    StrokeThickness="0"
+                    Padding="4,0,12,0"
+                    VerticalOptions="Center">
+                <Label Text="&#xE5C4;"
+                       FontFamily="{DynamicResource IconFont}"
+                       FontSize="24"
+                       TextColor="{DynamicResource TextPrimary}"
+                       VerticalOptions="Center" />
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnBackTapped" />
+                </Border.GestureRecognizers>
+            </Border>
+            <Label Grid.Column="1"
+                   x:Name="TitleLabel"
+                   FontSize="20" FontAttributes="Bold"
+                   TextColor="{DynamicResource TextPrimary}"
+                   VerticalOptions="Center" />
+        </Grid>
+
+        <!-- ── Filter pills ──────────────────────────────────── -->
+        <Border Grid.Row="1"
+                BackgroundColor="{DynamicResource BgCard}"
+                StrokeThickness="0"
+                Padding="16,0,16,12">
+            <HorizontalStackLayout Spacing="8">
+                <Border x:Name="PillRecent"  StrokeThickness="1" StrokeShape="RoundRectangle 20" Padding="14,6">
+                    <Label Text="Recent"  FontSize="12" FontAttributes="Bold">
+                        <Label.GestureRecognizers><TapGestureRecognizer Tapped="OnRecentTapped"/></Label.GestureRecognizers>
+                    </Label>
+                    <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnRecentTapped"/></Border.GestureRecognizers>
+                </Border>
+                <Border x:Name="PillPopular" StrokeThickness="1" StrokeShape="RoundRectangle 20" Padding="14,6">
+                    <Label Text="Popular" FontSize="12" FontAttributes="Bold">
+                        <Label.GestureRecognizers><TapGestureRecognizer Tapped="OnPopularTapped"/></Label.GestureRecognizers>
+                    </Label>
+                    <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnPopularTapped"/></Border.GestureRecognizers>
+                </Border>
+            </HorizontalStackLayout>
+        </Border>
+
+        <!-- ── Search bar ────────────────────────────────────── -->
+        <Border Grid.Row="2"
+                BackgroundColor="{DynamicResource BgCard}"
+                StrokeThickness="0"
+                Padding="16,0,16,14">
+            <Border Stroke="{DynamicResource Stroke}"
+                    StrokeThickness="1.5"
+                    StrokeShape="RoundRectangle 14"
+                    BackgroundColor="{DynamicResource BgInput}"
+                    Padding="12,0">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <Label Grid.Column="0"
+                           Text="&#xE8B6;"
+                           FontFamily="{DynamicResource IconFont}"
+                           FontSize="18"
+                           TextColor="{DynamicResource TextMuted}"
+                           VerticalOptions="Center"
+                           Margin="0,0,8,0" />
+                    <Entry Grid.Column="1"
+                           x:Name="SearchEntry"
+                           Placeholder="Search novels..."
+                           Keyboard="Text"
+                           HeightRequest="44"
+                           ReturnType="Search"
+                           Completed="OnSearchCompleted" />
+                    <Label Grid.Column="2"
+                           x:Name="SearchClearBtn"
+                           Text="&#xE5CD;"
+                           FontFamily="{DynamicResource IconFont}"
+                           FontSize="18"
+                           TextColor="{DynamicResource TextMuted}"
+                           VerticalOptions="Center"
+                           IsVisible="False">
+                        <Label.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnSearchClearTapped" />
+                        </Label.GestureRecognizers>
+                    </Label>
+                </Grid>
+            </Border>
+        </Border>
+
+        <!-- ── Novel list ─────────────────────────────────────── -->
+        <Grid Grid.Row="3" x:Name="BodyGrid">
+
+            <!-- Loading spinner -->
+            <VerticalStackLayout x:Name="LoadingState"
+                                 HorizontalOptions="Center"
+                                 VerticalOptions="Center"
+                                 Spacing="12">
+                <ActivityIndicator IsRunning="True" Color="{DynamicResource AccentLight}"
+                                   WidthRequest="40" HeightRequest="40" />
+                <Label Text="Loading..."
+                       FontSize="13"
+                       TextColor="{DynamicResource TextMuted}"
+                       HorizontalOptions="Center" />
+            </VerticalStackLayout>
+
+            <!-- Empty state -->
+            <VerticalStackLayout x:Name="EmptyState"
+                                 IsVisible="False"
+                                 HorizontalOptions="Center"
+                                 VerticalOptions="Center"
+                                 Spacing="12">
+                <Label Text="&#xE8B6;"
+                       FontFamily="{DynamicResource IconFont}"
+                       FontSize="48"
+                       TextColor="{DynamicResource TextMuted}"
+                       HorizontalOptions="Center" />
+                <Label Text="No novels found"
+                       FontSize="15" FontAttributes="Bold"
+                       TextColor="{DynamicResource TextSecondary}"
+                       HorizontalOptions="Center" />
+            </VerticalStackLayout>
+
+            <!-- Scrollable novel grid -->
+            <ScrollView x:Name="ListScroll" IsVisible="False">
+                <VerticalStackLayout x:Name="NovelList"
+                                     Padding="16,12,16,40"
+                                     Spacing="10" />
+            </ScrollView>
+        </Grid>
+    </Grid>
+</ContentPage>
