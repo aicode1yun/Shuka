@@ -100,18 +100,41 @@ public partial class WebBrowsePage : ContentPage
 
     // ── FAB logic ─────────────────────────────────────────────────────────────
 
+    // Example novel URLs per site — shown in the invalid-URL banner
+    private static readonly Dictionary<string, string> _exampleUrls = new()
+    {
+        ["quanben.io"]  = "e.g. https://www.quanben.io/n/aoshidanshen/list.html",
+        ["czbooks.net"] = "e.g. https://czbooks.net/n/cp11cgi",
+        ["69shuba.com"] = "e.g. https://www.69shuba.com/book/48273.htm",
+        ["dmxs.org"]    = "e.g. https://www.dmxs.org/book/23204.html",
+        ["52shuku.net"] = "e.g. https://www.52shuku.net/xiandaidushi/08_b/bkdKE.html",
+    };
+
     /// <summary>
-    /// Show the Download FAB only when the current URL is a novel page
-    /// that one of our adapters can handle.
+    /// Returns the site key (domain) that the current URL belongs to,
+    /// or null if it doesn't match any known source.
+    /// </summary>
+    private static string? DetectSite(string url)
+    {
+        foreach (var key in _exampleUrls.Keys)
+            if (url.Contains(key, StringComparison.OrdinalIgnoreCase))
+                return key;
+        return null;
+    }
+
+    /// <summary>
+    /// Show the Download FAB on any page belonging to a known source.
+    /// The FAB tap then validates whether the URL is a downloadable novel page.
     /// </summary>
     private void UpdateDownloadFab(string url)
     {
-        bool supported = _adapters.Any(a => a.Matches(url));
+        // Show FAB whenever we're on any known source domain
+        bool onKnownSite = DetectSite(url) != null;
         MainThread.BeginInvokeOnMainThread(() =>
         {
-            if (FabDownload.IsVisible == supported) return;
-            FabDownload.IsVisible = supported;
-            if (supported)
+            if (FabDownload.IsVisible == onKnownSite) return;
+            FabDownload.IsVisible = onKnownSite;
+            if (onKnownSite)
             {
                 FabDownload.Opacity      = 0;
                 FabDownload.TranslationY = 20;
@@ -127,7 +150,20 @@ public partial class WebBrowsePage : ContentPage
         await FabDownload.ScaleToAsync(0.92, 70, Easing.CubicOut);
         await FabDownload.ScaleToAsync(1.0,  70, Easing.SpringOut);
 
-        string url = _currentUrl;
+        string url  = _currentUrl;
+        string site = DetectSite(url) ?? "";
+
+        // Validate: adapter must match (novel index page, not just the domain homepage)
+        var adapter = _adapters.FirstOrDefault(a => a.Matches(url));
+        if (adapter == null)
+        {
+            // We're on a known source site but not a valid novel page
+            string hint = _exampleUrls.TryGetValue(site, out var ex)
+                ? $"Navigate to a novel's index page.\n{ex}"
+                : "Navigate to a specific novel's index page first.";
+            await ShowInvalidUrlBannerAsync(hint);
+            return;
+        }
 
         // Check for duplicate
         var existing = DownloadManager.Instance.FindExisting(url);
@@ -157,6 +193,26 @@ public partial class WebBrowsePage : ContentPage
 
         DownloadManager.Instance.Enqueue(url, 0, null);
         await ShowQueuedToastAsync();
+    }
+
+    private async Task ShowInvalidUrlBannerAsync(string hint)
+    {
+        InvalidUrlHintLabel.Text     = hint;
+        InvalidUrlBanner.Opacity     = 0;
+        InvalidUrlBanner.TranslationY = 30;
+        InvalidUrlBanner.IsVisible   = true;
+
+        await Task.WhenAll(
+            InvalidUrlBanner.FadeToAsync(1.0, 250, Easing.CubicOut),
+            InvalidUrlBanner.TranslateToAsync(0, 0, 250, Easing.CubicOut));
+
+        await Task.Delay(4000);
+
+        await Task.WhenAll(
+            InvalidUrlBanner.FadeToAsync(0, 250, Easing.CubicIn),
+            InvalidUrlBanner.TranslateToAsync(0, 30, 250, Easing.CubicIn));
+
+        InvalidUrlBanner.IsVisible = false;
     }
 
     private async Task ShowQueuedToastAsync()

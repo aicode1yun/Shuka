@@ -180,6 +180,37 @@
                 </HorizontalStackLayout>
             </Border>
 
+            <!-- Invalid URL banner — bottom-center, warning style -->
+            <Border x:Name="InvalidUrlBanner"
+                    BackgroundColor="{DynamicResource BgCard}"
+                    Stroke="{DynamicResource Stroke}"
+                    StrokeThickness="1"
+                    StrokeShape="RoundRectangle 16"
+                    Padding="16,14"
+                    HorizontalOptions="Fill"
+                    VerticalOptions="End"
+                    Margin="16,0,16,90"
+                    IsVisible="False">
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                    <Label Grid.Column="0"
+                           Text="&#xE002;"
+                           FontFamily="{DynamicResource IconFont}"
+                           FontSize="22"
+                           TextColor="{DynamicResource Warning}"
+                           VerticalOptions="Start"
+                           Margin="0,1,0,0" />
+                    <VerticalStackLayout Grid.Column="1" Spacing="4">
+                        <Label Text="Not a downloadable novel page"
+                               FontSize="13" FontAttributes="Bold"
+                               TextColor="{DynamicResource TextPrimary}" />
+                        <Label x:Name="InvalidUrlHintLabel"
+                               FontSize="11"
+                               TextColor="{DynamicResource TextMuted}"
+                               LineBreakMode="WordWrap" />
+                    </VerticalStackLayout>
+                </Grid>
+            </Border>
+
         </Grid>
     </Grid>
 </ContentPage>
