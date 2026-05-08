@@ -36,51 +36,54 @@
             </VerticalStackLayout>
         </Grid>
 
-        <!-- ── Top tab switcher: Download | Discover ─────────── -->
-        <Border Grid.Row="1"
-                BackgroundColor="{DynamicResource BgCard}"
-                StrokeThickness="0"
-                Padding="16,0,16,12">
-            <Grid ColumnDefinitions="*,*"
-                  BackgroundColor="{DynamicResource BgInput}"
-                  HeightRequest="40">
-                <Border.StrokeShape>
-                    <RoundRectangle CornerRadius="12" />
-                </Border.StrokeShape>
 
-                <!-- Download tab -->
-                <Border x:Name="TabDownloadPill"
-                        Grid.Column="0"
-                        StrokeThickness="0"
-                        StrokeShape="RoundRectangle 10"
-                        Margin="3,3,1.5,3">
-                    <Label x:Name="TabDownloadLabel"
-                           Text="Download"
-                           FontSize="13" FontAttributes="Bold"
-                           HorizontalOptions="Center"
-                           VerticalOptions="Center" />
-                    <Border.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnTabDownloadTapped" />
-                    </Border.GestureRecognizers>
-                </Border>
 
-                <!-- Discover tab -->
-                <Border x:Name="TabDiscoverPill"
-                        Grid.Column="1"
-                        StrokeThickness="0"
-                        StrokeShape="RoundRectangle 10"
-                        Margin="1.5,3,3,3">
-                    <Label x:Name="TabDiscoverLabel"
-                           Text="Discover"
-                           FontSize="13" FontAttributes="Bold"
-                           HorizontalOptions="Center"
-                           VerticalOptions="Center" />
-                    <Border.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnTabDiscoverTapped" />
-                    </Border.GestureRecognizers>
-                </Border>
+        <!-- ── Tab bar: Download | Discover ─────────────────── -->
+        <Grid Grid.Row="1"
+              ColumnDefinitions="*,*"
+              BackgroundColor="{DynamicResource BgCard}"
+              HeightRequest="48">
+
+            <!-- Download tab -->
+            <Grid Grid.Column="0" x:Name="TabDownloadPill">
+                <Label x:Name="TabDownloadLabel"
+                       Text="DOWNLOAD"
+                       FontSize="13" FontAttributes="Bold"
+                       HorizontalOptions="Center"
+                       VerticalOptions="Center"
+                       HorizontalTextAlignment="Center" />
+                <!-- Active indicator bar -->
+                <BoxView x:Name="TabDownloadBar"
+                         HeightRequest="2"
+                         VerticalOptions="End"
+                         HorizontalOptions="Fill"
+                         Margin="20,0" />
+                <Grid.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnTabDownloadTapped" />
+                </Grid.GestureRecognizers>
             </Grid>
-        </Border>
+
+            <!-- Discover tab -->
+            <Grid Grid.Column="1" x:Name="TabDiscoverPill">
+                <Label x:Name="TabDiscoverLabel"
+                       Text="DISCOVER"
+                       FontSize="13" FontAttributes="Bold"
+                       HorizontalOptions="Center"
+                       VerticalOptions="Center"
+                       HorizontalTextAlignment="Center" />
+                <!-- Active indicator bar -->
+                <BoxView x:Name="TabDiscoverBar"
+                         HeightRequest="2"
+                         VerticalOptions="End"
+                         HorizontalOptions="Fill"
+                         Margin="20,0" />
+                <Grid.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnTabDiscoverTapped" />
+                </Grid.GestureRecognizers>
+            </Grid>
+        </Grid>
+
+
 
         <!-- ── Body ─────────────────────────────────────────── -->
         <Grid Grid.Row="2">
@@ -335,7 +338,7 @@
             <!-- ══ DISCOVER PANEL ══════════════════════════════ -->
             <Grid x:Name="DiscoverPanel" IsVisible="False" RowDefinitions="Auto,*">
 
-                <!-- Global search bar -->
+                <!-- Source filter search bar -->
                 <Border Grid.Row="0"
                         BackgroundColor="{DynamicResource BgPage}"
                         StrokeThickness="0"
@@ -355,11 +358,11 @@
                                    Margin="0,0,8,0" />
                             <Entry Grid.Column="1"
                                    x:Name="GlobalSearchEntry"
-                                   Placeholder="Search all sources..."
+                                   Placeholder="Filter sources..."
                                    Keyboard="Text"
                                    HeightRequest="44"
                                    ReturnType="Search"
-                                   Completed="OnGlobalSearchCompleted" />
+                                   TextChanged="OnSourceFilterChanged" />
                             <Label Grid.Column="2"
                                    x:Name="GlobalSearchClearBtn"
                                    Text="&#xE5CD;"
@@ -376,45 +379,12 @@
                     </Border>
                 </Border>
 
-                <!-- Discover body -->
-                <Grid Grid.Row="1" x:Name="DiscoverBodyGrid">
+                <!-- Source list -->
+                <ScrollView Grid.Row="1" x:Name="DiscoverSourceScrollView">
+                    <VerticalStackLayout Padding="16,4,16,40" Spacing="12"
+                                         x:Name="DiscoverSourceList" />
+                </ScrollView>
 
-                    <!-- Source list -->
-                    <ScrollView x:Name="DiscoverSourceScrollView">
-                        <VerticalStackLayout Padding="16,4,16,40" Spacing="12"
-                                             x:Name="DiscoverSourceList" />
-                    </ScrollView>
-
-                    <!-- Global search results -->
-                    <Grid x:Name="DiscoverSearchResultsView" IsVisible="False"
-                          RowDefinitions="Auto,*">
-                        <Label Grid.Row="0"
-                               x:Name="DiscoverSearchResultsLabel"
-                               FontSize="13" FontAttributes="Bold"
-                               TextColor="{DynamicResource TextMuted}"
-                               Margin="20,8,20,4" />
-                        <ScrollView Grid.Row="1">
-                            <VerticalStackLayout Padding="16,4,16,40" Spacing="16"
-                                                 x:Name="DiscoverSearchResultsList" />
-                        </ScrollView>
-                    </Grid>
-
-                    <!-- Loading -->
-                    <VerticalStackLayout x:Name="DiscoverSearchLoadingState"
-                                         IsVisible="False"
-                                         HorizontalOptions="Center"
-                                         VerticalOptions="Center"
-                                         Spacing="12">
-                        <ActivityIndicator IsRunning="True"
-                                           Color="{DynamicResource AccentLight}"
-                                           WidthRequest="40" HeightRequest="40" />
-                        <Label Text="Searching all sources..."
-                               FontSize="13"
-                               TextColor="{DynamicResource TextMuted}"
-                               HorizontalOptions="Center" />
-                    </VerticalStackLayout>
-
-                </Grid>
             </Grid>
 
         </Grid>

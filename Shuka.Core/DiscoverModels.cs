@@ -29,6 +29,12 @@ public interface IBrowsableAdapter
     /// <summary>Human-readable source name shown in the Discover tab.</summary>
     string SiteName { get; }
 
+    /// <summary>Short description of the source content type.</summary>
+    string Description { get; }
+
+    /// <summary>Material Symbols codepoint to use as the source icon.</summary>
+    string IconGlyph { get; }
+
     /// <summary>Whether this source requires Cloudflare bypass to browse.</summary>
     bool RequiresCfBypass { get; }
 

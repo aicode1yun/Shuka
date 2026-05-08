@@ -4,17 +4,25 @@ namespace Shuka.Core.Adapters;
 
 /// <summary>
 /// Browse/discover support for czbooks.net.
+///
+/// czbooks.net is behind Cloudflare and blocks all HTTP fetches (403).
+/// It works fine in a real browser/WebView. The URLs below are used by
+/// WebBrowsePage to open the site — ParseListing is a best-effort fallback
+/// but will typically return empty (the WebView handles browsing directly).
+///
 /// Recent:  https://czbooks.net/new/1
 /// Popular: https://czbooks.net/hot/1
-/// Search:  https://czbooks.net/search?q={query}&amp;page={page}
+/// Search:  https://czbooks.net/search?q={query}
 /// </summary>
 public class CzBooksBrowse : IBrowsableAdapter
 {
-    public string SiteName       => "czbooks.net";
-    public bool   RequiresCfBypass => true; // czbooks uses CF
+    public string SiteName         => "czbooks.net";
+    public string Description      => "Chinese novels · Cloudflare protected";
+    public string IconGlyph        => "\uE894"; // language (globe)
+    public bool   RequiresCfBypass => true;
 
-    public string GetRecentUrl(int page = 1)  => $"https://czbooks.net/new/{page}";
-    public string GetPopularUrl(int page = 1) => $"https://czbooks.net/hot/{page}";
+    public string GetRecentUrl(int page = 1)  => "https://czbooks.net/";
+    public string GetPopularUrl(int page = 1) => "https://czbooks.net/hot/1";
     public string GetSearchUrl(string query, int page = 1) =>
         $"https://czbooks.net/search?q={Uri.EscapeDataString(query)}&page={page}";
 

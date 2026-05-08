@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="Shuka.Android.Pages.WebBrowsePage"
+             BackgroundColor="{DynamicResource BgPage}">
+
+    <Grid RowDefinitions="Auto,*">
+
+        <!-- ── Top bar ───────────────────────────────────────── -->
+        <Grid Grid.Row="0"
+              ColumnDefinitions="44,*,44,44"
+              HeightRequest="96"
+              Padding="8,44,8,8"
+              BackgroundColor="{DynamicResource BgCard}">
+
+            <!-- Back button -->
+            <Grid Grid.Column="0"
+                  WidthRequest="44"
+                  HorizontalOptions="Center"
+                  VerticalOptions="Center">
+                <Label Text="&#xE5C4;"
+                       FontFamily="{DynamicResource IconFont}"
+                       FontSize="22"
+                       TextColor="{DynamicResource TextPrimary}"
+                       HorizontalOptions="Center"
+                       VerticalOptions="Center" />
+                <Grid.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnBackTapped" />
+                </Grid.GestureRecognizers>
+            </Grid>
+
+            <!-- URL pill -->
+            <Border Grid.Column="1"
+                    Stroke="{DynamicResource Stroke}"
+                    StrokeThickness="1"
+                    StrokeShape="RoundRectangle 8"
+                    BackgroundColor="{DynamicResource BgInput}"
+                    HeightRequest="34"
+                    Padding="10,0"
+                    VerticalOptions="Center">
+                <Label x:Name="UrlBarLabel"
+                       FontSize="11"
+                       TextColor="{DynamicResource TextMuted}"
+                       VerticalOptions="Center"
+                       VerticalTextAlignment="Center"
+                       LineBreakMode="TailTruncation"
+                       MaxLines="1" />
+            </Border>
+
+            <!-- Reload button -->
+            <Grid Grid.Column="2"
+                  WidthRequest="44"
+                  HorizontalOptions="Center"
+                  VerticalOptions="Center">
+                <Label Text="&#xE5D5;"
+                       FontFamily="{DynamicResource IconFont}"
+                       FontSize="20"
+                       TextColor="{DynamicResource TextMuted}"
+                       HorizontalOptions="Center"
+                       VerticalOptions="Center" />
+                <Grid.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnReloadTapped" />
+                </Grid.GestureRecognizers>
+            </Grid>
+
+            <!-- Home / close source button -->
+            <Grid Grid.Column="3"
+                  WidthRequest="44"
+                  HorizontalOptions="Center"
+                  VerticalOptions="Center">
+                <Label Text="&#xE88A;"
+                       FontFamily="{DynamicResource IconFont}"
+                       FontSize="20"
+                       TextColor="{DynamicResource TextMuted}"
+                       HorizontalOptions="Center"
+                       VerticalOptions="Center" />
+                <Grid.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnHomeSourceTapped" />
+                </Grid.GestureRecognizers>
+            </Grid>
+        </Grid>
+
+        <!-- ── WebView + FAB overlay ─────────────────────────── -->
+        <Grid Grid.Row="1">
+
+            <!-- WebView -->
+            <WebView x:Name="SiteWebView"
+                     Navigating="OnNavigating"
+                     Navigated="OnNavigated" />
+
+            <!-- Loading bar -->
+            <ProgressBar x:Name="LoadingBar"
+                         Progress="0"
+                         ProgressColor="{DynamicResource AccentLight}"
+                         VerticalOptions="Start"
+                         HeightRequest="3"
+                         IsVisible="False" />
+
+            <!-- FABs — bottom-right corner, horizontal row -->
+            <HorizontalStackLayout HorizontalOptions="End"
+                                   VerticalOptions="End"
+                                   Spacing="10"
+                                   Margin="0,0,16,28">
+
+                <!-- Browser FAB — always visible -->
+                <Border x:Name="FabBrowser"
+                        BackgroundColor="{DynamicResource BgCard}"
+                        Stroke="{DynamicResource Stroke}"
+                        StrokeThickness="1"
+                        StrokeShape="RoundRectangle 24"
+                        HeightRequest="44"
+                        Padding="14,0">
+                    <HorizontalStackLayout Spacing="6"
+                                           HorizontalOptions="Center"
+                                           VerticalOptions="Center">
+                        <Label Text="&#xE89E;"
+                               FontFamily="{DynamicResource IconFont}"
+                               FontSize="16"
+                               TextColor="{DynamicResource TextSecondary}"
+                               VerticalOptions="Center" />
+                        <Label Text="Browser"
+                               FontSize="11" FontAttributes="Bold"
+                               TextColor="{DynamicResource TextSecondary}"
+                               VerticalOptions="Center" />
+                    </HorizontalStackLayout>
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnOpenInBrowserTapped" />
+                    </Border.GestureRecognizers>
+                </Border>
+
+                <!-- Download FAB — shown only on supported novel pages -->
+                <Border x:Name="FabDownload"
+                        BackgroundColor="{DynamicResource Accent}"
+                        StrokeThickness="0"
+                        StrokeShape="RoundRectangle 24"
+                        HeightRequest="44"
+                        Padding="16,0"
+                        IsVisible="False">
+                    <HorizontalStackLayout Spacing="6"
+                                           HorizontalOptions="Center"
+                                           VerticalOptions="Center">
+                        <Label Text="&#xF090;"
+                               FontFamily="{DynamicResource IconFont}"
+                               FontSize="18"
+                               TextColor="{DynamicResource TextOnAccent}"
+                               VerticalOptions="Center" />
+                        <Label Text="DOWNLOAD"
+                               FontSize="11" FontAttributes="Bold"
+                               TextColor="{DynamicResource TextOnAccent}"
+                               VerticalOptions="Center" />
+                    </HorizontalStackLayout>
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnDownloadFabTapped" />
+                    </Border.GestureRecognizers>
+                </Border>
+
+            </HorizontalStackLayout>
+
+            <!-- Queued toast — bottom-center -->
+            <Border x:Name="QueuedToast"
+                    BackgroundColor="{DynamicResource Accent}"
+                    StrokeThickness="0"
+                    StrokeShape="RoundRectangle 16"
+                    Padding="18,12"
+                    HorizontalOptions="Center"
+                    VerticalOptions="End"
+                    Margin="0,0,0,90"
+                    IsVisible="False">
+                <HorizontalStackLayout Spacing="10">
+                    <Label Text="&#xE86C;"
+                           FontFamily="{DynamicResource IconFont}"
+                           FontSize="16"
+                           TextColor="{DynamicResource TextOnAccent}"
+                           VerticalOptions="Center" />
+                    <Label x:Name="QueuedToastLabel"
+                           Text="Queued!"
+                           FontSize="13" FontAttributes="Bold"
+                           TextColor="{DynamicResource TextOnAccent}"
+                           VerticalOptions="Center" />
+                </HorizontalStackLayout>
+            </Border>
+
+        </Grid>
+    </Grid>
+</ContentPage>

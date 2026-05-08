@@ -12,8 +12,10 @@ public class DiscoverService
     public static readonly IReadOnlyList<IBrowsableAdapter> Sources =
     [
         new QuanbenBrowse(),
-        new CzBooksBrowse(),
+        new CzBooksBrowse(),   // opens in WebView — CF blocks HTTP but browser works fine
         new ShubaBrowse(),
+        new DmxsBrowse(),
+        new ShukuBrowse(),
     ];
 
     public DiscoverService(ICloudflareBypass? cfBypass = null)

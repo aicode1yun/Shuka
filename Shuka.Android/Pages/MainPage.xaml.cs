@@ -1,19 +1,15 @@
 using Shuka.Android.Services;
 using Shuka.Core;
-using Shuka.Android.Platform;
 
 namespace Shuka.Android.Pages;
 
 public partial class MainPage : ContentPage
 {
-    private readonly DiscoverService _discoverService;
     private bool _discoverBuilt = false;
 
     public MainPage()
     {
         InitializeComponent();
-
-        _discoverService = new DiscoverService(new WebViewCloudflareBypass());
 
         UrlEntry.TextChanged   += (_, e) => UrlClearBtn.IsVisible   = !string.IsNullOrEmpty(e.NewTextValue);
         CoverEntry.TextChanged += (_, e) => CoverClearBtn.IsVisible = !string.IsNullOrEmpty(e.NewTextValue);
@@ -53,71 +49,263 @@ public partial class MainPage : ContentPage
         DownloadPanel.IsVisible = download;
         DiscoverPanel.IsVisible = !download;
 
+        // Resolve the accent color once from the app resources
+        Color accent      = (Color)(Application.Current!.Resources["AccentLight"]);
+        Color textPrimary = (Color)(Application.Current!.Resources["TextPrimary"]);
+        Color textMuted   = (Color)(Application.Current!.Resources["TextMuted"]);
+
         if (download)
         {
-            TabDownloadPill.SetDynamicResource(Border.BackgroundColorProperty, "BgCard");
-            TabDownloadLabel.SetDynamicResource(Label.TextColorProperty, "TextPrimary");
-            TabDiscoverPill.BackgroundColor = Colors.Transparent;
-            TabDiscoverLabel.SetDynamicResource(Label.TextColorProperty, "TextMuted");
+            TabDownloadLabel.TextColor = textPrimary;
+            TabDownloadBar.Color       = accent;
+            TabDiscoverLabel.TextColor = textMuted;
+            TabDiscoverBar.Color       = Colors.Transparent;
         }
         else
         {
-            TabDiscoverPill.SetDynamicResource(Border.BackgroundColorProperty, "BgCard");
-            TabDiscoverLabel.SetDynamicResource(Label.TextColorProperty, "TextPrimary");
-            TabDownloadPill.BackgroundColor = Colors.Transparent;
-            TabDownloadLabel.SetDynamicResource(Label.TextColorProperty, "TextMuted");
+            TabDiscoverLabel.TextColor = textPrimary;
+            TabDiscoverBar.Color       = accent;
+            TabDownloadLabel.TextColor = textMuted;
+            TabDownloadBar.Color       = Colors.Transparent;
         }
+    }
+
+    // ── Discover: pin persistence ─────────────────────────────────────────────
+
+    // Pins stored as ordered list of SiteNames (oldest pin = index 0 = shown first)
+    private const string PrefKeyPins = "discover_pinned_sources";
+
+    private List<string> LoadPins()
+    {
+        string raw = Preferences.Default.Get(PrefKeyPins, "");
+        if (string.IsNullOrWhiteSpace(raw)) return new List<string>();
+        return raw.Split('|').Where(s => !string.IsNullOrWhiteSpace(s)).ToList();
+    }
+
+    private void SavePins(List<string> pins)
+        => Preferences.Default.Set(PrefKeyPins, string.Join("|", pins));
+
+    private bool IsPinned(string siteName)
+        => LoadPins().Contains(siteName);
+
+    private void TogglePin(string siteName)
+    {
+        var pins = LoadPins();
+        if (pins.Contains(siteName))
+            pins.Remove(siteName);
+        else
+            pins.Add(siteName); // append = newest pin last, oldest first
+        SavePins(pins);
     }
 
     // ── Discover: source cards ────────────────────────────────────────────────
 
-    private void BuildDiscoverSources()
+    private void BuildDiscoverSources() => RebuildSourceList(filter: "");
+
+    private void RebuildSourceList(string filter)
     {
+        var pins    = LoadPins();
+        var sources = DiscoverService.Sources;
+
+        // Apply filter
+        IEnumerable<IBrowsableAdapter> filtered = string.IsNullOrWhiteSpace(filter)
+            ? sources
+            : sources.Where(s =>
+                s.SiteName.Contains(filter, StringComparison.OrdinalIgnoreCase) ||
+                s.Description.Contains(filter, StringComparison.OrdinalIgnoreCase));
+
+        // Sort: pinned first (oldest pin = lowest index = first), then alphabetical
+        var sorted = filtered
+            .OrderBy(s =>
+            {
+                int idx = pins.IndexOf(s.SiteName);
+                return idx >= 0 ? idx : int.MaxValue; // pinned items by pin age
+            })
+            .ThenBy(s => s.SiteName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
         DiscoverSourceList.Children.Clear();
-        foreach (var source in DiscoverService.Sources)
-            DiscoverSourceList.Children.Add(BuildSourceCard(source));
+
+        if (sorted.Count == 0)
+        {
+            var empty = new Label
+            {
+                Text = "No sources match your filter.",
+                FontSize = 13,
+                HorizontalOptions = LayoutOptions.Center,
+                Margin = new Thickness(0, 24),
+            };
+            empty.SetDynamicResource(Label.TextColorProperty, "TextMuted");
+            DiscoverSourceList.Children.Add(empty);
+            return;
+        }
+
+        // Section header for pinned
+        bool shownPinnedHeader = false;
+        bool shownAllHeader    = false;
+
+        foreach (var source in sorted)
+        {
+            bool pinned = pins.Contains(source.SiteName);
+
+            if (pinned && !shownPinnedHeader)
+            {
+                DiscoverSourceList.Children.Add(MakeSectionHeader("PINNED"));
+                shownPinnedHeader = true;
+            }
+            else if (!pinned && !shownAllHeader && shownPinnedHeader)
+            {
+                DiscoverSourceList.Children.Add(MakeSectionHeader("ALL SOURCES"));
+                shownAllHeader = true;
+            }
+            else if (!pinned && !shownAllHeader && !shownPinnedHeader)
+            {
+                DiscoverSourceList.Children.Add(MakeSectionHeader("ALL SOURCES"));
+                shownAllHeader = true;
+            }
+
+            DiscoverSourceList.Children.Add(BuildSourceCard(source, pinned));
+        }
     }
 
-    private View BuildSourceCard(IBrowsableAdapter source)
+    private Label MakeSectionHeader(string text)
     {
+        var lbl = new Label
+        {
+            Text = text,
+            FontSize = 10,
+            FontAttributes = FontAttributes.Bold,
+            Margin = new Thickness(4, 8, 0, 2),
+            CharacterSpacing = 1.2,
+        };
+        lbl.SetDynamicResource(Label.TextColorProperty, "TextMuted");
+        return lbl;
+    }
+
+    private View BuildSourceCard(IBrowsableAdapter source, bool pinned)
+    {
+        // ── Left icon badge ──────────────────────────────────────────────────
+        var iconLabel = new Label
+        {
+            Text            = source.IconGlyph,
+            FontFamily      = "MaterialSymbols",
+            FontSize        = 22,
+            HorizontalOptions = LayoutOptions.Center,
+            VerticalOptions   = LayoutOptions.Center,
+        };
+        iconLabel.SetDynamicResource(Label.TextColorProperty, "AccentLight");
+
+        var iconBadge = new Border
+        {
+            StrokeThickness = 0,
+            StrokeShape     = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 14 },
+            WidthRequest    = 48,
+            HeightRequest   = 48,
+            VerticalOptions = LayoutOptions.Center,
+            Content         = iconLabel,
+        };
+        iconBadge.SetDynamicResource(Border.BackgroundColorProperty, "AccentContainer");
+
+        // ── Text stack ───────────────────────────────────────────────────────
+        var titleLabel = new Label
+        {
+            Text           = source.SiteName,
+            FontSize       = 15,
+            FontAttributes = FontAttributes.Bold,
+        };
+        titleLabel.SetDynamicResource(Label.TextColorProperty, "TextPrimary");
+
+        var descLabel = new Label
+        {
+            Text     = source.Description,
+            FontSize = 11,
+        };
+        descLabel.SetDynamicResource(Label.TextColorProperty, "TextMuted");
+
+        // CF bypass badge — only shown when the source needs it
         var cfBadge = new Border
         {
             StrokeThickness = 0,
             StrokeShape     = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 6 },
-            Padding         = new Thickness(8, 3),
+            Padding         = new Thickness(6, 2),
+            HorizontalOptions = LayoutOptions.Start,
             IsVisible       = source.RequiresCfBypass,
         };
         cfBadge.SetDynamicResource(Border.BackgroundColorProperty, "AccentContainer");
-        var cfLabel = new Label { Text = "CF bypass", FontSize = 10, FontAttributes = FontAttributes.Bold };
+        var cfLabel = new Label
+        {
+            Text           = "CF bypass",
+            FontSize       = 9,
+            FontAttributes = FontAttributes.Bold,
+        };
         cfLabel.SetDynamicResource(Label.TextColorProperty, "AccentLight");
         cfBadge.Content = cfLabel;
 
-        var titleLabel = new Label { Text = source.SiteName, FontSize = 16, FontAttributes = FontAttributes.Bold };
-        titleLabel.SetDynamicResource(Label.TextColorProperty, "TextPrimary");
-
-        var subtitleLabel = new Label { Text = "Chinese novels", FontSize = 12 };
-        subtitleLabel.SetDynamicResource(Label.TextColorProperty, "TextMuted");
-
-        var chevron = new Label { Text = "\uE5CC", FontFamily = "MaterialSymbols", FontSize = 22, VerticalOptions = LayoutOptions.Center };
-        chevron.SetDynamicResource(Label.TextColorProperty, "TextMuted");
-
         var textStack = new VerticalStackLayout
         {
-            Spacing = 4, VerticalOptions = LayoutOptions.Center,
-            Children = { titleLabel, subtitleLabel, cfBadge }
+            Spacing         = 3,
+            VerticalOptions = LayoutOptions.Center,
+            Children        = { titleLabel, descLabel, cfBadge },
         };
 
+        // ── Pin button ───────────────────────────────────────────────────────
+        var pinIcon = new Label
+        {
+            Text       = pinned ? "\uE9C9" : "\uE9C8", // push_pin filled / outlined
+            FontFamily = "MaterialSymbols",
+            FontSize   = 20,
+            HorizontalOptions = LayoutOptions.Center,
+            VerticalOptions   = LayoutOptions.Center,
+        };
+        pinIcon.SetDynamicResource(Label.TextColorProperty,
+            pinned ? "AccentLight" : "TextMuted");
+
+        var pinBtn = new Border
+        {
+            StrokeThickness = 0,
+            BackgroundColor = Colors.Transparent,
+            WidthRequest    = 40,
+            HeightRequest   = 40,
+            VerticalOptions = LayoutOptions.Center,
+            Content         = pinIcon,
+        };
+        pinBtn.GestureRecognizers.Add(new TapGestureRecognizer
+        {
+            Command = new Command(() =>
+            {
+                TogglePin(source.SiteName);
+                string filterText = GlobalSearchEntry.Text?.Trim() ?? "";
+                RebuildSourceList(filterText);
+            })
+        });
+
+        // ── Chevron ──────────────────────────────────────────────────────────
+        var chevron = new Label
+        {
+            Text            = "\uE5CC",
+            FontFamily      = "MaterialSymbols",
+            FontSize        = 20,
+            VerticalOptions = LayoutOptions.Center,
+        };
+        chevron.SetDynamicResource(Label.TextColorProperty, "TextMuted");
+
+        // ── Row layout ───────────────────────────────────────────────────────
         var row = new Grid
         {
             ColumnDefinitions = new ColumnDefinitionCollection
             {
-                new ColumnDefinition { Width = GridLength.Star },
-                new ColumnDefinition { Width = GridLength.Auto },
+                new ColumnDefinition { Width = GridLength.Auto },   // icon
+                new ColumnDefinition { Width = GridLength.Star },   // text
+                new ColumnDefinition { Width = GridLength.Auto },   // pin
+                new ColumnDefinition { Width = GridLength.Auto },   // chevron
             },
-            Padding = new Thickness(18, 16),
+            ColumnSpacing = 12,
+            Padding       = new Thickness(14, 14),
         };
-        row.Add(textStack, 0, 0);
-        row.Add(chevron,   1, 0);
+        row.Add(iconBadge, 0, 0);
+        row.Add(textStack, 1, 0);
+        row.Add(pinBtn,    2, 0);
+        row.Add(chevron,   3, 0);
 
         var card = new Border
         {
@@ -135,184 +323,36 @@ public partial class MainPage : ContentPage
             {
                 await card.ScaleToAsync(0.97, 80, Easing.CubicOut);
                 await card.ScaleToAsync(1.0,  80, Easing.SpringOut);
-                await Shell.Current.Navigation.PushAsync(new SourceBrowsePage(source));
+                await Shell.Current.Navigation.PushAsync(
+                    new WebBrowsePage(source.GetRecentUrl(1)));
             })
         });
 
         return card;
     }
 
-    // ── Discover: global search ───────────────────────────────────────────────
+    // ── Discover: source filter ───────────────────────────────────────────────
 
-    private async void OnGlobalSearchCompleted(object sender, EventArgs e)
+    private void OnSourceFilterChanged(object sender, TextChangedEventArgs e)
     {
-        string query = GlobalSearchEntry.Text?.Trim() ?? "";
-        if (string.IsNullOrWhiteSpace(query)) return;
-        await RunGlobalSearchAsync(query);
+        string filter = e.NewTextValue?.Trim() ?? "";
+        GlobalSearchClearBtn.IsVisible = !string.IsNullOrEmpty(filter);
+        RebuildSourceList(filter);
     }
 
     private void OnGlobalSearchClearTapped(object sender, TappedEventArgs e)
     {
-        GlobalSearchEntry.Text = "";
+        GlobalSearchEntry.Text         = "";
         GlobalSearchClearBtn.IsVisible = false;
-        DiscoverSourceScrollView.IsVisible    = true;
-        DiscoverSearchResultsView.IsVisible   = false;
-        DiscoverSearchLoadingState.IsVisible  = false;
+        RebuildSourceList(filter: "");
     }
 
-    private async Task RunGlobalSearchAsync(string query)
-    {
-        DiscoverSourceScrollView.IsVisible    = false;
-        DiscoverSearchResultsView.IsVisible   = false;
-        DiscoverSearchLoadingState.IsVisible  = true;
-        DiscoverSearchResultsList.Children.Clear();
+    // ── Discover: removed global search (replaced by source filter) ───────────
+    // The following stubs keep the build clean if any XAML event refs remain.
+    private void OnGlobalSearchCompleted(object sender, EventArgs e) { }
 
-        try
-        {
-            var results = await _discoverService.SearchAllAsync(query);
-            DiscoverSearchLoadingState.IsVisible = false;
-
-            if (results.Count == 0)
-            {
-                DiscoverSearchResultsLabel.Text = $"No results for \"{query}\"";
-                DiscoverSearchResultsView.IsVisible = true;
-                return;
-            }
-
-            int total = results.Sum(r => r.Results.Novels.Count);
-            DiscoverSearchResultsLabel.Text = $"{total} result{(total == 1 ? "" : "s")} for \"{query}\"";
-
-            foreach (var (source, page) in results)
-            {
-                var header = new Label
-                {
-                    Text = $"{source.SiteName}  ·  {page.Novels.Count} result{(page.Novels.Count == 1 ? "" : "s")}",
-                    FontSize = 12, FontAttributes = FontAttributes.Bold,
-                    Margin = new Thickness(4, 8, 0, 4),
-                };
-                header.SetDynamicResource(Label.TextColorProperty, "AccentLight");
-                DiscoverSearchResultsList.Children.Add(header);
-
-                foreach (var novel in page.Novels.Take(5))
-                    DiscoverSearchResultsList.Children.Add(BuildSearchResultCard(novel));
-
-                if (page.Novels.Count > 5 || page.HasNextPage)
-                    DiscoverSearchResultsList.Children.Add(BuildSeeAllButton(source, query));
-            }
-
-            DiscoverSearchResultsView.IsVisible = true;
-        }
-        catch (Exception ex)
-        {
-            DiscoverSearchLoadingState.IsVisible = false;
-            DiscoverSearchResultsLabel.Text = $"Search failed: {ex.Message}";
-            DiscoverSearchResultsView.IsVisible = true;
-        }
-    }
-
-    private View BuildSearchResultCard(NovelEntry novel)
-    {
-        View coverView;
-        if (!string.IsNullOrWhiteSpace(novel.CoverUrl) &&
-            Uri.TryCreate(novel.CoverUrl, UriKind.Absolute, out var coverUri))
-        {
-            var img = new Image { Source = ImageSource.FromUri(coverUri),
-                Aspect = Aspect.AspectFill, WidthRequest = 52, HeightRequest = 74 };
-            coverView = new Border { StrokeThickness = 0,
-                StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 8 },
-                WidthRequest = 52, HeightRequest = 74, Content = img };
-            ((Border)coverView).SetDynamicResource(Border.BackgroundColorProperty, "BgInput");
-        }
-        else
-        {
-            var ph = new Label { Text = "\uEA78", FontFamily = "MaterialSymbols", FontSize = 24,
-                HorizontalOptions = LayoutOptions.Center, VerticalOptions = LayoutOptions.Center };
-            ph.SetDynamicResource(Label.TextColorProperty, "TextMuted");
-            coverView = new Border { StrokeThickness = 0,
-                StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 8 },
-                WidthRequest = 52, HeightRequest = 74, Content = ph };
-            ((Border)coverView).SetDynamicResource(Border.BackgroundColorProperty, "BgInput");
-        }
-
-        var titleLbl = new Label { Text = novel.Title, FontSize = 13, FontAttributes = FontAttributes.Bold,
-            LineBreakMode = LineBreakMode.TailTruncation, MaxLines = 2 };
-        titleLbl.SetDynamicResource(Label.TextColorProperty, "TextPrimary");
-
-        var authorLbl = new Label { Text = novel.Author ?? "", FontSize = 11,
-            IsVisible = !string.IsNullOrWhiteSpace(novel.Author),
-            LineBreakMode = LineBreakMode.TailTruncation, MaxLines = 1 };
-        authorLbl.SetDynamicResource(Label.TextColorProperty, "TextMuted");
-
-        var dlIcon = new Label { Text = "\uF090", FontFamily = "MaterialSymbols", FontSize = 12,
-            VerticalOptions = LayoutOptions.Center, Margin = new Thickness(0, 0, 4, 0) };
-        dlIcon.SetDynamicResource(Label.TextColorProperty, "TextOnAccent");
-        var dlText = new Label { Text = "Download", FontSize = 10, FontAttributes = FontAttributes.Bold,
-            VerticalOptions = LayoutOptions.Center };
-        dlText.SetDynamicResource(Label.TextColorProperty, "TextOnAccent");
-
-        var dlBtn = new Border { StrokeThickness = 0,
-            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 8 },
-            HeightRequest = 28, Padding = new Thickness(8, 0), HorizontalOptions = LayoutOptions.Start,
-            Content = new HorizontalStackLayout { Spacing = 0,
-                HorizontalOptions = LayoutOptions.Center, VerticalOptions = LayoutOptions.Center,
-                Children = { dlIcon, dlText } } };
-        dlBtn.SetDynamicResource(Border.BackgroundColorProperty, "Accent");
-        dlBtn.GestureRecognizers.Add(new TapGestureRecognizer
-        {
-            Command = new Command(async () =>
-            {
-                await dlBtn.ScaleToAsync(0.93, 70, Easing.CubicOut);
-                await dlBtn.ScaleToAsync(1.0,  70, Easing.SpringOut);
-                DownloadManager.Instance.Enqueue(novel.Url, 0,
-                    string.IsNullOrWhiteSpace(novel.CoverUrl) ? null : novel.CoverUrl);
-                if (Shell.Current != null)
-                    await Shell.Current.GoToAsync("//DownloadsPage");
-            })
-        });
-
-        var textStack = new VerticalStackLayout { Spacing = 4, VerticalOptions = LayoutOptions.Center,
-            Children = { titleLbl, authorLbl, dlBtn } };
-
-        var grid = new Grid
-        {
-            ColumnDefinitions = new ColumnDefinitionCollection
-            {
-                new ColumnDefinition { Width = GridLength.Auto },
-                new ColumnDefinition { Width = GridLength.Star },
-            },
-            ColumnSpacing = 10, Padding = new Thickness(12),
-        };
-        grid.Add(coverView, 0, 0);
-        grid.Add(textStack, 1, 0);
-
-        var card = new Border { StrokeThickness = 1,
-            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 14 },
-            Padding = new Thickness(0), Content = grid };
-        card.SetDynamicResource(Border.BackgroundColorProperty, "BgCard");
-        card.SetDynamicResource(Border.StrokeProperty, "Stroke");
-        return card;
-    }
-
-    private View BuildSeeAllButton(IBrowsableAdapter source, string query)
-    {
-        var lbl = new Label { Text = $"See all results from {source.SiteName} →",
-            FontSize = 12, FontAttributes = FontAttributes.Bold,
-            HorizontalOptions = LayoutOptions.Center };
-        lbl.SetDynamicResource(Label.TextColorProperty, "AccentLight");
-
-        var btn = new Border { StrokeThickness = 1,
-            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 12 },
-            HeightRequest = 40, HorizontalOptions = LayoutOptions.Fill, Content = lbl };
-        btn.SetDynamicResource(Border.BackgroundColorProperty, "BgCard");
-        btn.SetDynamicResource(Border.StrokeProperty, "Stroke");
-
-        btn.GestureRecognizers.Add(new TapGestureRecognizer
-        {
-            Command = new Command(async () =>
-                await Shell.Current.Navigation.PushAsync(new SourceBrowsePage(source, initialQuery: query)))
-        });
-        return btn;
-    }
+    private View BuildSearchResultCard(NovelEntry novel) => new Label(); // unused
+    private View BuildSeeAllButton(IBrowsableAdapter source, string query) => new Label(); // unused
 
     // ── Download handlers (unchanged) ─────────────────────────────────────────
 
