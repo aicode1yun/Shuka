@@ -119,6 +119,21 @@ jobs:
           [IO.File]::WriteAllBytes("${{ github.workspace }}\shuka.keystore", $bytes)
         shell: pwsh
 
+      - name: Compute version code
+        id: version
+        shell: pwsh
+        run: |
+          # Convert vX.Y.Z → integer: X*10000 + Y*100 + Z
+          # e.g. v1.2.3 → 10203, v1.1.0 → 10100
+          $tag = "${{ github.ref_name }}".TrimStart('v')
+          $parts = $tag -split '\.'
+          $major = [int]$parts[0]
+          $minor = if ($parts.Length -gt 1) { [int]$parts[1] } else { 0 }
+          $patch = if ($parts.Length -gt 2) { [int]$parts[2] } else { 0 }
+          $code = $major * 10000 + $minor * 100 + $patch
+          echo "VERSION_CODE=$code" >> $env:GITHUB_OUTPUT
+          echo "Version code: $code"
+
       - name: Build Release APK
         run: >
           dotnet publish Shuka.Android/Shuka.Android.csproj
@@ -130,7 +145,7 @@ jobs:
           -p:AndroidSigningKeyPass=${{ secrets.KEY_PASSWORD }}
           -p:AndroidSigningStorePass=${{ secrets.STORE_PASSWORD }}
           -p:AndroidPackageFormats=apk
-          -p:ApplicationVersion=${{ github.run_number }}
+          -p:ApplicationVersion=${{ steps.version.outputs.VERSION_CODE }}
           -p:ApplicationDisplayVersion=${{ github.ref_name }}
           -o publish_output
 
