@@ -1,5 +1,4 @@
 using Shuka.Android.Services;
-using Shuka.Core;
 using Shuka.Core.Adapters;
 
 namespace Shuka.Android.Pages;
@@ -11,16 +10,37 @@ namespace Shuka.Android.Pages;
 /// </summary>
 public partial class WebBrowsePage : ContentPage
 {
-    // All adapters that can download a novel — used to detect if the current
-    // page is a downloadable novel index.
-    private static readonly ISiteAdapter[] _adapters =
-    [
-        new QuanbenAdapter(),
-        new CzBooksAdapter(),
-        new DmxsAdapter(),
-        new ShubaAdapter(),
-        new ShukuAdapter(),
-    ];
+    // Stricter per-site checks: is this URL a novel index page (not just the domain)?
+    private static readonly Dictionary<string, Func<string, bool>> _novelPageChecks = new()
+    {
+        // quanben.io: /n/{bookId}/  or  /n/{bookId}/list.html
+        ["quanben.io"]  = url => System.Text.RegularExpressions.Regex.IsMatch(
+            url, @"quanben\.io/n/[^/?#]+", System.Text.RegularExpressions.RegexOptions.IgnoreCase),
+
+        // czbooks.net: /n/{bookId}  (not /new/, /hot/, /search, etc.)
+        ["czbooks.net"] = url => System.Text.RegularExpressions.Regex.IsMatch(
+            url, @"czbooks\.net/n/[^/?#]+", System.Text.RegularExpressions.RegexOptions.IgnoreCase),
+
+        // 69shuba.com: /book/{numericId}.htm
+        ["69shuba.com"] = url => System.Text.RegularExpressions.Regex.IsMatch(
+            url, @"69shuba\.com/book/\d+\.htm", System.Text.RegularExpressions.RegexOptions.IgnoreCase),
+
+        // dmxs.org: /{category}/{numericId}.html  (not /news_last/, /tags, etc.)
+        ["dmxs.org"]    = url => System.Text.RegularExpressions.Regex.IsMatch(
+            url, @"dmxs\.org/[a-zA-Z]+/\d+\.html", System.Text.RegularExpressions.RegexOptions.IgnoreCase),
+
+        // 52shuku.net: /{category}/{folder}/bk{id}.html
+        ["52shuku.net"] = url => System.Text.RegularExpressions.Regex.IsMatch(
+            url, @"52shuku\.net/[^/]+/[^/]+/bk[^/]+\.html", System.Text.RegularExpressions.RegexOptions.IgnoreCase),
+    };
+
+    /// <summary>Returns true if the URL is a valid novel index page for its site.</summary>
+    private static bool IsNovelPage(string url)
+    {
+        string? site = DetectSite(url);
+        if (site == null) return false;
+        return _novelPageChecks.TryGetValue(site, out var check) && check(url);
+    }
 
     private string _currentUrl;
     private readonly string _homeUrl;
@@ -153,11 +173,9 @@ public partial class WebBrowsePage : ContentPage
         string url  = _currentUrl;
         string site = DetectSite(url) ?? "";
 
-        // Validate: adapter must match (novel index page, not just the domain homepage)
-        var adapter = _adapters.FirstOrDefault(a => a.Matches(url));
-        if (adapter == null)
+        // Validate: must be a novel index page, not just the site homepage/listing
+        if (!IsNovelPage(url))
         {
-            // We're on a known source site but not a valid novel page
             string hint = _exampleUrls.TryGetValue(site, out var ex)
                 ? $"Navigate to a novel's index page.\n{ex}"
                 : "Navigate to a specific novel's index page first.";
