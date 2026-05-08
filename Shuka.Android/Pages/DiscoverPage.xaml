@@ -4,7 +4,7 @@
              x:Class="Shuka.Android.Pages.DiscoverPage"
              BackgroundColor="{DynamicResource BgPage}">
 
-    <Grid RowDefinitions="Auto,*">
+    <Grid RowDefinitions="Auto,Auto,*">
 
         <!-- ── Top App Bar ──────────────────────────────────── -->
         <Grid Grid.Row="0"
@@ -38,10 +38,85 @@
             </VerticalStackLayout>
         </Grid>
 
-        <!-- ── Source list ───────────────────────────────────── -->
-        <ScrollView Grid.Row="1" x:Name="BodyScrollView">
-            <VerticalStackLayout Padding="16,20,16,40" Spacing="12" x:Name="SourceList" />
-        </ScrollView>
+        <!-- ── Global search bar ─────────────────────────────── -->
+        <Border Grid.Row="1"
+                BackgroundColor="{DynamicResource BgCard}"
+                StrokeThickness="0"
+                Padding="16,0,16,14">
+            <Border Stroke="{DynamicResource Stroke}"
+                    StrokeThickness="1.5"
+                    StrokeShape="RoundRectangle 14"
+                    BackgroundColor="{DynamicResource BgInput}"
+                    Padding="12,0">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <Label Grid.Column="0"
+                           Text="&#xE8B6;"
+                           FontFamily="{DynamicResource IconFont}"
+                           FontSize="18"
+                           TextColor="{DynamicResource TextMuted}"
+                           VerticalOptions="Center"
+                           Margin="0,0,8,0" />
+                    <Entry Grid.Column="1"
+                           x:Name="GlobalSearchEntry"
+                           Placeholder="Search all sources..."
+                           Keyboard="Text"
+                           HeightRequest="44"
+                           ReturnType="Search"
+                           Completed="OnGlobalSearchCompleted" />
+                    <Label Grid.Column="2"
+                           x:Name="GlobalSearchClearBtn"
+                           Text="&#xE5CD;"
+                           FontFamily="{DynamicResource IconFont}"
+                           FontSize="18"
+                           TextColor="{DynamicResource TextMuted}"
+                           VerticalOptions="Center"
+                           IsVisible="False">
+                        <Label.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnGlobalSearchClearTapped" />
+                        </Label.GestureRecognizers>
+                    </Label>
+                </Grid>
+            </Border>
+        </Border>
+
+        <!-- ── Body (source list or global search results) ───── -->
+        <Grid Grid.Row="2" x:Name="BodyGrid">
+
+            <!-- Source list -->
+            <ScrollView x:Name="SourceScrollView">
+                <VerticalStackLayout Padding="16,12,16,40" Spacing="12" x:Name="SourceList" />
+            </ScrollView>
+
+            <!-- Global search results -->
+            <Grid x:Name="SearchResultsView" IsVisible="False" RowDefinitions="Auto,*">
+                <Label Grid.Row="0"
+                       x:Name="SearchResultsLabel"
+                       FontSize="13"
+                       FontAttributes="Bold"
+                       TextColor="{DynamicResource TextMuted}"
+                       Margin="20,12,20,4" />
+                <ScrollView Grid.Row="1">
+                    <VerticalStackLayout Padding="16,4,16,40" Spacing="16"
+                                         x:Name="SearchResultsList" />
+                </ScrollView>
+            </Grid>
+
+            <!-- Loading state for global search -->
+            <VerticalStackLayout x:Name="SearchLoadingState"
+                                 IsVisible="False"
+                                 HorizontalOptions="Center"
+                                 VerticalOptions="Center"
+                                 Spacing="12">
+                <ActivityIndicator IsRunning="True"
+                                   Color="{DynamicResource AccentLight}"
+                                   WidthRequest="40" HeightRequest="40" />
+                <Label Text="Searching all sources..."
+                       FontSize="13"
+                       TextColor="{DynamicResource TextMuted}"
+                       HorizontalOptions="Center" />
+            </VerticalStackLayout>
+
+        </Grid>
 
     </Grid>
 </ContentPage>

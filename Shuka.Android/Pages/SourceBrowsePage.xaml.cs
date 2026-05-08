@@ -15,7 +15,7 @@ public partial class SourceBrowsePage : ContentPage
     private bool       _hasMore = true;
     private string     _query   = "";
 
-    public SourceBrowsePage(IBrowsableAdapter source)
+    public SourceBrowsePage(IBrowsableAdapter source, string? initialQuery = null)
     {
         InitializeComponent();
         _source  = source;
@@ -25,6 +25,14 @@ public partial class SourceBrowsePage : ContentPage
         SearchEntry.TextChanged += (_, e) =>
             SearchClearBtn.IsVisible = !string.IsNullOrEmpty(e.NewTextValue);
 
+        if (!string.IsNullOrWhiteSpace(initialQuery))
+        {
+            _query = initialQuery;
+            _mode  = BrowseMode.Search;
+            SearchEntry.Text = initialQuery;
+            SearchClearBtn.IsVisible = true;
+        }
+
         RefreshPills();
         _ = LoadPageAsync(reset: true);
     }
@@ -32,7 +40,7 @@ public partial class SourceBrowsePage : ContentPage
     // ── Navigation ────────────────────────────────────────────────────────────
 
     private async void OnBackTapped(object sender, TappedEventArgs e)
-        => await Navigation.PopAsync();
+        => await Shell.Current.Navigation.PopAsync();
 
     // ── Filter pills ──────────────────────────────────────────────────────────
 

@@ -47,4 +47,32 @@ public class DiscoverService
         string html = await _fetcher.Fetch(url, log: log, ct: ct);
         return source.ParseListing(html, url);
     }
+
+    /// <summary>
+    /// Searches all sources in parallel and returns results grouped by source.
+    /// Sources that fail are silently skipped.
+    /// </summary>
+    public async Task<List<(IBrowsableAdapter Source, ListingPage Results)>> SearchAllAsync(
+        string query, Action<string>? log = null, CancellationToken ct = default)
+    {
+        var tasks = Sources.Select(async source =>
+        {
+            try
+            {
+                var page = await SearchAsync(source, query, 1, log, ct);
+                return (source, page, error: false);
+            }
+            catch
+            {
+                return (source, new ListingPage(new List<NovelEntry>(), false, 1), error: true);
+            }
+        });
+
+        var results = await Task.WhenAll(tasks);
+
+        return results
+            .Where(r => !r.error && r.Item2.Novels.Count > 0)
+            .Select(r => (r.source, r.Item2))
+            .ToList();
+    }
 }
