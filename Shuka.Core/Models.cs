@@ -21,8 +21,10 @@ public record BookInfo(string IndexUrl, string Title, string Author,
     List<ChapterRef> ChapterUrls, int Total, int ChapterLimit,
     string? CoverUrl, ISiteAdapter Adapter)
 {
-    public string? TitleEn  { get; set; }
-    public string? AuthorEn { get; set; }
+    public string? TitleEn    { get; set; }
+    public string? AuthorEn   { get; set; }
+    /// <summary>1-based start chapter (1 = first). 0 means start from beginning.</summary>
+    public int ChapterFrom    { get; set; } = 0;
 }
 
 // Progress event args for download/translate reporting

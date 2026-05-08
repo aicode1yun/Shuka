@@ -187,7 +187,7 @@
                                        FontSize="12" FontAttributes="Bold"
                                        TextColor="{DynamicResource TextSecondary}"
                                        VerticalOptions="Center" />
-                                <Label Text="· 0 = all"
+                                <Label Text="· 0 = all  ·  e.g. 100-200"
                                        FontSize="11"
                                        TextColor="{DynamicResource TextMuted}"
                                        VerticalOptions="Center" />
@@ -198,6 +198,10 @@
                                     BackgroundColor="{DynamicResource BgInput}"
                                     Padding="14,0">
                                 <Entry x:Name="ChaptersEntry"
+                                       Text="0"
+                                       Placeholder="0  or  100-200"
+                                       Keyboard="Text"
+                                       HeightRequest="48" />
                                        Text="0"
                                        Keyboard="Numeric"
                                        HeightRequest="48" />

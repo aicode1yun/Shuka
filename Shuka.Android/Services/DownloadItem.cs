@@ -22,10 +22,12 @@ public class DownloadItem : INotifyPropertyChanged
     private string? _epubPath;
     private string _logText = "";
 
-    public Guid   Id       { get; } = Guid.NewGuid();
-    public string Url      { get; init; } = "";
-    public string CoverUrl { get; init; } = "";
-    public int    Chapters { get; init; }
+    public Guid   Id         { get; } = Guid.NewGuid();
+    public string Url        { get; init; } = "";
+    public string CoverUrl   { get; init; } = "";
+    public int    Chapters   { get; init; }
+    /// <summary>1-based start chapter. 0 = from the beginning.</summary>
+    public int    ChapterFrom { get; init; } = 0;
 
     // Resolved after GatherBookInfo
     public string Title  { get; set; } = "Loading...";

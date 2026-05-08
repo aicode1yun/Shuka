@@ -103,17 +103,46 @@ if (args[0].Equals("--batch", StringComparison.OrdinalIgnoreCase))
 
 // ── Single book mode ──────────────────────────────────────────────────────────
 {
-    string  indexUrl     = args[0];
-    int     chapterLimit = args.Length > 1 && int.TryParse(args[1], out int pl) ? pl : 0;
-    string? outFile      = args.Length > 2 && !string.IsNullOrWhiteSpace(args[2]) ? args[2] : null;
-    string? coverUrl     = args.Length > 3 && !string.IsNullOrWhiteSpace(args[3]) ? args[3] : null;
+    string  indexUrl  = args[0];
+    string? outFile   = args.Length > 2 && !string.IsNullOrWhiteSpace(args[2]) ? args[2] : null;
+    string? coverUrl  = args.Length > 3 && !string.IsNullOrWhiteSpace(args[3]) ? args[3] : null;
+
+    // Parse chapter arg: "200" = first 200, "100-200" = chapters 100 to 200
+    int chapterLimit = 0;
+    int chapterFrom  = 0;
+    if (args.Length > 1 && !string.IsNullOrWhiteSpace(args[1]))
+    {
+        string chapArg = args[1];
+        if (chapArg.Contains('-'))
+        {
+            var parts = chapArg.Split('-');
+            if (parts.Length == 2 &&
+                int.TryParse(parts[0], out int from) &&
+                int.TryParse(parts[1], out int to) &&
+                from >= 1 && to >= from)
+            {
+                chapterFrom  = from;
+                chapterLimit = to - from + 1;
+            }
+            else
+            {
+                Console.WriteLine("Invalid range format. Use: 100-200");
+                return;
+            }
+        }
+        else
+        {
+            chapterLimit = int.TryParse(chapArg, out int n) ? n : 0;
+        }
+    }
 
     Console.WriteLine("=== Phase 1: Gathering book info ===");
-    var book = await downloader.GatherBookInfoAsync(indexUrl, chapterLimit, coverUrl);
+    var book = await downloader.GatherBookInfoAsync(indexUrl, chapterLimit, coverUrl, chapterFrom);
 
     Console.WriteLine($"  Title:    {book.Title}");
     Console.WriteLine($"  Author:   {book.Author}");
-    Console.WriteLine($"  Chapters: {book.Total} (of {book.ChapterUrls.Count} found)");
+    Console.WriteLine($"  Chapters: {book.Total} (of {book.ChapterUrls.Count} found)" +
+                      (chapterFrom > 0 ? $" starting from ch{chapterFrom}" : ""));
     Console.WriteLine($"  Cover:    {book.CoverUrl ?? "none (will generate)"}");
     Console.WriteLine();
 

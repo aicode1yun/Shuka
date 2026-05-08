@@ -30,13 +30,15 @@ public class DownloadManager
     /// Returns the new item, or null if the URL is already actively running/queued.
     /// Use <see cref="FindExisting"/> first to check for duplicates before calling this.
     /// </summary>
-    public DownloadItem Enqueue(string url, int chapters, string? coverUrl)
+    public DownloadItem Enqueue(string url, int chapters, string? coverUrl,
+        int chapterFrom = 0)
     {
         var item = new DownloadItem
         {
-            Url      = url,
-            Chapters = chapters,
-            CoverUrl = coverUrl ?? ""
+            Url          = url,
+            Chapters     = chapters,
+            CoverUrl     = coverUrl ?? "",
+            ChapterFrom  = chapterFrom,
         };
 
         MainThread.BeginInvokeOnMainThread(() => Downloads.Insert(0, item));
@@ -138,7 +140,7 @@ public class DownloadManager
             var book = await service.GatherBookInfo(
                 item.Url, item.Chapters,
                 string.IsNullOrWhiteSpace(item.CoverUrl) ? null : item.CoverUrl,
-                Log, ct);
+                Log, ct, item.ChapterFrom);
 
             MainThread.BeginInvokeOnMainThread(() =>
             {

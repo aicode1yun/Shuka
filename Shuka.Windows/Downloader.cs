@@ -22,7 +22,8 @@ internal sealed class Downloader
     // ── Book info ─────────────────────────────────────────────────────────────
 
     public async Task<BookInfo> GatherBookInfoAsync(
-        string indexUrl, int chapterLimit = 0, string? forceCoverUrl = null)
+        string indexUrl, int chapterLimit = 0, string? forceCoverUrl = null,
+        int chapterFrom = 0)
     {
         var adapter = DetectAdapter(indexUrl);
         indexUrl = adapter.NormalizeUrl(indexUrl);
@@ -30,13 +31,20 @@ internal sealed class Downloader
 
         string html = await _fetcher.FetchAsync(indexUrl);
         var info    = adapter.ParseIndex(html, indexUrl);
-        int total   = chapterLimit > 0
-            ? Math.Min(chapterLimit, info.ChapterUrls.Count)
-            : info.ChapterUrls.Count;
 
+        int from = chapterFrom > 0 ? chapterFrom - 1 : 0;
+        var rangedUrls = chapterLimit > 0
+            ? info.ChapterUrls.Skip(from).Take(chapterLimit).ToList()
+            : info.ChapterUrls.Skip(from).ToList();
+
+        int total    = rangedUrls.Count;
         string? coverUrl = forceCoverUrl ?? info.CoverUrl ?? TryExtractCover(html, indexUrl);
+
         return new BookInfo(indexUrl, info.Title, info.Author,
-            info.ChapterUrls, total, chapterLimit, coverUrl, adapter);
+            rangedUrls, total, chapterLimit, coverUrl, adapter)
+        {
+            ChapterFrom = chapterFrom
+        };
     }
 
     // ── Full pipeline ─────────────────────────────────────────────────────────

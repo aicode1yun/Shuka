@@ -38,7 +38,7 @@ public class BookService
 
     public async Task<BookInfo> GatherBookInfo(string indexUrl, int chapterLimit = 0,
         string? forceCoverUrl = null, Action<string>? log = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default, int chapterFrom = 0)
     {
         var adapter = DetectAdapter(indexUrl);
         indexUrl = adapter.NormalizeUrl(indexUrl);
@@ -46,10 +46,23 @@ public class BookService
 
         string html = await _fetcher.Fetch(indexUrl, log: log, ct: ct);
         var info = adapter.ParseIndex(html, indexUrl);
-        int total = chapterLimit > 0 ? Math.Min(chapterLimit, info.ChapterUrls.Count) : info.ChapterUrls.Count;
+
+        // Apply from/to range
+        // chapterFrom is 1-based (1 = first chapter); 0 means start from beginning
+        int from  = chapterFrom > 0 ? chapterFrom - 1 : 0; // convert to 0-based index
+        var rangedUrls = chapterLimit > 0
+            ? info.ChapterUrls.Skip(from).Take(chapterLimit).ToList()
+            : info.ChapterUrls.Skip(from).ToList();
+
+        int total = rangedUrls.Count;
         string? coverUrl = forceCoverUrl ?? info.CoverUrl ?? TryExtractCover(html, indexUrl);
 
-        return new BookInfo(indexUrl, info.Title, info.Author, info.ChapterUrls, total, chapterLimit, coverUrl, adapter);
+        var book = new BookInfo(indexUrl, info.Title, info.Author,
+            rangedUrls, total, chapterLimit, coverUrl, adapter)
+        {
+            ChapterFrom = chapterFrom
+        };
+        return book;
     }
 
     public async Task<string> ProcessBook(BookInfo book, string outputPath,

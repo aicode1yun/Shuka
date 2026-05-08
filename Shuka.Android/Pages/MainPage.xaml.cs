@@ -44,9 +44,34 @@ public partial class MainPage : ContentPage
             return;
         }
 
-        int chapters = int.TryParse(ChaptersEntry.Text, out int c) ? c : 0;
-        string? coverUrl = string.IsNullOrWhiteSpace(CoverEntry.Text) ? null : CoverEntry.Text.Trim();
+        // Parse chapter range: "0" = all, "200" = first 200, "100-200" = chapters 100 to 200
+        int chapters    = 0;
+        int chapterFrom = 0;
+        string chapText = ChaptersEntry.Text?.Trim() ?? "0";
+        if (chapText.Contains('-'))
+        {
+            var parts = chapText.Split('-');
+            if (parts.Length == 2 &&
+                int.TryParse(parts[0].Trim(), out int from) &&
+                int.TryParse(parts[1].Trim(), out int to) &&
+                from >= 1 && to >= from)
+            {
+                chapterFrom = from;
+                chapters    = to - from + 1; // number of chapters to download
+            }
+            else
+            {
+                await DisplayAlertAsync("Invalid Range",
+                    "Use format: 100-200 (from chapter 100 to 200)", "OK");
+                return;
+            }
+        }
+        else
+        {
+            chapters = int.TryParse(chapText, out int n) ? n : 0;
+        }
 
+        string? coverUrl = string.IsNullOrWhiteSpace(CoverEntry.Text) ? null : CoverEntry.Text.Trim();
         // Dismiss keyboard
         UrlEntry.IsEnabled      = false;
         CoverEntry.IsEnabled    = false;
@@ -65,7 +90,7 @@ public partial class MainPage : ContentPage
         }
 
         // ── Enqueue ───────────────────────────────────────────────────────────
-        DownloadManager.Instance.Enqueue(url, chapters, coverUrl);
+        DownloadManager.Instance.Enqueue(url, chapters, coverUrl, chapterFrom);
 
         // Clear inputs for next novel with animation
         await AnimateClearInputs();
@@ -91,7 +116,6 @@ public partial class MainPage : ContentPage
         UrlEntry.Text = "";
         CoverEntry.Text = "";
         ChaptersEntry.Text = "0";
-        
         // Fade back in
         await Task.WhenAll(entries.Select(e => e.FadeToAsync(1.0, 150)));
     }
