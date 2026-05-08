@@ -82,6 +82,7 @@ jobs:
           name: Shuka ${{ github.ref_name }}
           tag_name: ${{ github.ref_name }}
           body_path: changelog.txt
+          make_latest: false
           files: |
             ${{ steps.rename_installer.outputs.INSTALLER_PATH }}
             ${{ steps.zip_installer.outputs.ZIP_PATH }}
@@ -229,6 +230,7 @@ jobs:
           name: Shuka ${{ github.ref_name }}
           tag_name: ${{ github.ref_name }}
           body_path: release_body.txt
+          make_latest: latest
           files: |
             ${{ steps.rename_apk.outputs.APK_PATH }}
             ${{ steps.zip_apk.outputs.ZIP_PATH }}

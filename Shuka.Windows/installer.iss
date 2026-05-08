@@ -1,6 +1,6 @@
 #define MyAppName "Shuka"
 #ifndef MyAppVersion
-  #define MyAppVersion "1.0.7"
+  #define MyAppVersion "1.0"
 #endif
 #define MyAppPublisher "Shuka"
 #define MyAppExeName "Shuka.exe"
@@ -35,12 +35,12 @@ Source: "bin\publish\runtimes\*";                         DestDir: "{app}\runtim
 Source: "download-epub.bat";                              DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-; Launch via PowerShell so a proper console window opens and stays visible
-Name: "{userprograms}\{#MyAppName}"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoExit -NoProfile -ExecutionPolicy Bypass -Command ""Set-Location '{app}'; & '{app}\{#MyAppExeName}'; if ($LASTEXITCODE -ne 0) {{ Read-Host 'Press Enter to close' }}"""; WorkingDir: "{app}"; IconFilename: "{app}\ShukaIcon.ico"
-Name: "{userdesktop}\{#MyAppName}";  Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoExit -NoProfile -ExecutionPolicy Bypass -Command ""Set-Location '{app}'; & '{app}\{#MyAppExeName}'; if ($LASTEXITCODE -ne 0) {{ Read-Host 'Press Enter to close' }}"""; WorkingDir: "{app}"; IconFilename: "{app}\ShukaIcon.ico"; Tasks: desktopicon
+; Use cmd.exe to open a console window and run the batch launcher
+Name: "{userprograms}\{#MyAppName}"; Filename: "{sys}\cmd.exe"; Parameters: "/c ""{app}\download-epub.bat"""; WorkingDir: "{app}"; IconFilename: "{app}\ShukaIcon.ico"
+Name: "{userdesktop}\{#MyAppName}";  Filename: "{sys}\cmd.exe"; Parameters: "/c ""{app}\download-epub.bat"""; WorkingDir: "{app}"; IconFilename: "{app}\ShukaIcon.ico"; Tasks: desktopicon
 
 [Run]
 ; Install Playwright Chromium browser (needed for Cloudflare-protected sites)
 Filename: "{app}\Shuka.exe"; Parameters: "playwright install chromium"; Description: "Installing browser for Cloudflare bypass..."; StatusMsg: "Please wait, installing browser components (Cloudflare bypass)..."; Flags: waituntilterminated
-; Launch via PowerShell after install
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoExit -NoProfile -ExecutionPolicy Bypass -Command ""Set-Location '{app}'; & '{app}\{#MyAppExeName}'"""; WorkingDir: "{app}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent
+; Launch after install
+Filename: "{sys}\cmd.exe"; Parameters: "/c ""{app}\download-epub.bat"""; WorkingDir: "{app}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent

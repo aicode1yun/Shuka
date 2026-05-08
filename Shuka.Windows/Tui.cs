@@ -281,7 +281,7 @@ internal static class Tui
         AnsiConsole.Write(table);
 
         AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine("[grey]Sites marked [yellow]CF bypass[/][grey] require running [/][indianred1]Fix Cloudflare[/][grey] once before downloading.[/]");
+        AnsiConsole.MarkupLine("[grey]Sites marked [/][yellow]CF bypass[/][grey] require running [/][indianred1]Fix Cloudflare[/][grey] once before downloading.[/]");
     }
 
     private static void RenderHeader()
