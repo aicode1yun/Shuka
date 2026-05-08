@@ -19,7 +19,7 @@ A tool that downloads Chinese web novels, translates them to English via Google 
 | [52shuku.net](https://www.52shuku.net) | `https://www.52shuku.net/bl/09_b/bkd7d.html` |
 | [czbooks.net](https://czbooks.net) | `https://czbooks.net/n/clgajm` |
 | [dmxs.org](https://www.dmxs.org) | `https://www.dmxs.org/gdjk/22982.html` |
-| [quanben.io](www.quanben.io) | `https://www.quanben.io/n/aoshidanshen/list.html` |
+| [quanben.io](https://www.quanben.io) | `https://www.quanben.io/n/aoshidanshen/list.html` |
 
 > **czbooks.net** and **69shuba.com** is protected by Cloudflare. Shuka handles this automatically using a headless browser on Windows and a hidden WebView on Android — no extra setup needed.
 
@@ -62,34 +62,32 @@ Default save location is `Downloads/Shuka` on internal storage. You can change t
 
 ### Windows
 
-Launch **Shuka** from the Start Menu or desktop shortcut:
+Launch **Shuka** from the Start Menu or desktop shortcut. The interactive TUI opens automatically:
 
 ```
-===============================================
-       Shuka -> Chinese to English (EPUB)
-===============================================
+  ╔══════════════════════════════════════╗
+  ║  Shuka  Chinese To English EPUB  ║
+  ╚══════════════════════════════════════╝
 
-  1. Download single novel
-  2. Batch download (multiple novels)
-  3. Exit
+  What would you like to do?
+  > Download single novel
+    Batch download (multiple novels)
+    Fix Cloudflare (--solve-cf)
+    View supported sites
+    Exit
 ```
 
-**Single download** — paste the novel URL, optionally provide a cover image URL, and choose how many chapters to download (0 = all). The `.epub` is saved to your Downloads folder.
+**Single download** — paste the novel URL, optionally provide a cover image URL, and choose how many chapters to download (0 = all). Progress is shown live with a spinner and progress bar. The `.epub` is saved to your Downloads folder.
 
-**Batch download** — add novels one by one, then start. All novels download sequentially, one `.epub` each.
+**Batch download** — add novels one by one, then start. A summary table is shown before downloading. All novels download sequentially, one `.epub` each.
 
-```
---- Novel #1 ---
-Novel URL:  https://czbooks.net/n/clgajm
-Cover URL:  (optional)
-Novel #1 added.
+**Fix Cloudflare** — opens a visible browser window so you can solve the Cloudflare challenge for czbooks.net or 69shuba.com. Run this once before downloading from those sites. Cookies are saved automatically.
 
-  1. Add another novel
-  2. Start downloading (1 queued)
-  3. Cancel
-```
+**View supported sites** — lists all supported sites with example URLs directly in the terminal.
 
 ### Command line
+
+You can also pass arguments directly to skip the TUI:
 
 ```bash
 # Single novel (all chapters)
@@ -99,10 +97,13 @@ Shuka.exe <url>
 Shuka.exe <url> 3
 
 # Single novel with a custom cover
-Shuka.exe <url> 0 "" <cover-url>
+Shuka.exe <url> 0 <cover-url>
 
 # Batch from a text file (one URL per line, # for comments)
 Shuka.exe --batch urls.txt
+
+# Solve Cloudflare for a site (run once before downloading)
+Shuka.exe --solve-cf https://www.69shuba.com
 
 # Examples with supported sites
 Shuka.exe https://www.69shuba.com/book/90417.htm
@@ -111,6 +112,7 @@ Shuka.exe https://www.dmxs.org/gdjk/22982.html
 Shuka.exe https://www.52shuku.net/bl/09_b/bkd7d.html
 Shuka.exe https://www.quanben.io/n/aoshidanshen/list.html 3
 ```
+
 Output is saved to `%USERPROFILE%\Downloads` by default.
 
 ### Android
@@ -123,7 +125,7 @@ Output is saved to `%USERPROFILE%\Downloads` by default.
 
 ## Building from source
 
-Requires [.NET 9 SDK](https://dotnet.microsoft.com/download).
+Requires [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0) (Windows CLI) and [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) (Android / MAUI).
 
 ```bash
 dotnet build -c Release
@@ -140,7 +142,7 @@ ISCC.exe Shuka.Windows/installer.iss
 **Android APK:**
 
 ```bash
-dotnet publish Shuka.Android/Shuka.Android.csproj -f net9.0-android -c Release
+dotnet publish Shuka.Android/Shuka.Android.csproj -f net10.0-android -c Release
 ```
 
 ## Adding a new site
