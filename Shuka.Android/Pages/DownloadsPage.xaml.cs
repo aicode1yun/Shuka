@@ -181,7 +181,10 @@ public partial class DownloadsPage : ContentPage
         int done    = all.Count(d => d.IsDone);
 
         bool showPill = running > 0 || done > 0;
-        
+
+        // Sub-label is visible when the pill is not
+        DownloadsSubLabel.IsVisible = !showPill;
+
         if (showPill && !SummaryPill.IsVisible)
         {
             // Show pill with animation

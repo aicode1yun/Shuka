@@ -35,6 +35,10 @@
                 <Label Text="Downloads"
                        FontSize="22" FontAttributes="Bold"
                        TextColor="{DynamicResource TextPrimary}" />
+                <Label x:Name="DownloadsSubLabel"
+                       Text="Your active &amp; queued novels"
+                       FontSize="12"
+                       TextColor="{DynamicResource TextMuted}" />
                 <HorizontalStackLayout x:Name="SummaryPill" Spacing="10" IsVisible="False">
                     <!-- In-progress badge -->
                     <Border x:Name="RunningBadge"
