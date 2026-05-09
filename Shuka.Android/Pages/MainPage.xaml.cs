@@ -36,6 +36,9 @@ public partial class MainPage : ContentPage
         if (ChaptersEntry.Text == "0" || string.IsNullOrEmpty(ChaptersEntry.Text))
             ChaptersEntry.Text = savedChapters;
 
+        // Re-apply tab colors in case the theme changed while on another tab
+        SetActiveTab(DownloadPanel.IsVisible);
+
         await TabTransition.SlideInAsync(this, myTabIndex: 0);
     }
 
