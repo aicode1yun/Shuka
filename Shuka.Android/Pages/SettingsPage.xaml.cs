@@ -27,6 +27,7 @@ public partial class SettingsPage : ContentPage
     {
         base.OnAppearing();
         await TabTransition.SlideInAsync(this, myTabIndex: 3);
+        Controls.CustomTabBar.SetActive(3);
         RefreshRadios(App.CurrentTheme);
         RefreshDownloadPath();
         RefreshUpdateSection();

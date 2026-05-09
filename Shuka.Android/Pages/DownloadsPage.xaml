@@ -5,7 +5,7 @@
              x:Class="Shuka.Android.Pages.DownloadsPage"
              BackgroundColor="{DynamicResource BgPage}">
 
-    <Grid RowDefinitions="Auto,*">
+    <Grid RowDefinitions="Auto,*,Auto">
 
         <!-- ── Top App Bar ──────────────────────────────────── -->
         <Grid Grid.Row="0"
@@ -170,6 +170,10 @@
             </ScrollView>
 
         </Grid>
+
+        <!-- ── Custom tab bar ────────────────────────────────── -->
+        <controls:CustomTabBar Grid.Row="2" />
+
     </Grid>
 
 </ContentPage>

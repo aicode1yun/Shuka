@@ -4,11 +4,10 @@ namespace Shuka.Android;
 
 public partial class AppShell : Shell
 {
-    // Tab order matches the TabBar declaration — used by pages to determine slide direction
     public static readonly string[] TabRoutes =
         ["MainPage", "DownloadsPage", "HistoryPage", "SettingsPage"];
 
-    public static int LastTabIndex  { get; private set; } = 0;
+    public static int LastTabIndex   { get; private set; } = 0;
     public static int ActiveTabIndex { get; private set; } = 0;
 
     public AppShell()
@@ -30,3 +29,4 @@ public partial class AppShell : Shell
         ActiveTabIndex = newIndex;
     }
 }
+

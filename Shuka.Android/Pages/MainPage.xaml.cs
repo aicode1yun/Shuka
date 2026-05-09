@@ -40,6 +40,7 @@ public partial class MainPage : ContentPage
         SetActiveTab(DownloadPanel.IsVisible);
 
         await TabTransition.SlideInAsync(this, myTabIndex: 0);
+        Controls.CustomTabBar.SetActive(0);
     }
 
     protected override void OnDisappearing()

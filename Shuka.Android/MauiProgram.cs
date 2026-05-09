@@ -16,6 +16,9 @@ public static class MauiProgram
             .ConfigureMauiHandlers(handlers =>
             {
                 handlers.AddHandler<Entry, ThemedEntryHandler>();
+#if ANDROID
+                handlers.AddHandler<Shell, ShukaShellRenderer>();
+#endif
             });
 
         return builder.Build();

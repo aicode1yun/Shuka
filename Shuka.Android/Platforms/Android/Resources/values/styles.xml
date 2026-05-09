@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!--
+        Override the MAUI main theme to inherit from Material3 DayNight.
+        This enables the BottomNavigationView pill active indicator.
+        All Shuka colors are applied programmatically at runtime.
+    -->
+    <style name="Maui.MainTheme" parent="Theme.Material3.DayNight.NoActionBar" />
+
+</resources>

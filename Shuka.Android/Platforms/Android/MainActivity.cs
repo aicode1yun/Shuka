@@ -91,6 +91,79 @@ public class MainActivity : MauiAppCompatActivity
         ApplyNavBarColor(androidNav, lightIcons);
     }
 
+    public override void OnWindowFocusChanged(bool hasFocus)
+    {
+        base.OnWindowFocusChanged(hasFocus);
+        if (hasFocus)
+            StyleBottomNavigationView();
+    }
+
+    /// <summary>
+    /// Finds the native BottomNavigationView in the view hierarchy and applies
+    /// the pill-style active indicator matching the current Shuka theme.
+    /// </summary>
+    public void StyleBottomNavigationView()
+    {
+        try
+        {
+            var bottomNav = FindBottomNavigationView(Window?.DecorView);
+            if (bottomNav == null) return;
+
+            var app = Microsoft.Maui.Controls.Application.Current;
+            if (app?.Resources == null) return;
+
+            Microsoft.Maui.Graphics.Color accentBg   = app.Resources.TryGetValue("AccentContainer",  out var ab) ? (Microsoft.Maui.Graphics.Color)ab : Microsoft.Maui.Graphics.Color.FromArgb("#2A1E2E");
+            Microsoft.Maui.Graphics.Color accent      = app.Resources.TryGetValue("AccentLight",       out var a)  ? (Microsoft.Maui.Graphics.Color)a  : Microsoft.Maui.Graphics.Color.FromArgb("#8B5E5F");
+            Microsoft.Maui.Graphics.Color unselected  = app.Resources.TryGetValue("NavBarUnselected",  out var u)  ? (Microsoft.Maui.Graphics.Color)u  : Microsoft.Maui.Graphics.Color.FromArgb("#4A5270");
+            Microsoft.Maui.Graphics.Color navBg       = app.Resources.TryGetValue("NavBar",            out var nb) ? (Microsoft.Maui.Graphics.Color)nb : Microsoft.Maui.Graphics.Color.FromArgb("#1A1D27");
+
+            var androidAccentBg   = ToAndroidColor(accentBg);
+            var androidAccent     = ToAndroidColor(accent);
+            var androidUnselected = ToAndroidColor(unselected);
+            var androidNavBg      = ToAndroidColor(navBg);
+
+            bottomNav.SetBackgroundColor(androidNavBg);
+
+            // Pill indicator color
+            bottomNav.ItemActiveIndicatorEnabled = true;
+            bottomNav.ItemActiveIndicatorColor   = global::Android.Content.Res.ColorStateList.ValueOf(androidAccentBg);
+
+            // Icon + label tint
+            var states   = new int[][] { [global::Android.Resource.Attribute.StateChecked], [] };
+            var colors   = new int[] { androidAccent, androidUnselected };
+            var tintList = new global::Android.Content.Res.ColorStateList(states, colors);
+            bottomNav.ItemIconTintList = tintList;
+            bottomNav.ItemTextColor    = tintList;
+
+            // Remove ripple
+            bottomNav.ItemRippleColor = global::Android.Content.Res.ColorStateList.ValueOf(global::Android.Graphics.Color.Transparent);
+
+            // Always show labels
+            bottomNav.LabelVisibilityMode = Google.Android.Material.BottomNavigation.LabelVisibilityMode.LabelVisibilityLabeled;
+        }
+        catch { /* never crash on styling */ }
+    }
+
+    private static Google.Android.Material.BottomNavigation.BottomNavigationView? FindBottomNavigationView(global::Android.Views.View? root)
+    {
+        if (root is Google.Android.Material.BottomNavigation.BottomNavigationView bnv)
+            return bnv;
+        if (root is global::Android.Views.ViewGroup vg)
+        {
+            for (int i = 0; i < vg.ChildCount; i++)
+            {
+                var found = FindBottomNavigationView(vg.GetChildAt(i));
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }
+
+    private static global::Android.Graphics.Color ToAndroidColor(Microsoft.Maui.Graphics.Color c) =>
+        global::Android.Graphics.Color.Argb(
+            (int)(c.Alpha * 255), (int)(c.Red * 255),
+            (int)(c.Green * 255), (int)(c.Blue * 255));
+
     /// <summary>
     /// Updates the status bar and navigation bar background and icon tint to match the current theme.
     /// </summary>

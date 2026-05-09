@@ -25,6 +25,7 @@ public partial class DownloadsPage : ContentPage
     {
         base.OnAppearing();
         await TabTransition.SlideInAsync(this, myTabIndex: 1);
+        Controls.CustomTabBar.SetActive(1);
         RefreshSummary();
     }
 

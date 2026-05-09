@@ -1,3 +1,4 @@
+using Microsoft.Maui.Layouts;
 using Shuka.Android.Services;
 
 namespace Shuka.Android;
@@ -312,7 +313,18 @@ public partial class App : Application
         // Re-tint all active Entry underlines to match the new theme
 #if ANDROID
         Platforms.Android.ThemedEntryHandler.RefreshAll();
+        Platforms.Android.PillBottomNavTracker.RefreshAll();
 
+        // Re-style the native BottomNavigationView pill indicator
+        if (MainActivity.Instance is { } activity2)
+            MainThread.BeginInvokeOnMainThread(() => activity2.StyleBottomNavigationView());
+#endif
+
+        // Refresh custom MAUI tab bar colors
+        MainThread.BeginInvokeOnMainThread(() =>
+            Controls.CustomTabBar.RefreshAll());
+
+#if ANDROID
         // Update the system status bar and navigation bar to match the theme
         if (MainActivity.Instance is { } activity)
         {

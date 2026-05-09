@@ -30,6 +30,7 @@ public partial class HistoryPage : ContentPage
     {
         base.OnAppearing();
         await TabTransition.SlideInAsync(this, myTabIndex: 2);
+        Controls.CustomTabBar.SetActive(2);
     }
 
     private async Task AnimateIn()

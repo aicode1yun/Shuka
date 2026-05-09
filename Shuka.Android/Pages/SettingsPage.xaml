@@ -5,7 +5,7 @@
              x:Class="Shuka.Android.Pages.SettingsPage"
              BackgroundColor="{DynamicResource BgPage}">
 
-    <Grid RowDefinitions="Auto,*">
+    <Grid RowDefinitions="Auto,*,Auto">
 
         <!-- Top Bar -->
         <Grid Grid.Row="0"
@@ -683,6 +683,10 @@
 
             </VerticalStackLayout>
         </ScrollView>
+
+        <!-- ── Custom tab bar ────────────────────────────────── -->
+        <controls:CustomTabBar Grid.Row="2" />
+
     </Grid>
 
 </ContentPage>

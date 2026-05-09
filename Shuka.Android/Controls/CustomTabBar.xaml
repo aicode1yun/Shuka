@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Grid xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+      xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+      x:Class="Shuka.Android.Controls.CustomTabBar"
+      ColumnDefinitions="*,*,*,*"
+      HeightRequest="72"
+      VerticalOptions="End">
+
+    <!-- Background bar -->
+    <BoxView Grid.ColumnSpan="4"
+             x:Name="BarBg"
+             BackgroundColor="{DynamicResource NavBar}"
+             HorizontalOptions="Fill"
+             VerticalOptions="Fill" />
+
+    <!-- Home -->
+    <Grid Grid.Column="0" RowDefinitions="Auto,Auto"
+          HorizontalOptions="Center" VerticalOptions="Center"
+          Padding="0,8,0,8">
+        <Border x:Name="PillHome" Grid.Row="0"
+                StrokeThickness="0"
+                StrokeShape="RoundRectangle 20"
+                Padding="20,6"
+                HorizontalOptions="Center"
+                BackgroundColor="Transparent">
+            <Label x:Name="IconHome" Text="&#xE88A;"
+                   FontFamily="{DynamicResource IconFont}"
+                   FontSize="22" HorizontalOptions="Center" />
+        </Border>
+        <Label x:Name="LabelHome" Grid.Row="1"
+               Text="Home" FontSize="10" FontAttributes="Bold"
+               HorizontalOptions="Center" Margin="0,1,0,0" />
+        <Grid.GestureRecognizers>
+            <TapGestureRecognizer Tapped="OnHomeTapped" />
+        </Grid.GestureRecognizers>
+    </Grid>
+
+    <!-- Downloads -->
+    <Grid Grid.Column="1" RowDefinitions="Auto,Auto"
+          HorizontalOptions="Center" VerticalOptions="Center"
+          Padding="0,8,0,8">
+        <Border x:Name="PillDownloads" Grid.Row="0"
+                StrokeThickness="0"
+                StrokeShape="RoundRectangle 20"
+                Padding="20,6"
+                HorizontalOptions="Center"
+                BackgroundColor="Transparent">
+            <Label x:Name="IconDownloads" Text="&#xF090;"
+                   FontFamily="{DynamicResource IconFont}"
+                   FontSize="22" HorizontalOptions="Center" />
+        </Border>
+        <Label x:Name="LabelDownloads" Grid.Row="1"
+               Text="Downloads" FontSize="10" FontAttributes="Bold"
+               HorizontalOptions="Center" Margin="0,1,0,0" />
+        <Grid.GestureRecognizers>
+            <TapGestureRecognizer Tapped="OnDownloadsTapped" />
+        </Grid.GestureRecognizers>
+    </Grid>
+
+    <!-- History -->
+    <Grid Grid.Column="2" RowDefinitions="Auto,Auto"
+          HorizontalOptions="Center" VerticalOptions="Center"
+          Padding="0,8,0,8">
+        <Border x:Name="PillHistory" Grid.Row="0"
+                StrokeThickness="0"
+                StrokeShape="RoundRectangle 20"
+                Padding="20,6"
+                HorizontalOptions="Center"
+                BackgroundColor="Transparent">
+            <Label x:Name="IconHistory" Text="&#xE889;"
+                   FontFamily="{DynamicResource IconFont}"
+                   FontSize="22" HorizontalOptions="Center" />
+        </Border>
+        <Label x:Name="LabelHistory" Grid.Row="1"
+               Text="History" FontSize="10" FontAttributes="Bold"
+               HorizontalOptions="Center" Margin="0,1,0,0" />
+        <Grid.GestureRecognizers>
+            <TapGestureRecognizer Tapped="OnHistoryTapped" />
+        </Grid.GestureRecognizers>
+    </Grid>
+
+    <!-- Settings -->
+    <Grid Grid.Column="3" RowDefinitions="Auto,Auto"
+          HorizontalOptions="Center" VerticalOptions="Center"
+          Padding="0,8,0,8">
+        <Border x:Name="PillSettings" Grid.Row="0"
+                StrokeThickness="0"
+                StrokeShape="RoundRectangle 20"
+                Padding="20,6"
+                HorizontalOptions="Center"
+                BackgroundColor="Transparent">
+            <Label x:Name="IconSettings" Text="&#xE429;"
+                   FontFamily="{DynamicResource IconFont}"
+                   FontSize="22" HorizontalOptions="Center" />
+        </Border>
+        <Label x:Name="LabelSettings" Grid.Row="1"
+               Text="Settings" FontSize="10" FontAttributes="Bold"
+               HorizontalOptions="Center" Margin="0,1,0,0" />
+        <Grid.GestureRecognizers>
+            <TapGestureRecognizer Tapped="OnSettingsTapped" />
+        </Grid.GestureRecognizers>
+    </Grid>
+
+</Grid>
