@@ -219,7 +219,7 @@ public class DownloadManager
             _ = HistoryService.Instance.AddAsync(item);
 
 #if ANDROID
-            DownloadForegroundService.NotifyDone(book.TitleEn ?? book.Title);
+            DownloadForegroundService.NotifyDone(book.TitleEn ?? book.Title, finalPath);
 #endif
         }
         catch (OperationCanceledException)

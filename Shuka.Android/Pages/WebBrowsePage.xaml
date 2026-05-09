@@ -8,13 +8,14 @@
 
         <!-- ── Top bar ───────────────────────────────────────── -->
         <Grid Grid.Row="0"
-              ColumnDefinitions="44,*,44,44"
+              ColumnDefinitions="44,44,*,44,44"
               HeightRequest="96"
               Padding="8,44,8,8"
               BackgroundColor="{DynamicResource BgCard}">
 
             <!-- Back button -->
             <Grid Grid.Column="0"
+                  x:Name="BackButton"
                   WidthRequest="44"
                   HorizontalOptions="Center"
                   VerticalOptions="Center">
@@ -29,8 +30,26 @@
                 </Grid.GestureRecognizers>
             </Grid>
 
+            <!-- Forward button -->
+            <Grid Grid.Column="1"
+                  x:Name="ForwardButton"
+                  WidthRequest="44"
+                  HorizontalOptions="Center"
+                  VerticalOptions="Center"
+                  Opacity="0.4">
+                <Label Text="&#xE5C8;"
+                       FontFamily="{DynamicResource IconFont}"
+                       FontSize="22"
+                       TextColor="{DynamicResource TextPrimary}"
+                       HorizontalOptions="Center"
+                       VerticalOptions="Center" />
+                <Grid.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnForwardTapped" />
+                </Grid.GestureRecognizers>
+            </Grid>
+
             <!-- URL pill -->
-            <Border Grid.Column="1"
+            <Border Grid.Column="2"
                     Stroke="{DynamicResource Stroke}"
                     StrokeThickness="1"
                     StrokeShape="RoundRectangle 8"
@@ -48,7 +67,7 @@
             </Border>
 
             <!-- Reload button -->
-            <Grid Grid.Column="2"
+            <Grid Grid.Column="3"
                   WidthRequest="44"
                   HorizontalOptions="Center"
                   VerticalOptions="Center">
@@ -64,7 +83,7 @@
             </Grid>
 
             <!-- Home / close source button -->
-            <Grid Grid.Column="3"
+            <Grid Grid.Column="4"
                   WidthRequest="44"
                   HorizontalOptions="Center"
                   VerticalOptions="Center">

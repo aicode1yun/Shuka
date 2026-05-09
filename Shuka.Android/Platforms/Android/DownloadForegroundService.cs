@@ -36,14 +36,15 @@ public class DownloadForegroundService : Service
     }
 
     /// <summary>
-    /// Post a "download complete" heads-up notification.
+    /// Post a "download complete" heads-up notification with an "Open" action.
     /// Safe to call from any thread.
     /// </summary>
-    public static void NotifyDone(string title)
+    public static void NotifyDone(string title, string epubPath)
     {
         var ctx = global::Android.App.Application.Context;
         EnsureDoneChannel(ctx);
 
+        // Main tap action: open the app
         var launchIntent = ctx.PackageManager
             ?.GetLaunchIntentForPackage(ctx.PackageName ?? "")
             ?.SetFlags(ActivityFlags.SingleTop)
@@ -55,16 +56,62 @@ public class DownloadForegroundService : Service
             : PendingIntentFlags.UpdateCurrent;
 #pragma warning restore CA1416
 
-        var pendingIntent = PendingIntent.GetActivity(ctx, title.GetHashCode(), launchIntent, pendingFlags);
+        var launchPendingIntent = PendingIntent.GetActivity(
+            ctx, title.GetHashCode(), launchIntent, pendingFlags);
 
-        var notification = new NotificationCompat.Builder(ctx, DoneChannelId)
+        // "Open" action: open the EPUB file
+        Intent? openIntent = null;
+        PendingIntent? openPendingIntent = null;
+
+        try
+        {
+            // Check if it's a content URI (SAF) or file path
+            if (epubPath.StartsWith("content://"))
+            {
+                var uri = global::Android.Net.Uri.Parse(epubPath);
+                openIntent = new Intent(Intent.ActionView);
+                openIntent.SetDataAndType(uri, "application/epub+zip");
+                openIntent.AddFlags(ActivityFlags.NewTask | ActivityFlags.GrantReadUriPermission);
+            }
+            else if (System.IO.File.Exists(epubPath))
+            {
+                var file = new Java.IO.File(epubPath);
+                var uri = AndroidX.Core.Content.FileProvider.GetUriForFile(
+                    ctx, "com.seizue.shuka.fileprovider", file);
+                openIntent = new Intent(Intent.ActionView);
+                openIntent.SetDataAndType(uri, "application/epub+zip");
+                openIntent.AddFlags(ActivityFlags.NewTask | ActivityFlags.GrantReadUriPermission);
+            }
+
+            if (openIntent != null)
+            {
+                openPendingIntent = PendingIntent.GetActivity(
+                    ctx, title.GetHashCode() + 1, openIntent, pendingFlags);
+            }
+        }
+        catch
+        {
+            // If we can't create the open intent, just skip the action button
+        }
+
+        var builder = new NotificationCompat.Builder(ctx, DoneChannelId)
             .SetContentTitle("Download complete")
             .SetContentText(title)
             .SetSmallIcon(global::Android.Resource.Drawable.StatSysDownloadDone)
             .SetAutoCancel(true)
-            .SetContentIntent(pendingIntent)
-            .SetPriority(NotificationCompat.PriorityDefault)
-            .Build()!;
+            .SetContentIntent(launchPendingIntent)
+            .SetPriority(NotificationCompat.PriorityDefault);
+
+        // Add "Open" action button if we successfully created the intent
+        if (openPendingIntent != null)
+        {
+            builder.AddAction(
+                global::Android.Resource.Drawable.IcMenuView,
+                "Open",
+                openPendingIntent);
+        }
+
+        var notification = builder.Build()!;
 
         var mgr = NotificationManagerCompat.From(ctx);
         // Use a unique ID per title so multiple completions don't collapse into one

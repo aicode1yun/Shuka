@@ -90,9 +90,21 @@ public partial class WebBrowsePage : ContentPage
     private async void OnBackTapped(object sender, TappedEventArgs e)
     {
         if (SiteWebView.CanGoBack)
+        {
             SiteWebView.GoBack();
+        }
         else
+        {
             await Shell.Current.Navigation.PopAsync();
+        }
+    }
+
+    private void OnForwardTapped(object sender, TappedEventArgs e)
+    {
+        if (SiteWebView.CanGoForward)
+        {
+            SiteWebView.GoForward();
+        }
     }
 
     private void OnReloadTapped(object sender, TappedEventArgs e)
@@ -213,6 +225,7 @@ public partial class WebBrowsePage : ContentPage
         _currentUrl      = e.Url;
         UrlBarLabel.Text = e.Url;
         UpdateDownloadFab(e.Url);
+        UpdateNavigationButtons();
     }
 
     private void OnNavigated(object sender, WebNavigatedEventArgs e)
@@ -225,6 +238,22 @@ public partial class WebBrowsePage : ContentPage
         UrlBarLabel.Text = e.Url;
 
         UpdateDownloadFab(e.Url);
+        UpdateNavigationButtons();
+    }
+
+    /// <summary>
+    /// Updates the back/forward button states based on WebView navigation history.
+    /// </summary>
+    private void UpdateNavigationButtons()
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            // Back button is always enabled (either goes back in WebView or pops the page)
+            BackButton.Opacity = 1.0;
+            
+            // Forward button is only enabled if WebView can go forward
+            ForwardButton.Opacity = SiteWebView.CanGoForward ? 1.0 : 0.4;
+        });
     }
 
     private async Task AnimateLoadingBarAsync()
