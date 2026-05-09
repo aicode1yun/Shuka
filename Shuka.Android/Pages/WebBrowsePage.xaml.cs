@@ -152,7 +152,7 @@ public partial class WebBrowsePage : ContentPage
             FabTranslate.SetDynamicResource(Border.StrokeProperty, "AccentLight");
             FabTranslateIcon.SetDynamicResource(Label.TextColorProperty, "AccentLight");
             FabTranslateLabel.SetDynamicResource(Label.TextColorProperty, "AccentLight");
-            FabTranslateLabel.Text = "Original";
+            FabTranslateLabel.Text = "ORIGINAL";
         }
         else
         {
@@ -160,7 +160,7 @@ public partial class WebBrowsePage : ContentPage
             FabTranslate.SetDynamicResource(Border.StrokeProperty, "Stroke");
             FabTranslateIcon.SetDynamicResource(Label.TextColorProperty, "TextSecondary");
             FabTranslateLabel.SetDynamicResource(Label.TextColorProperty, "TextSecondary");
-            FabTranslateLabel.Text = "Translate";
+            FabTranslateLabel.Text = "TRANSLATE";
         }
     }
 

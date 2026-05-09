@@ -120,7 +120,7 @@
                                TextColor="{DynamicResource TextSecondary}"
                                VerticalOptions="Center" />
                         <Label x:Name="FabTranslateLabel"
-                               Text="Translate"
+                               Text="TRANSLATE"
                                FontSize="11" FontAttributes="Bold"
                                TextColor="{DynamicResource TextSecondary}"
                                VerticalOptions="Center" />
@@ -146,7 +146,7 @@
                                FontSize="16"
                                TextColor="{DynamicResource TextSecondary}"
                                VerticalOptions="Center" />
-                        <Label Text="Browser"
+                        <Label Text="BROWSER"
                                FontSize="11" FontAttributes="Bold"
                                TextColor="{DynamicResource TextSecondary}"
                                VerticalOptions="Center" />
