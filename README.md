@@ -43,6 +43,9 @@ A tool that downloads Chinese web novels, translates them to English via Google 
 - Discover tab — browse supported sources in a built-in WebView
 - **Fetch** button in the WebView — grabs the current novel URL and pre-fills the Download tab, ready for custom cover or chapter range
 - **Download** button in the WebView — queues the novel directly without leaving the browser
+- **Bookmark** button in the WebView — saves novels for quick access later
+- Bookmarks page — view all saved novels organized by source, with search, filtering, and tagging
+- Multi-select mode — select multiple bookmarks to batch download or delete
 - Source filter and pin system — pin favourite sources to the top of the Discover list
 - Draft persistence — the URL field is saved when switching apps and restored on return
 - Queue multiple novels at once — each download runs independently in the background
@@ -137,7 +140,22 @@ Output is saved to `%USERPROFILE%\Downloads` by default.
 **Discover tab:**
 1. Browse the built-in source list — tap any source to open it in the WebView browser
 2. Navigate to a novel's index page
-3. Tap **FETCH** to send the URL back to the Download tab (for custom cover/chapters), or tap **DOWNLOAD** to queue it immediately
+3. Use the floating action buttons:
+   - **BOOKMARK** — save the novel to your bookmarks for later
+   - **TRANSLATE** — open the page in Google Translate
+   - **BROWSER** — open the page in your default browser
+   - **FETCH** — send the URL back to the Download tab (for custom cover/chapters)
+   - **DOWNLOAD** — queue the novel immediately
+
+**Bookmarks:**
+1. Tap the bookmark icon (with count badge) on any source card in the Discover tab
+2. View all bookmarked novels organized by source site
+3. Search by title, author, or tags
+4. Filter by latest added or most chapters
+5. Long press any bookmark to enter multi-select mode
+6. Select multiple bookmarks to batch download or delete
+7. Add custom tags to organize your bookmarks (Downloaded, Reading, Completed, etc.)
+8. Tap any bookmark to open it in the WebView browser
 
 ## Building from source
 
