@@ -13,6 +13,6 @@ public class HistoryEntry
     public string?  EpubPath       { get; set; }
     public string?  CoverLocalPath { get; set; }  // cached local image path
     public string?  CoverUrl       { get; init; } // original remote URL
-    public int      ChapterCount   { get; init; }
+    public int      ChapterCount   { get; set; }
     public DateTime CompletedAt    { get; init; } = DateTime.Now;
 }

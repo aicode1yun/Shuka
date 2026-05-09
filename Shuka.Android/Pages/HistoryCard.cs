@@ -45,16 +45,17 @@ public class HistoryCard : ContentView
         }
         else
         {
-            // Placeholder when no cover available
-            var placeholder = new Label
+            // Fallback: show the Shuka lily icon when no cover is available
+            var lilyImg = new Image
             {
-                Text              = "\uEA78", // auto_stories icon
-                FontFamily        = "MaterialSymbols",
-                FontSize          = 32,
+                Source            = ImageSource.FromFile("lily.png"),
+                Aspect            = Aspect.AspectFit,
+                WidthRequest      = 40,
+                HeightRequest     = 40,
                 HorizontalOptions = LayoutOptions.Center,
                 VerticalOptions   = LayoutOptions.Center,
+                Opacity           = 0.45,
             };
-            placeholder.SetDynamicResource(Label.TextColorProperty, "TextMuted");
 
             coverView = new Border
             {
@@ -62,9 +63,9 @@ public class HistoryCard : ContentView
                 StrokeShape     = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 10 },
                 WidthRequest    = 72,
                 HeightRequest   = 104,
-                Content         = placeholder,
+                Content         = lilyImg,
             };
-            ((Border)coverView).SetDynamicResource(Border.BackgroundColorProperty, "BgInput");
+            ((Border)coverView).SetDynamicResource(Border.BackgroundColorProperty, "AccentContainer");
         }
 
         // ── Title ─────────────────────────────────────────────────────────────

@@ -145,8 +145,9 @@ public class DownloadManager
 
             MainThread.BeginInvokeOnMainThread(() =>
             {
-                item.Title  = book.TitleEn ?? book.Title;
-                item.Author = book.AuthorEn ?? book.Author;
+                item.Title        = book.TitleEn ?? book.Title;
+                item.Author       = book.AuthorEn ?? book.Author;
+                item.TotalChapters = book.Total;
             });
 
             Log($"Title:    {book.Title}");

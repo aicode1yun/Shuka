@@ -49,7 +49,7 @@ public class HistoryService
             Url          = item.Url,
             EpubPath     = item.EpubPath,
             CoverUrl     = string.IsNullOrWhiteSpace(item.CoverUrl) ? null : item.CoverUrl,
-            ChapterCount = item.Chapters,
+            ChapterCount = item.TotalChapters > 0 ? item.TotalChapters : item.Chapters,
             CompletedAt  = DateTime.Now,
         };
 
@@ -106,13 +106,63 @@ public class HistoryService
             var list = JsonSerializer.Deserialize<List<HistoryEntry>>(json);
             if (list == null) return;
 
+            // Migrate: patch any entries that were saved with ChapterCount = 0
+            bool needsSave = false;
+            for (int i = 0; i < list.Count; i++)
+            {
+                if (list[i].ChapterCount == 0)
+                {
+                    int count = TryCountChaptersFromEpub(list[i].EpubPath);
+                    if (count > 0)
+                    {
+                        list[i].ChapterCount = count;
+                        needsSave = true;
+                    }
+                }
+            }
+
             MainThread.BeginInvokeOnMainThread(() =>
             {
                 foreach (var e in list)
                     Entries.Add(e);
             });
+
+            if (needsSave)
+                await SaveAsync();
         }
         catch { /* corrupt file — start fresh */ }
+    }
+
+    /// <summary>
+    /// Opens the EPUB zip and counts chapter spine items from content.opf.
+    /// The spine contains: cover, titlepage, ch1, ch2, ... chN.
+    /// Returns 0 if the file can't be read.
+    /// </summary>
+    private static int TryCountChaptersFromEpub(string? epubPath)
+    {
+        if (string.IsNullOrWhiteSpace(epubPath)) return 0;
+        // SAF content URIs can't be opened with ZipFile
+        if (epubPath.StartsWith("content://", StringComparison.OrdinalIgnoreCase)) return 0;
+        if (!File.Exists(epubPath)) return 0;
+
+        try
+        {
+            using var zip = System.IO.Compression.ZipFile.OpenRead(epubPath);
+            var opf = zip.GetEntry("OEBPS/content.opf");
+            if (opf == null) return 0;
+
+            using var reader = new StreamReader(opf.Open());
+            string content = reader.ReadToEnd();
+
+            // Count <itemref idref="chN"/> entries — each chapter has id="chN"
+            int count = System.Text.RegularExpressions.Regex.Matches(
+                content,
+                @"<itemref\s+idref=""ch\d+""",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase).Count;
+
+            return count;
+        }
+        catch { return 0; }
     }
 
     private async Task SaveAsync()
