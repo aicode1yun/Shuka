@@ -38,17 +38,18 @@ internal static class Tui
                     break;
                 case "Fix Cloudflare (--solve-cf)":
                     await RunSolveCfAsync();
+                    AnsiConsole.MarkupLine("\n[grey]Press any key to return to menu...[/]");
+                    Console.ReadKey(intercept: true);
                     break;
                 case "View supported sites":
                     RunViewSites();
+                    AnsiConsole.MarkupLine("\n[grey]Press any key to return to menu...[/]");
+                    Console.ReadKey(intercept: true);
                     break;
                 case "Exit":
                     AnsiConsole.MarkupLine("\n[grey]Goodbye![/]");
                     return;
             }
-
-            AnsiConsole.MarkupLine("\n[grey]Press any key to return to menu...[/]");
-            Console.ReadKey(intercept: true);
         }
     }
 
@@ -59,6 +60,14 @@ internal static class Tui
         AnsiConsole.Clear();
         RenderHeader();
         AnsiConsole.MarkupLine("[bold yellow]  Single Novel[/]\n");
+
+        var action = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("[grey]Ready to download a single novel.[/]")
+                .HighlightStyle(new Style(Color.IndianRed1))
+                .AddChoices("Continue", "Back to menu"));
+
+        if (action == "Back to menu") return;
 
         string url = AnsiConsole.Ask<string>("[cyan]Novel URL:[/]").Trim();
         if (string.IsNullOrWhiteSpace(url)) return;
@@ -76,6 +85,18 @@ internal static class Tui
         AnsiConsole.WriteLine();
 
         await RunDownloadAsync(downloader, url, chapters, cover);
+
+        var after = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("\n[grey]What would you like to do next?[/]")
+                .HighlightStyle(new Style(Color.IndianRed1))
+                .AddChoices("Back to menu", "Exit"));
+
+        if (after == "Exit")
+        {
+            AnsiConsole.MarkupLine("\n[grey]Goodbye![/]");
+            Environment.Exit(0);
+        }
     }
 
     // ── Batch download ────────────────────────────────────────────────────────
@@ -87,16 +108,37 @@ internal static class Tui
         AnsiConsole.MarkupLine("[bold yellow]  Batch Download[/]\n");
         AnsiConsole.MarkupLine("[grey]Add novels one by one, then start downloading.[/]\n");
 
+        var action = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("[grey]Ready to queue novels for batch download.[/]")
+                .HighlightStyle(new Style(Color.IndianRed1))
+                .AddChoices("Continue", "Back to menu"));
+
+        if (action == "Back to menu") return;
+
         var queue = new List<(string Url, string? Cover)>();
 
         while (true)
         {
             AnsiConsole.MarkupLine($"[dim]--- Novel #{queue.Count + 1} ---[/]");
 
-            string url = AnsiConsole.Ask<string>("[cyan]Novel URL[/] [dim](blank to stop adding)[/]:").Trim();
+            string url = AnsiConsole.Prompt(
+                new TextPrompt<string>("[cyan]Novel URL[/] [dim](blank = back to menu)[/]:")
+                    .AllowEmpty()).Trim();
+
             if (string.IsNullOrWhiteSpace(url))
             {
-                if (queue.Count == 0) return;
+                if (queue.Count == 0)
+                {
+                    // Nothing queued — offer to go back or exit
+                    var empty = AnsiConsole.Prompt(
+                        new SelectionPrompt<string>()
+                            .Title("[grey]No novels added. What would you like to do?[/]")
+                            .HighlightStyle(new Style(Color.IndianRed1))
+                            .AddChoices("Back to menu", "Exit"));
+                    if (empty == "Exit") { AnsiConsole.MarkupLine("\n[grey]Goodbye![/]"); Environment.Exit(0); }
+                    return;
+                }
                 break;
             }
 
@@ -112,9 +154,14 @@ internal static class Tui
                 new SelectionPrompt<string>()
                     .Title($"[grey]{queue.Count} novel(s) queued. What next?[/]")
                     .HighlightStyle(new Style(Color.IndianRed1))
-                    .AddChoices("Add another novel", $"Start downloading ({queue.Count} queued)", "Cancel"));
+                    .AddChoices(
+                        "Add another novel",
+                        $"Start downloading ({queue.Count} queued)",
+                        "Back to menu",
+                        "Cancel"));
 
             if (next.StartsWith("Start")) break;
+            if (next == "Back to menu") return;
             if (next == "Cancel") return;
         }
 
@@ -145,7 +192,20 @@ internal static class Tui
             await RunDownloadAsync(downloader, queue[i].Url, 0, queue[i].Cover);
         }
 
-        AnsiConsole.MarkupLine("\n[green]Batch complete! Check your Downloads folder.[/]");
+        AnsiConsole.MarkupLine("\n[green]✓ Batch complete! Check your Downloads folder.[/]");
+
+        var after = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("\n[grey]What would you like to do next?[/]")
+                .HighlightStyle(new Style(Color.IndianRed1))
+                .AddChoices("Back to menu", "Exit"));
+
+        if (after == "Exit")
+        {
+            AnsiConsole.MarkupLine("\n[grey]Goodbye![/]");
+            Environment.Exit(0);
+        }
+        // "Back to menu" — just return, RunAsync loop will redraw the menu
     }
 
     // ── Solve CF ──────────────────────────────────────────────────────────────
@@ -157,6 +217,14 @@ internal static class Tui
         AnsiConsole.MarkupLine("[bold yellow]  Fix Cloudflare[/]\n");
         AnsiConsole.MarkupLine("[grey]Opens a visible browser window so you can solve the Cloudflare challenge.[/]");
         AnsiConsole.MarkupLine("[grey]After the page loads, come back here and press Enter.[/]\n");
+
+        var action = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("[grey]Ready to open the browser for Cloudflare bypass.[/]")
+                .HighlightStyle(new Style(Color.IndianRed1))
+                .AddChoices("Continue", "Back to menu"));
+
+        if (action == "Back to menu") return;
 
         string url = AnsiConsole.Ask<string>("[cyan]Site URL[/] [dim](e.g. https://www.69shuba.com)[/]:").Trim();
         if (string.IsNullOrWhiteSpace(url)) return;
