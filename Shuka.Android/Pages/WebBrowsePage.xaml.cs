@@ -80,6 +80,82 @@ public partial class WebBrowsePage : ContentPage
         base.OnDisappearing();
         // Restore the tab bar when leaving
         MainActivity.Instance?.SetTabBarVisible(true);
+        
+        // Clean up WebView to prevent memory leaks
+        CleanupWebView();
+    }
+
+    /// <summary>
+    /// Called when the page is being removed from the navigation stack.
+    /// Ensures complete cleanup of resources.
+    /// </summary>
+    protected override void OnNavigatedFrom(NavigatedFromEventArgs args)
+    {
+        base.OnNavigatedFrom(args);
+        
+        // If we're being popped (not just hidden), do a full cleanup
+        if (Shell.Current.Navigation.NavigationStack.Contains(this) == false)
+        {
+            CleanupWebView();
+        }
+    }
+
+    /// <summary>
+    /// Properly disposes the WebView to prevent memory leaks.
+    /// WebViews can hold significant memory and native resources.
+    /// </summary>
+    private void CleanupWebView()
+    {
+        try
+        {
+            if (SiteWebView != null)
+            {
+                // Unsubscribe from events to prevent memory leaks
+                SiteWebView.Navigating -= OnNavigating!;
+                SiteWebView.Navigated -= OnNavigated!;
+
+                // Stop any ongoing navigation
+                try
+                {
+                    // Clear the WebView source to stop loading
+                    SiteWebView.Source = null;
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] Error clearing WebView source: {ex.Message}");
+                }
+
+#if ANDROID
+                // Android-specific cleanup
+                if (SiteWebView.Handler?.PlatformView is global::Android.Webkit.WebView androidWebView)
+                {
+                    try
+                    {
+                        // Stop loading any content
+                        androidWebView.StopLoading();
+                        
+                        // Clear cache and history
+                        androidWebView.ClearCache(true);
+                        androidWebView.ClearHistory();
+                        
+                        // Remove all views to break circular references
+                        androidWebView.RemoveAllViews();
+                        
+                        // Destroy the WebView
+                        androidWebView.Destroy();
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] Error during Android WebView cleanup: {ex.Message}");
+                    }
+                }
+#endif
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] Error during WebView cleanup: {ex.Message}");
+        }
     }
 
     // ── Navigation ────────────────────────────────────────────────────────────
