@@ -74,47 +74,79 @@ public class MainActivity : MauiAppCompatActivity
         }
 #pragma warning restore CA1416
 
-        var bgColor = (Microsoft.Maui.Graphics.Color)Microsoft.Maui.Controls.Application.Current!.Resources["BgPage"];
-        bool lightIcons = App.CurrentTheme != AppTheme.Frost;
-        var androidColor = global::Android.Graphics.Color.Argb(
-            (int)(bgColor.Alpha * 255),
-            (int)(bgColor.Red   * 255),
-            (int)(bgColor.Green * 255),
-            (int)(bgColor.Blue  * 255));
-        ApplyStatusBarColor(androidColor, lightIcons);
+        var bgColor  = (Microsoft.Maui.Graphics.Color)Microsoft.Maui.Controls.Application.Current!.Resources["BgPage"];
+        var navColor = (Microsoft.Maui.Graphics.Color)Microsoft.Maui.Controls.Application.Current!.Resources["NavBar"];
+        bool lightIcons = App.CurrentTheme != AppTheme.Frost
+                       && App.CurrentTheme != AppTheme.Parchment
+                       && App.CurrentTheme != AppTheme.Blossom;
+
+        var androidBg  = global::Android.Graphics.Color.Argb(
+            (int)(bgColor.Alpha * 255), (int)(bgColor.Red * 255),
+            (int)(bgColor.Green * 255), (int)(bgColor.Blue * 255));
+        var androidNav = global::Android.Graphics.Color.Argb(
+            (int)(navColor.Alpha * 255), (int)(navColor.Red * 255),
+            (int)(navColor.Green * 255), (int)(navColor.Blue * 255));
+
+        ApplyStatusBarColor(androidBg,  lightIcons);
+        ApplyNavBarColor(androidNav, lightIcons);
     }
 
     /// <summary>
-    /// Updates the status bar background and icon tint to match the current theme.
+    /// Updates the status bar and navigation bar background and icon tint to match the current theme.
     /// </summary>
 #pragma warning disable CA1416, CA1422
     public void ApplyStatusBarColor(global::Android.Graphics.Color bgColor, bool lightIcons)
     {
         if (Window is null) return;
 
-        // SetStatusBarColor is deprecated on API 35+ (edge-to-edge) but remains
-        // functional and is the simplest cross-version tinting approach.
+        // ── Status bar ────────────────────────────────────────────────────────
         Window.SetStatusBarColor(bgColor);
 
         if (Build.VERSION.SdkInt >= BuildVersionCodes.R)
         {
-            // API 30+: WindowInsetsController
-            var appearance = lightIcons
-                ? 0
-                : (int)WindowInsetsControllerAppearance.LightStatusBars;
+            int appearance = 0;
+            if (!lightIcons) appearance |= (int)WindowInsetsControllerAppearance.LightStatusBars;
             Window.InsetsController?.SetSystemBarsAppearance(
                 appearance,
                 (int)WindowInsetsControllerAppearance.LightStatusBars);
         }
         else if (Build.VERSION.SdkInt >= BuildVersionCodes.M)
         {
-            // API 23–29: SystemUiFlags (LightStatusBar requires API 23)
             var flags = Window.DecorView.SystemUiFlags;
             Window.DecorView.SystemUiFlags = lightIcons
                 ? flags & ~SystemUiFlags.LightStatusBar
                 : flags | SystemUiFlags.LightStatusBar;
         }
-        // API 21–22: no light-icon control available; bar color still set above
+    }
+
+    /// <summary>
+    /// Updates the bottom navigation bar (gesture bar / button bar) color and icon tint.
+    /// Effective on API 26+ for icon tint, API 21+ for color.
+    /// </summary>
+    public void ApplyNavBarColor(global::Android.Graphics.Color navColor, bool lightIcons)
+    {
+        if (Window is null) return;
+
+        Window.SetNavigationBarColor(navColor);
+
+        if (Build.VERSION.SdkInt >= BuildVersionCodes.R)
+        {
+            // API 30+: WindowInsetsController
+            int appearance = 0;
+            if (!lightIcons) appearance |= (int)WindowInsetsControllerAppearance.LightNavigationBars;
+            Window.InsetsController?.SetSystemBarsAppearance(
+                appearance,
+                (int)WindowInsetsControllerAppearance.LightNavigationBars);
+        }
+        else if (Build.VERSION.SdkInt >= BuildVersionCodes.O)
+        {
+            // API 26–29: SystemUiFlags.LightNavigationBar
+            var flags = Window.DecorView.SystemUiFlags;
+            Window.DecorView.SystemUiFlags = lightIcons
+                ? flags & ~SystemUiFlags.LightNavigationBar
+                : flags | SystemUiFlags.LightNavigationBar;
+        }
+        // API 21–25: color set above, no icon tint control
     }
 #pragma warning restore CA1416, CA1422
 }

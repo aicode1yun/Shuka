@@ -313,20 +313,35 @@ public partial class App : Application
 #if ANDROID
         Platforms.Android.ThemedEntryHandler.RefreshAll();
 
-        // Update the system status bar to match the page background
+        // Update the system status bar and navigation bar to match the theme
         if (MainActivity.Instance is { } activity)
         {
-            var bgColor = (Color)Application.Current!.Resources["BgPage"];
-            // Light icons for dark themes, dark icons for Frost (light theme)
-            bool lightIcons = theme != AppTheme.Frost && theme != AppTheme.Parchment && theme != AppTheme.Blossom;
-            var androidColor = global::Android.Graphics.Color.Argb(
-                (int)(bgColor.Alpha * 255),
-                (int)(bgColor.Red   * 255),
-                (int)(bgColor.Green * 255),
-                (int)(bgColor.Blue  * 255));
+            var bgColor  = (Color)Application.Current!.Resources["BgPage"];
+            var navColor = (Color)Application.Current!.Resources["NavBar"];
+
+            // Light icons for dark themes, dark icons for light themes
+            bool lightIcons = theme != AppTheme.Frost
+                           && theme != AppTheme.Parchment
+                           && theme != AppTheme.Blossom;
+
+            var androidBg = ToAndroidColor(bgColor);
+            var androidNav = ToAndroidColor(navColor);
+
             MainThread.BeginInvokeOnMainThread(() =>
-                activity.ApplyStatusBarColor(androidColor, lightIcons));
+            {
+                activity.ApplyStatusBarColor(androidBg,  lightIcons);
+                activity.ApplyNavBarColor(androidNav, lightIcons);
+            });
         }
 #endif
     }
+
+#if ANDROID
+    private static global::Android.Graphics.Color ToAndroidColor(Color c) =>
+        global::Android.Graphics.Color.Argb(
+            (int)(c.Alpha * 255),
+            (int)(c.Red   * 255),
+            (int)(c.Green * 255),
+            (int)(c.Blue  * 255));
+#endif
 }
