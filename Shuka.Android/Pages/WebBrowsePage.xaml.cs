@@ -104,6 +104,7 @@ public partial class WebBrowsePage : ContentPage
         if (_isTranslated)
         {
             _isTranslated = false;
+            _originalUrl  = string.Empty;
             UpdateTranslateFabAppearance();
         }
         Navigate(_homeUrl);
@@ -115,6 +116,13 @@ public partial class WebBrowsePage : ContentPage
         catch { /* ignore */ }
     }
 
+    // Sites that use Cloudflare — Google Translate proxy can't load them in WebView.
+    // For these, we open the translated URL in the external browser instead.
+    private static readonly HashSet<string> _cfSites = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "69shuba.com", "czbooks.net"
+    };
+
     private async void OnTranslateTapped(object sender, TappedEventArgs e)
     {
         await FabTranslate.ScaleToAsync(0.92, 70, Easing.CubicOut);
@@ -123,19 +131,48 @@ public partial class WebBrowsePage : ContentPage
         if (_isTranslated)
         {
             // Revert to the original URL
+            string urlToRestore = _originalUrl;
             _isTranslated = false;
+            _originalUrl  = string.Empty;
             UpdateTranslateFabAppearance();
-            Navigate(_originalUrl);
+            Navigate(urlToRestore);
         }
         else
         {
-            // Build the Google Translate proxy URL and navigate to it
+            // Check if current site is CF-protected BEFORE trying to translate
+            string? site = DetectSite(_currentUrl);
+
+            if (site != null && _cfSites.Contains(site))
+            {
+                // CF-protected sites can't be translated via web proxies
+                // Offer alternatives
+                string? choice = await DisplayActionSheetAsync(
+                    $"{site} uses Cloudflare protection which blocks web translation services.",
+                    "Cancel",
+                    null,
+                    "Copy URL",
+                    "Open in Browser");
+
+                if (choice == "Copy URL")
+                {
+                    await Clipboard.Default.SetTextAsync(_currentUrl);
+                    await ShowQueuedToastAsync("URL copied to clipboard!");
+                }
+                else if (choice == "Open in Browser")
+                {
+                    try { await Launcher.Default.OpenAsync(new Uri(_currentUrl)); }
+                    catch { /* ignore */ }
+                }
+                return;
+            }
+
+            // Non-CF site: translate in-app via Google Translate proxy
+            string encoded      = Uri.EscapeDataString(_currentUrl);
+            string translateUrl = $"https://translate.google.com/translate?sl=auto&tl=en&u={encoded}";
+            
             _originalUrl  = _currentUrl;
             _isTranslated = true;
             UpdateTranslateFabAppearance();
-
-            string encoded = Uri.EscapeDataString(_originalUrl);
-            string translateUrl = $"https://translate.google.com/translate?sl=auto&tl=en&u={encoded}";
             Navigate(translateUrl);
         }
     }
@@ -186,6 +223,7 @@ public partial class WebBrowsePage : ContentPage
 
         _currentUrl      = e.Url;
         UrlBarLabel.Text = e.Url;
+
         UpdateDownloadFab(e.Url);
     }
 
@@ -224,14 +262,26 @@ public partial class WebBrowsePage : ContentPage
 
     /// <summary>
     /// Show the Download and Fetch FABs on any page belonging to a known source.
-    /// The FAB taps then validate whether the URL is a downloadable novel page.
+    /// Hidden when in translated mode to avoid URL extraction issues.
     /// </summary>
     private void UpdateDownloadFab(string url)
     {
+        // Hide Fetch/Download when in translated mode
+        // User must press ORIGINAL first to use these features
+        if (_isTranslated)
+        {
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                FabDownload.IsVisible = false;
+                FabFetch.IsVisible    = false;
+            });
+            return;
+        }
+
+        // Check if we're on a known source site
         bool onKnownSite = DetectSite(url) != null;
         MainThread.BeginInvokeOnMainThread(() =>
         {
-            // Both FABs appear/disappear together
             bool wasVisible = FabDownload.IsVisible;
             FabDownload.IsVisible = onKnownSite;
             FabFetch.IsVisible    = onKnownSite;
@@ -343,9 +393,9 @@ public partial class WebBrowsePage : ContentPage
         InvalidUrlBanner.IsVisible = false;
     }
 
-    private async Task ShowQueuedToastAsync()
+    private async Task ShowQueuedToastAsync(string message = "Queued for download!")
     {
-        QueuedToastLabel.Text = "Queued for download!";
+        QueuedToastLabel.Text = message;
         QueuedToast.Opacity      = 0;
         QueuedToast.TranslationY = 20;
         QueuedToast.IsVisible    = true;
