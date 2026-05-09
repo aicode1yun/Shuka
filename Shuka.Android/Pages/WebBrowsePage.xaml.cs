@@ -60,6 +60,11 @@ public partial class WebBrowsePage : ContentPage
         InitializeComponent();
         _currentUrl = startUrl;
         _homeUrl    = startUrl;
+        
+        // Subscribe to WebView error events
+        SiteWebView.Navigating += OnNavigating!;
+        SiteWebView.Navigated += OnNavigated!;
+        
         Navigate(startUrl);
     }
 
@@ -79,36 +84,118 @@ public partial class WebBrowsePage : ContentPage
 
     // ── Navigation ────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Navigates to the specified URL with validation and error handling.
+    /// </summary>
     private void Navigate(string url)
     {
-        _currentUrl = url;
-        UrlBarLabel.Text = url;
-        SiteWebView.Source = new UrlWebViewSource { Url = url };
-        UpdateDownloadFab(url);
+        try
+        {
+            // Validate URL format
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                ShowNavigationError("Invalid URL", "The URL cannot be empty.");
+                return;
+            }
+
+            // Ensure URL has a scheme
+            if (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+                !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                url = "https://" + url;
+            }
+
+            // Validate URI format
+            if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri))
+            {
+                ShowNavigationError("Invalid URL", $"The URL format is invalid:\n{url}");
+                return;
+            }
+
+            // Check for valid scheme
+            if (uri.Scheme != "http" && uri.Scheme != "https")
+            {
+                ShowNavigationError("Unsupported Protocol", $"Only HTTP and HTTPS URLs are supported.\n{url}");
+                return;
+            }
+
+            _currentUrl = url;
+            UrlBarLabel.Text = url;
+            SiteWebView.Source = new UrlWebViewSource { Url = url };
+            UpdateDownloadFab(url);
+        }
+        catch (Exception ex)
+        {
+            ShowNavigationError("Navigation Error", $"Failed to navigate to URL:\n{ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Shows an error banner when navigation fails.
+    /// </summary>
+    private async void ShowNavigationError(string title, string message)
+    {
+        await MainThread.InvokeOnMainThreadAsync(async () =>
+        {
+            try
+            {
+                await DisplayAlertAsync(title, message, "OK");
+            }
+            catch
+            {
+                // Fallback: show in invalid URL banner if alert fails
+                InvalidUrlHintLabel.Text = $"{title}: {message}";
+                await ShowInvalidUrlBannerAsync(message);
+            }
+        });
     }
 
     private async void OnBackTapped(object sender, TappedEventArgs e)
     {
-        if (SiteWebView.CanGoBack)
+        try
         {
-            SiteWebView.GoBack();
+            if (SiteWebView.CanGoBack)
+            {
+                SiteWebView.GoBack();
+            }
+            else
+            {
+                await Shell.Current.Navigation.PopAsync();
+            }
         }
-        else
+        catch (Exception ex)
         {
-            await Shell.Current.Navigation.PopAsync();
+            System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] Back navigation error: {ex.Message}");
         }
     }
 
     private void OnForwardTapped(object sender, TappedEventArgs e)
     {
-        if (SiteWebView.CanGoForward)
+        try
         {
-            SiteWebView.GoForward();
+            if (SiteWebView.CanGoForward)
+            {
+                SiteWebView.GoForward();
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] Forward navigation error: {ex.Message}");
         }
     }
 
     private void OnReloadTapped(object sender, TappedEventArgs e)
-        => SiteWebView.Reload();
+    {
+        try
+        {
+            SiteWebView.Reload();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] Reload error: {ex.Message}");
+            ShowNavigationError("Reload Failed", "Could not reload the page. Please try again.");
+        }
+    }
 
     private void OnHomeSourceTapped(object sender, TappedEventArgs e)
     {
@@ -137,55 +224,74 @@ public partial class WebBrowsePage : ContentPage
 
     private async void OnTranslateTapped(object sender, TappedEventArgs e)
     {
-        await FabTranslate.ScaleToAsync(0.92, 70, Easing.CubicOut);
-        await FabTranslate.ScaleToAsync(1.0,  70, Easing.SpringOut);
-
-        if (_isTranslated)
+        try
         {
-            // Revert to the original URL
-            string urlToRestore = _originalUrl;
-            _isTranslated = false;
-            _originalUrl  = string.Empty;
-            UpdateTranslateFabAppearance();
-            Navigate(urlToRestore);
-        }
-        else
-        {
-            // Check if current site is CF-protected BEFORE trying to translate
-            string? site = DetectSite(_currentUrl);
+            await FabTranslate.ScaleToAsync(0.92, 70, Easing.CubicOut);
+            await FabTranslate.ScaleToAsync(1.0,  70, Easing.SpringOut);
 
-            if (site != null && _cfSites.Contains(site))
+            if (_isTranslated)
             {
-                // CF-protected sites can't be translated via web proxies
-                // Offer alternatives
-                string? choice = await DisplayActionSheetAsync(
-                    $"{site} uses Cloudflare protection which blocks web translation services.",
-                    "Cancel",
-                    null,
-                    "Copy URL",
-                    "Open in Browser");
-
-                if (choice == "Copy URL")
-                {
-                    await Clipboard.Default.SetTextAsync(_currentUrl);
-                    await ShowQueuedToastAsync("URL copied to clipboard!");
-                }
-                else if (choice == "Open in Browser")
-                {
-                    try { await Launcher.Default.OpenAsync(new Uri(_currentUrl)); }
-                    catch { /* ignore */ }
-                }
-                return;
+                // Revert to the original URL
+                string urlToRestore = _originalUrl;
+                _isTranslated = false;
+                _originalUrl  = string.Empty;
+                UpdateTranslateFabAppearance();
+                Navigate(urlToRestore);
             }
+            else
+            {
+                // Validate current URL before translating
+                if (string.IsNullOrWhiteSpace(_currentUrl))
+                {
+                    await DisplayAlertAsync("Cannot Translate", "No page is currently loaded.", "OK");
+                    return;
+                }
 
-            // Non-CF site: translate in-app via Google Translate proxy
-            string encoded      = Uri.EscapeDataString(_currentUrl);
-            string translateUrl = $"https://translate.google.com/translate?sl=auto&tl=en&u={encoded}";
-            
-            _originalUrl  = _currentUrl;
-            _isTranslated = true;
-            UpdateTranslateFabAppearance();
-            Navigate(translateUrl);
+                // Check if current site is CF-protected BEFORE trying to translate
+                string? site = DetectSite(_currentUrl);
+
+                if (site != null && _cfSites.Contains(site))
+                {
+                    // CF-protected sites can't be translated via web proxies
+                    // Offer alternatives
+                    string? choice = await DisplayActionSheetAsync(
+                        $"{site} uses Cloudflare protection which blocks web translation services.",
+                        "Cancel",
+                        null,
+                        "Copy URL",
+                        "Open in Browser");
+
+                    if (choice == "Copy URL")
+                    {
+                        await Clipboard.Default.SetTextAsync(_currentUrl);
+                        await ShowQueuedToastAsync("URL copied to clipboard!");
+                    }
+                    else if (choice == "Open in Browser")
+                    {
+                        try { await Launcher.Default.OpenAsync(new Uri(_currentUrl)); }
+                        catch (Exception ex)
+                        {
+                            await DisplayAlertAsync("Error", $"Could not open browser:\n{ex.Message}", "OK");
+                        }
+                    }
+                    return;
+                }
+
+                // Non-CF site: translate in-app via Google Translate proxy
+                string encoded      = Uri.EscapeDataString(_currentUrl);
+                string translateUrl = $"https://translate.google.com/translate?sl=auto&tl=en&u={encoded}";
+                
+                _originalUrl  = _currentUrl;
+                _isTranslated = true;
+                UpdateTranslateFabAppearance();
+                Navigate(translateUrl);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] Translate error: {ex.Message}");
+            await DisplayAlertAsync("Translation Error", 
+                $"An error occurred while translating:\n{ex.Message}", "OK");
         }
     }
 
@@ -217,28 +323,60 @@ public partial class WebBrowsePage : ContentPage
 
     private void OnNavigating(object sender, WebNavigatingEventArgs e)
     {
-        _isLoading = true;
-        LoadingBar.IsVisible = true;
-        LoadingBar.Progress  = 0;
-        _ = AnimateLoadingBarAsync();
+        try
+        {
+            _isLoading = true;
+            LoadingBar.IsVisible = true;
+            LoadingBar.Progress  = 0;
+            _ = AnimateLoadingBarAsync();
 
-        _currentUrl      = e.Url;
-        UrlBarLabel.Text = e.Url;
-        UpdateDownloadFab(e.Url);
-        UpdateNavigationButtons();
+            _currentUrl      = e.Url;
+            UrlBarLabel.Text = e.Url;
+            UpdateDownloadFab(e.Url);
+            UpdateNavigationButtons();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] OnNavigating error: {ex.Message}");
+            e.Cancel = true;
+            ShowNavigationError("Navigation Error", "An error occurred while navigating.");
+        }
     }
 
     private void OnNavigated(object sender, WebNavigatedEventArgs e)
     {
-        _isLoading = false;
-        LoadingBar.IsVisible = false;
-        LoadingBar.Progress  = 0;
+        try
+        {
+            _isLoading = false;
+            LoadingBar.IsVisible = false;
+            LoadingBar.Progress  = 0;
 
-        _currentUrl      = e.Url;
-        UrlBarLabel.Text = e.Url;
+            // Check navigation result
+            if (e.Result == WebNavigationResult.Failure)
+            {
+                ShowNavigationError("Page Load Failed", 
+                    "The page could not be loaded. Please check your internet connection and try again.");
+                return;
+            }
+            else if (e.Result == WebNavigationResult.Timeout)
+            {
+                ShowNavigationError("Connection Timeout", 
+                    "The page took too long to load. Please try again.");
+                return;
+            }
 
-        UpdateDownloadFab(e.Url);
-        UpdateNavigationButtons();
+            _currentUrl      = e.Url;
+            UrlBarLabel.Text = e.Url;
+
+            UpdateDownloadFab(e.Url);
+            UpdateNavigationButtons();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] OnNavigated error: {ex.Message}");
+            _isLoading = false;
+            LoadingBar.IsVisible = false;
+        }
     }
 
     /// <summary>
@@ -246,14 +384,21 @@ public partial class WebBrowsePage : ContentPage
     /// </summary>
     private void UpdateNavigationButtons()
     {
-        MainThread.BeginInvokeOnMainThread(() =>
+        try
         {
-            // Back button is always enabled (either goes back in WebView or pops the page)
-            BackButton.Opacity = 1.0;
-            
-            // Forward button is only enabled if WebView can go forward
-            ForwardButton.Opacity = SiteWebView.CanGoForward ? 1.0 : 0.4;
-        });
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                // Back button is always enabled (either goes back in WebView or pops the page)
+                BackButton.Opacity = 1.0;
+                
+                // Forward button is only enabled if WebView can go forward
+                ForwardButton.Opacity = SiteWebView.CanGoForward ? 1.0 : 0.4;
+            });
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] UpdateNavigationButtons error: {ex.Message}");
+        }
     }
 
     private async Task AnimateLoadingBarAsync()
