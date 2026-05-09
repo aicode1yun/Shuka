@@ -6,11 +6,14 @@ namespace Shuka.Android.Pages;
 
 public partial class MainPage : ContentPage
 {
+    public static MainPage? Instance { get; private set; }
+    
     private bool _discoverBuilt = false;
 
     public MainPage()
     {
         InitializeComponent();
+        Instance = this;
 
         UrlEntry.TextChanged   += (_, e) => 
         {
@@ -23,7 +26,22 @@ public partial class MainPage : ContentPage
         GlobalSearchEntry.TextChanged += (_, e) =>
             GlobalSearchClearBtn.IsVisible = !string.IsNullOrEmpty(e.NewTextValue);
 
+        // Subscribe to bookmark changes to update the badge counts
+        BookmarkService.Instance.BookmarksChanged += OnBookmarksChanged;
+
         SetActiveTab(download: true);
+    }
+
+    private void OnBookmarksChanged(object? sender, EventArgs e)
+    {
+        // Rebuild discover sources if they've been built
+        if (_discoverBuilt)
+        {
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                BuildDiscoverSources();
+            });
+        }
     }
 
     protected override async void OnAppearing()
@@ -104,7 +122,7 @@ public partial class MainPage : ContentPage
     /// Called by WebBrowsePage when the user taps Fetch.
     /// Switches to the Download tab and pre-fills the URL entry.
     /// </summary>
-    private void FillUrlFromWebView(string url)
+    public void FillUrlFromWebView(string url)
     {
         SetActiveTab(download: true);
         UrlEntry.Text = url;
@@ -293,7 +311,7 @@ public partial class MainPage : ContentPage
         // ── Pin button ───────────────────────────────────────────────────────
         var pinIcon = new Label
         {
-            Text       = pinned ? "\uE9C9" : "\uE9C8", // push_pin filled / outlined
+            Text       = pinned ? "\uE9C9" : "\uE9C7", // push_pin filled / push_pin outlined
             FontFamily = "MaterialSymbols",
             FontSize   = 20,
             HorizontalOptions = LayoutOptions.Center,
@@ -321,6 +339,77 @@ public partial class MainPage : ContentPage
             })
         });
 
+        // ── Bookmark button ──────────────────────────────────────────────────
+        int bookmarkCount = BookmarkService.Instance.GetBookmarkCountForSite(source.SiteName);
+        
+        var bookmarkIcon = new Label
+        {
+            Text       = bookmarkCount > 0 ? "\uE866" : "\uE867", // bookmark filled / outlined
+            FontFamily = "MaterialSymbols",
+            FontSize   = 20,
+            HorizontalOptions = LayoutOptions.Center,
+            VerticalOptions   = LayoutOptions.Center,
+        };
+        bookmarkIcon.SetDynamicResource(Label.TextColorProperty,
+            bookmarkCount > 0 ? "AccentLight" : "TextMuted");
+
+        // Badge showing bookmark count (only if > 0)
+        var bookmarkBadgeContainer = new Grid
+        {
+            WidthRequest    = 40,
+            HeightRequest   = 40,
+            VerticalOptions = LayoutOptions.Center,
+        };
+        bookmarkBadgeContainer.Add(bookmarkIcon);
+        
+        if (bookmarkCount > 0)
+        {
+            // Small circular badge with count
+            var badgeCircle = new Border
+            {
+                StrokeThickness = 0,
+                StrokeShape = new Microsoft.Maui.Controls.Shapes.Ellipse(),
+                WidthRequest = 16,
+                HeightRequest = 16,
+                HorizontalOptions = LayoutOptions.End,
+                VerticalOptions = LayoutOptions.Start,
+                Margin = new Thickness(0, 0, 0, 0),
+            };
+            badgeCircle.SetDynamicResource(Border.BackgroundColorProperty, "AccentLight");
+            
+            var badgeLabel = new Label
+            {
+                Text = bookmarkCount > 99 ? "99+" : bookmarkCount.ToString(),
+                FontSize = 8,
+                FontAttributes = FontAttributes.Bold,
+                TextColor = Colors.White,
+                HorizontalOptions = LayoutOptions.Center,
+                VerticalOptions = LayoutOptions.Center,
+            };
+            badgeCircle.Content = badgeLabel;
+            
+            bookmarkBadgeContainer.Add(badgeCircle);
+        }
+
+        var bookmarkBtn = new Border
+        {
+            StrokeThickness = 0,
+            BackgroundColor = Colors.Transparent,
+            Content         = bookmarkBadgeContainer,
+        };
+        bookmarkBtn.GestureRecognizers.Add(new TapGestureRecognizer
+        {
+            Command = new Command(async () =>
+            {
+                await bookmarkBtn.ScaleToAsync(0.85, 70, Easing.CubicOut);
+                await bookmarkBtn.ScaleToAsync(1.0,  70, Easing.SpringOut);
+                
+                // Navigate to bookmarks page filtered by this source
+                await Shell.Current.Navigation.PushAsync(
+                    new BookmarksPage(source.SiteName));
+            })
+        });
+
         // ── Chevron ──────────────────────────────────────────────────────────
         var chevron = new Label
         {
@@ -338,16 +427,18 @@ public partial class MainPage : ContentPage
             {
                 new ColumnDefinition { Width = GridLength.Auto },   // icon
                 new ColumnDefinition { Width = GridLength.Star },   // text
+                new ColumnDefinition { Width = GridLength.Auto },   // bookmark
                 new ColumnDefinition { Width = GridLength.Auto },   // pin
                 new ColumnDefinition { Width = GridLength.Auto },   // chevron
             },
             ColumnSpacing = 12,
             Padding       = new Thickness(14, 14),
         };
-        row.Add(iconBadge, 0, 0);
-        row.Add(textStack, 1, 0);
-        row.Add(pinBtn,    2, 0);
-        row.Add(chevron,   3, 0);
+        row.Add(iconBadge,    0, 0);
+        row.Add(textStack,    1, 0);
+        row.Add(bookmarkBtn,  2, 0);
+        row.Add(pinBtn,       3, 0);
+        row.Add(chevron,      4, 0);
 
         var card = new Border
         {

@@ -1,0 +1,242 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="Shuka.Android.Pages.BookmarksPage"
+             BackgroundColor="{DynamicResource BgPage}">
+
+    <Grid RowDefinitions="Auto,Auto,Auto,*">
+
+        <!-- ── Top bar ───────────────────────────────────────── -->
+        <Grid Grid.Row="0"
+              ColumnDefinitions="44,*,44,44"
+              HeightRequest="96"
+              Padding="8,44,8,8"
+              BackgroundColor="{DynamicResource BgCard}">
+
+            <!-- Back button -->
+            <Grid Grid.Column="0"
+                  WidthRequest="44"
+                  HorizontalOptions="Center"
+                  VerticalOptions="Center">
+                <Label Text="&#xE5C4;"
+                       FontFamily="{DynamicResource IconFont}"
+                       FontSize="22"
+                       TextColor="{DynamicResource TextPrimary}"
+                       HorizontalOptions="Center"
+                       VerticalOptions="Center" />
+                <Grid.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnBackTapped" />
+                </Grid.GestureRecognizers>
+            </Grid>
+
+            <!-- Title -->
+            <Label Grid.Column="1"
+                   x:Name="TitleLabel"
+                   Text="Bookmarks"
+                   FontSize="18"
+                   FontAttributes="Bold"
+                   TextColor="{DynamicResource TextPrimary}"
+                   VerticalOptions="Center"
+                   HorizontalOptions="Start"
+                   Margin="8,0,0,0" />
+
+            <!-- Select mode toggle -->
+            <Grid Grid.Column="2"
+                  x:Name="SelectModeButton"
+                  WidthRequest="44"
+                  HorizontalOptions="Center"
+                  VerticalOptions="Center">
+                <Label x:Name="SelectModeIcon"
+                       Text="&#xE8B3;"
+                       FontFamily="{DynamicResource IconFont}"
+                       FontSize="20"
+                       TextColor="{DynamicResource TextMuted}"
+                       HorizontalOptions="Center"
+                       VerticalOptions="Center" />
+                <Grid.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnSelectModeTapped" />
+                </Grid.GestureRecognizers>
+            </Grid>
+
+            <!-- Clear all / Cancel button -->
+            <Grid Grid.Column="3"
+                  x:Name="ActionButton"
+                  WidthRequest="44"
+                  HorizontalOptions="Center"
+                  VerticalOptions="Center"
+                  IsVisible="False">
+                <Label x:Name="ActionButtonIcon"
+                       Text="&#xE872;"
+                       FontFamily="{DynamicResource IconFont}"
+                       FontSize="20"
+                       TextColor="{DynamicResource TextMuted}"
+                       HorizontalOptions="Center"
+                       VerticalOptions="Center" />
+                <Grid.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnActionButtonTapped" />
+                </Grid.GestureRecognizers>
+            </Grid>
+        </Grid>
+
+        <!-- ── Search bar ───────────────────────────────────────── -->
+        <Border Grid.Row="1"
+                Stroke="{DynamicResource Stroke}"
+                StrokeThickness="1"
+                StrokeShape="RoundRectangle 12"
+                BackgroundColor="{DynamicResource BgInput}"
+                Margin="16,12,16,0"
+                Padding="12,0">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                <Label Grid.Column="0"
+                       Text="&#xE8B6;"
+                       FontFamily="{DynamicResource IconFont}"
+                       FontSize="18"
+                       TextColor="{DynamicResource TextMuted}"
+                       VerticalOptions="Center" />
+                <Entry Grid.Column="1"
+                       x:Name="SearchEntry"
+                       Placeholder="Search bookmarks..."
+                       FontSize="13"
+                       TextColor="{DynamicResource TextPrimary}"
+                       PlaceholderColor="{DynamicResource TextMuted}"
+                       BackgroundColor="Transparent"
+                       VerticalOptions="Center"
+                       TextChanged="OnSearchTextChanged" />
+                <Grid Grid.Column="2"
+                      x:Name="SearchClearBtn"
+                      WidthRequest="32"
+                      HeightRequest="32"
+                      IsVisible="False">
+                    <Label Text="&#xE5CD;"
+                           FontFamily="{DynamicResource IconFont}"
+                           FontSize="16"
+                           TextColor="{DynamicResource TextMuted}"
+                           HorizontalOptions="Center"
+                           VerticalOptions="Center" />
+                    <Grid.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnSearchClearTapped" />
+                    </Grid.GestureRecognizers>
+                </Grid>
+            </Grid>
+        </Border>
+
+        <!-- ── Filter chips ───────────────────────────────────────── -->
+        <ScrollView Grid.Row="2"
+                    Orientation="Horizontal"
+                    HorizontalScrollBarVisibility="Never"
+                    Margin="16,12,16,0">
+            <HorizontalStackLayout x:Name="FilterChips"
+                                   Spacing="8" />
+        </ScrollView>
+
+        <!-- ── Content ───────────────────────────────────────── -->
+        <ScrollView Grid.Row="3">
+            <VerticalStackLayout x:Name="ContentStack"
+                                 Padding="16,16,16,80"
+                                 Spacing="16" />
+        </ScrollView>
+
+        <!-- ── Empty state ───────────────────────────────────── -->
+        <VerticalStackLayout Grid.Row="3"
+                             x:Name="EmptyState"
+                             Spacing="16"
+                             HorizontalOptions="Center"
+                             VerticalOptions="Center"
+                             IsVisible="False">
+            <Label Text="&#xE866;"
+                   FontFamily="{DynamicResource IconFont}"
+                   FontSize="64"
+                   TextColor="{DynamicResource TextMuted}"
+                   HorizontalOptions="Center"
+                   Opacity="0.3" />
+            <Label x:Name="EmptyStateTitle"
+                   Text="No bookmarks yet"
+                   FontSize="16"
+                   FontAttributes="Bold"
+                   TextColor="{DynamicResource TextMuted}"
+                   HorizontalOptions="Center" />
+            <Label Text="Bookmark novels while browsing to save them here"
+                   FontSize="12"
+                   TextColor="{DynamicResource TextMuted}"
+                   HorizontalOptions="Center"
+                   HorizontalTextAlignment="Center"
+                   MaximumWidthRequest="280" />
+        </VerticalStackLayout>
+
+        <!-- ── Selection action bar ───────────────────────────────────────── -->
+        <Border Grid.Row="3"
+                x:Name="SelectionActionBar"
+                VerticalOptions="End"
+                Margin="16,0,16,96"
+                Padding="16,12"
+                StrokeThickness="1"
+                StrokeShape="RoundRectangle 16"
+                IsVisible="False">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                    <GradientStop Color="{DynamicResource BgCard}" Offset="0.0" />
+                    <GradientStop Color="{DynamicResource BgCard}" Offset="1.0" />
+                </LinearGradientBrush>
+            </Border.Background>
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
+                <Label Grid.Column="0"
+                       x:Name="SelectionCountLabel"
+                       Text="0 selected"
+                       FontSize="13"
+                       FontAttributes="Bold"
+                       TextColor="{DynamicResource TextPrimary}"
+                       VerticalOptions="Center" />
+                
+                <!-- Download selected -->
+                <Border Grid.Column="1"
+                        x:Name="DownloadSelectedBtn"
+                        BackgroundColor="{DynamicResource Accent}"
+                        StrokeThickness="0"
+                        StrokeShape="RoundRectangle 12"
+                        Padding="12,8">
+                    <HorizontalStackLayout Spacing="6">
+                        <Label Text="&#xF090;"
+                               FontFamily="{DynamicResource IconFont}"
+                               FontSize="16"
+                               TextColor="{DynamicResource TextOnAccent}"
+                               VerticalOptions="Center" />
+                        <Label Text="DOWNLOAD"
+                               FontSize="10"
+                               FontAttributes="Bold"
+                               TextColor="{DynamicResource TextOnAccent}"
+                               VerticalOptions="Center" />
+                    </HorizontalStackLayout>
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnDownloadSelectedTapped" />
+                    </Border.GestureRecognizers>
+                </Border>
+
+                <!-- Delete selected -->
+                <Border Grid.Column="2"
+                        x:Name="DeleteSelectedBtn"
+                        BackgroundColor="{DynamicResource BgCard}"
+                        Stroke="{DynamicResource Stroke}"
+                        StrokeThickness="1"
+                        StrokeShape="RoundRectangle 12"
+                        Padding="12,8">
+                    <HorizontalStackLayout Spacing="6">
+                        <Label Text="&#xE872;"
+                               FontFamily="{DynamicResource IconFont}"
+                               FontSize="16"
+                               TextColor="{DynamicResource Warning}"
+                               VerticalOptions="Center" />
+                        <Label Text="DELETE"
+                               FontSize="10"
+                               FontAttributes="Bold"
+                               TextColor="{DynamicResource Warning}"
+                               VerticalOptions="Center" />
+                    </HorizontalStackLayout>
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnDeleteSelectedTapped" />
+                    </Border.GestureRecognizers>
+                </Border>
+            </Grid>
+        </Border>
+
+    </Grid>
+</ContentPage>

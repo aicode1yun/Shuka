@@ -1,5 +1,6 @@
 using Shuka.Android.Services;
 using Shuka.Core.Adapters;
+using Shuka.Core;
 
 namespace Shuka.Android.Pages;
 
@@ -47,6 +48,7 @@ public partial class WebBrowsePage : ContentPage
     private bool   _isLoading;
     private bool   _isTranslated;   // true when currently viewing via Google Translate proxy
     private string _originalUrl = string.Empty; // the pre-translate URL, so we can toggle back
+    private bool   _fabMenuExpanded = false; // tracks FAB menu state
 
     /// <summary>
     /// Set this before pushing WebBrowsePage. When the user taps Fetch,
@@ -401,6 +403,20 @@ public partial class WebBrowsePage : ContentPage
     {
         try
         {
+            // Collapse FAB menu when navigating
+            if (_fabMenuExpanded)
+            {
+                _fabMenuExpanded = false;
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    _ = Task.WhenAll(
+                        FabToggleIcon.RotateToAsync(0, 250, Easing.CubicOut),
+                        FabMenuItems.FadeToAsync(0, 200, Easing.CubicIn)
+                    );
+                    FabMenuItems.IsVisible = false;
+                });
+            }
+
             _isLoading = true;
             LoadingBar.IsVisible = true;
             LoadingBar.Progress  = 0;
@@ -513,6 +529,7 @@ public partial class WebBrowsePage : ContentPage
     /// <summary>
     /// Show the Download and Fetch FABs on any page belonging to a known source.
     /// Hidden when in translated mode to avoid URL extraction issues.
+    /// Show Bookmark FAB on novel pages only.
     /// </summary>
     private void UpdateDownloadFab(string url)
     {
@@ -524,28 +541,25 @@ public partial class WebBrowsePage : ContentPage
             {
                 FabDownload.IsVisible = false;
                 FabFetch.IsVisible    = false;
+                FabBookmark.IsVisible = false;
             });
             return;
         }
 
         // Check if we're on a known source site
         bool onKnownSite = DetectSite(url) != null;
+        bool onNovelPage = IsNovelPage(url);
+        
         MainThread.BeginInvokeOnMainThread(() =>
         {
-            bool wasVisible = FabDownload.IsVisible;
             FabDownload.IsVisible = onKnownSite;
             FabFetch.IsVisible    = onKnownSite;
+            FabBookmark.IsVisible = onNovelPage; // Only show on actual novel pages
 
-            if (onKnownSite && !wasVisible)
+            // Update bookmark icon state
+            if (onNovelPage)
             {
-                foreach (var fab in new View[] { FabDownload, FabFetch })
-                {
-                    fab.Opacity      = 0;
-                    fab.TranslationY = 20;
-                    _ = Task.WhenAll(
-                        fab.FadeToAsync(1.0, 200, Easing.CubicOut),
-                        fab.TranslateToAsync(0, 0, 200, Easing.CubicOut));
-                }
+                UpdateBookmarkFabAppearance();
             }
         });
     }
@@ -554,6 +568,17 @@ public partial class WebBrowsePage : ContentPage
     {
         await FabFetch.ScaleToAsync(0.92, 70, Easing.CubicOut);
         await FabFetch.ScaleToAsync(1.0,  70, Easing.SpringOut);
+
+        // Collapse menu after action
+        if (_fabMenuExpanded)
+        {
+            _fabMenuExpanded = false;
+            _ = Task.WhenAll(
+                FabToggleIcon.RotateToAsync(0, 250, Easing.CubicOut),
+                FabMenuItems.FadeToAsync(0, 200, Easing.CubicIn)
+            );
+            FabMenuItems.IsVisible = false;
+        }
 
         string url  = _currentUrl;
         string site = DetectSite(url) ?? "";
@@ -579,6 +604,17 @@ public partial class WebBrowsePage : ContentPage
     {
         await FabDownload.ScaleToAsync(0.92, 70, Easing.CubicOut);
         await FabDownload.ScaleToAsync(1.0,  70, Easing.SpringOut);
+
+        // Collapse menu after action
+        if (_fabMenuExpanded)
+        {
+            _fabMenuExpanded = false;
+            _ = Task.WhenAll(
+                FabToggleIcon.RotateToAsync(0, 250, Easing.CubicOut),
+                FabMenuItems.FadeToAsync(0, 200, Easing.CubicIn)
+            );
+            FabMenuItems.IsVisible = false;
+        }
 
         string url  = _currentUrl;
         string site = DetectSite(url) ?? "";
@@ -661,5 +697,166 @@ public partial class WebBrowsePage : ContentPage
             QueuedToast.TranslateToAsync(0, 20, 250, Easing.CubicIn));
 
         QueuedToast.IsVisible = false;
+    }
+
+    // ── FAB menu toggle ───────────────────────────────────────────────────────
+
+    private async void OnFabToggleTapped(object sender, TappedEventArgs e)
+    {
+        await FabToggle.ScaleToAsync(0.92, 70, Easing.CubicOut);
+        await FabToggle.ScaleToAsync(1.0, 70, Easing.SpringOut);
+
+        _fabMenuExpanded = !_fabMenuExpanded;
+
+        if (_fabMenuExpanded)
+        {
+            // Expand menu
+            FabMenuItems.IsVisible = true;
+            
+            // Animate icon rotation (arrow pointing down)
+            await Task.WhenAll(
+                FabToggleIcon.RotateToAsync(180, 250, Easing.CubicOut),
+                FabMenuItems.FadeToAsync(1.0, 200, Easing.CubicOut),
+                FabMenuItems.TranslateToAsync(0, 0, 200, Easing.CubicOut)
+            );
+        }
+        else
+        {
+            // Collapse menu
+            await Task.WhenAll(
+                FabToggleIcon.RotateToAsync(0, 250, Easing.CubicOut),
+                FabMenuItems.FadeToAsync(0, 200, Easing.CubicIn),
+                FabMenuItems.TranslateToAsync(0, 20, 200, Easing.CubicIn)
+            );
+            
+            FabMenuItems.IsVisible = false;
+        }
+    }
+
+    // ── Bookmark logic ────────────────────────────────────────────────────────
+
+    private async void OnBookmarkTapped(object sender, TappedEventArgs e)
+    {
+        try
+        {
+            await FabBookmark.ScaleToAsync(0.92, 70, Easing.CubicOut);
+            await FabBookmark.ScaleToAsync(1.0,  70, Easing.SpringOut);
+
+            string url = _currentUrl;
+            
+            // Validate: must be a novel page
+            if (!IsNovelPage(url))
+            {
+                await DisplayAlertAsync("Cannot Bookmark", 
+                    "Navigate to a specific novel's index page first.", "OK");
+                return;
+            }
+
+            string? site = DetectSite(url);
+            if (site == null)
+            {
+                await DisplayAlertAsync("Cannot Bookmark", 
+                    "This site is not supported for bookmarks.", "OK");
+                return;
+            }
+
+            // Check if already bookmarked
+            bool isBookmarked = BookmarkService.Instance.IsBookmarked(url);
+
+            if (isBookmarked)
+            {
+                // Remove bookmark
+                BookmarkService.Instance.RemoveBookmark(url);
+                UpdateBookmarkFabAppearance();
+                await ShowQueuedToastAsync("Bookmark removed!");
+            }
+            else
+            {
+                // Add bookmark - need to fetch title and author
+                await AddBookmarkAsync(url, site);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] Bookmark error: {ex.Message}");
+            await DisplayAlertAsync("Bookmark Error", 
+                $"An error occurred:\n{ex.Message}", "OK");
+        }
+    }
+
+    /// <summary>
+    /// Fetches the novel's title and author, then adds it to bookmarks.
+    /// </summary>
+    private async Task AddBookmarkAsync(string url, string siteName)
+    {
+        try
+        {
+            // Show loading state
+            FabBookmarkLabel.Text = "LOADING...";
+            FabBookmark.IsEnabled = false;
+
+            // Fetch book info (title and author in Chinese) using BookService
+            var bookService = new BookService();
+            var bookInfo = await bookService.GatherBookInfo(url, 0, null);
+            
+            if (bookInfo == null || string.IsNullOrWhiteSpace(bookInfo.Title))
+            {
+                await DisplayAlertAsync("Error", 
+                    "Could not fetch novel information. Please try again.", "OK");
+                return;
+            }
+
+            // Add to bookmarks with Chinese title and author
+            BookmarkService.Instance.AddBookmark(
+                url, 
+                bookInfo.Title, 
+                bookInfo.Author ?? "Unknown", 
+                siteName,
+                bookInfo.Total);
+
+            UpdateBookmarkFabAppearance();
+            await ShowQueuedToastAsync($"Bookmarked: {bookInfo.Title}");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] AddBookmark error: {ex.Message}");
+            await DisplayAlertAsync("Error", 
+                $"Could not add bookmark:\n{ex.Message}", "OK");
+        }
+        finally
+        {
+            // Restore button state
+            FabBookmark.IsEnabled = true;
+            UpdateBookmarkFabAppearance();
+        }
+    }
+
+    /// <summary>
+    /// Updates the Bookmark FAB to show bookmarked/not-bookmarked state.
+    /// </summary>
+    private void UpdateBookmarkFabAppearance()
+    {
+        bool isBookmarked = BookmarkService.Instance.IsBookmarked(_currentUrl);
+        
+        if (isBookmarked)
+        {
+            // Bookmarked state: filled icon, accent color
+            FabBookmark.SetDynamicResource(Border.BackgroundColorProperty, "AccentContainer");
+            FabBookmark.SetDynamicResource(Border.StrokeProperty, "AccentLight");
+            FabBookmarkIcon.Text = "\uE866"; // bookmark filled
+            FabBookmarkIcon.SetDynamicResource(Label.TextColorProperty, "AccentLight");
+            FabBookmarkLabel.SetDynamicResource(Label.TextColorProperty, "AccentLight");
+            FabBookmarkLabel.Text = "BOOKMARKED";
+        }
+        else
+        {
+            // Not bookmarked: outlined icon, muted color
+            FabBookmark.SetDynamicResource(Border.BackgroundColorProperty, "BgCard");
+            FabBookmark.SetDynamicResource(Border.StrokeProperty, "Stroke");
+            FabBookmarkIcon.Text = "\uE867"; // bookmark outlined
+            FabBookmarkIcon.SetDynamicResource(Label.TextColorProperty, "TextSecondary");
+            FabBookmarkLabel.SetDynamicResource(Label.TextColorProperty, "TextSecondary");
+            FabBookmarkLabel.Text = "BOOKMARK";
+        }
     }
 }

@@ -115,119 +115,191 @@
                          HeightRequest="3"
                          IsVisible="False" />
 
-            <!-- FABs — bottom-right corner, horizontal row -->
-            <HorizontalStackLayout HorizontalOptions="End"
-                                   VerticalOptions="End"
-                                   Spacing="10"
-                                   Margin="0,0,16,28">
+            <!-- FABs — bottom-right corner, collapsible menu -->
+            <VerticalStackLayout x:Name="FabContainer"
+                                 HorizontalOptions="End"
+                                 VerticalOptions="End"
+                                 Spacing="10"
+                                 Margin="0,0,16,28">
 
-                <!-- Translate FAB — toggles Google Translate proxy -->
-                <Border x:Name="FabTranslate"
-                        BackgroundColor="{DynamicResource BgCard}"
-                        Stroke="{DynamicResource Stroke}"
-                        StrokeThickness="1"
-                        StrokeShape="RoundRectangle 24"
-                        HeightRequest="44"
-                        Padding="14,0">
-                    <HorizontalStackLayout Spacing="6"
-                                           HorizontalOptions="Center"
-                                           VerticalOptions="Center">
-                        <Label x:Name="FabTranslateIcon"
-                               Text="&#xE8E2;"
-                               FontFamily="{DynamicResource IconFont}"
-                               FontSize="16"
-                               TextColor="{DynamicResource TextSecondary}"
-                               VerticalOptions="Center" />
-                        <Label x:Name="FabTranslateLabel"
-                               Text="TRANSLATE"
-                               FontSize="11" FontAttributes="Bold"
-                               TextColor="{DynamicResource TextSecondary}"
-                               VerticalOptions="Center" />
+                <!-- Collapsible FAB menu items (hidden by default) -->
+                <VerticalStackLayout x:Name="FabMenuItems"
+                                     Spacing="10"
+                                     HorizontalOptions="End"
+                                     IsVisible="False"
+                                     Opacity="0">
+
+                    <!-- Row 1: Utility buttons (Bookmark, Translate, Browser) -->
+                    <HorizontalStackLayout Spacing="10"
+                                           HorizontalOptions="End">
+
+                        <!-- Bookmark FAB — toggles bookmark state -->
+                        <Border x:Name="FabBookmark"
+                                BackgroundColor="{DynamicResource BgCard}"
+                                Stroke="{DynamicResource Stroke}"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 24"
+                                HeightRequest="44"
+                                Padding="14,0"
+                                IsVisible="False">
+                            <HorizontalStackLayout Spacing="6"
+                                                   HorizontalOptions="Center"
+                                                   VerticalOptions="Center">
+                                <Label x:Name="FabBookmarkIcon"
+                                       Text="&#xE866;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="16"
+                                       TextColor="{DynamicResource TextSecondary}"
+                                       VerticalOptions="Center" />
+                                <Label x:Name="FabBookmarkLabel"
+                                       Text="BOOKMARK"
+                                       FontSize="11" FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextSecondary}"
+                                       VerticalOptions="Center" />
+                            </HorizontalStackLayout>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnBookmarkTapped" />
+                            </Border.GestureRecognizers>
+                        </Border>
+
+                        <!-- Translate FAB — toggles Google Translate proxy -->
+                        <Border x:Name="FabTranslate"
+                                BackgroundColor="{DynamicResource BgCard}"
+                                Stroke="{DynamicResource Stroke}"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 24"
+                                HeightRequest="44"
+                                Padding="14,0">
+                            <HorizontalStackLayout Spacing="6"
+                                                   HorizontalOptions="Center"
+                                                   VerticalOptions="Center">
+                                <Label x:Name="FabTranslateIcon"
+                                       Text="&#xE8E2;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="16"
+                                       TextColor="{DynamicResource TextSecondary}"
+                                       VerticalOptions="Center" />
+                                <Label x:Name="FabTranslateLabel"
+                                       Text="TRANSLATE"
+                                       FontSize="11" FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextSecondary}"
+                                       VerticalOptions="Center" />
+                            </HorizontalStackLayout>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnTranslateTapped" />
+                            </Border.GestureRecognizers>
+                        </Border>
+
+                        <!-- Browser FAB — always visible -->
+                        <Border x:Name="FabBrowser"
+                                BackgroundColor="{DynamicResource BgCard}"
+                                Stroke="{DynamicResource Stroke}"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 24"
+                                HeightRequest="44"
+                                Padding="14,0">
+                            <HorizontalStackLayout Spacing="6"
+                                                   HorizontalOptions="Center"
+                                                   VerticalOptions="Center">
+                                <Label Text="&#xE89E;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="16"
+                                       TextColor="{DynamicResource TextSecondary}"
+                                       VerticalOptions="Center" />
+                                <Label Text="BROWSER"
+                                       FontSize="11" FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextSecondary}"
+                                       VerticalOptions="Center" />
+                            </HorizontalStackLayout>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnOpenInBrowserTapped" />
+                            </Border.GestureRecognizers>
+                        </Border>
+
                     </HorizontalStackLayout>
-                    <Border.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnTranslateTapped" />
-                    </Border.GestureRecognizers>
-                </Border>
 
-                <!-- Browser FAB — always visible -->
-                <Border x:Name="FabBrowser"
-                        BackgroundColor="{DynamicResource BgCard}"
-                        Stroke="{DynamicResource Stroke}"
-                        StrokeThickness="1"
-                        StrokeShape="RoundRectangle 24"
-                        HeightRequest="44"
-                        Padding="14,0">
-                    <HorizontalStackLayout Spacing="6"
-                                           HorizontalOptions="Center"
-                                           VerticalOptions="Center">
-                        <Label Text="&#xE89E;"
-                               FontFamily="{DynamicResource IconFont}"
-                               FontSize="16"
-                               TextColor="{DynamicResource TextSecondary}"
-                               VerticalOptions="Center" />
-                        <Label Text="BROWSER"
-                               FontSize="11" FontAttributes="Bold"
-                               TextColor="{DynamicResource TextSecondary}"
-                               VerticalOptions="Center" />
+                    <!-- Row 2: Action buttons (Fetch, Download) -->
+                    <HorizontalStackLayout Spacing="10"
+                                           HorizontalOptions="End">
+
+                        <!-- Fetch FAB — shown on novel pages, pre-fills Download tab URL -->
+                        <Border x:Name="FabFetch"
+                                BackgroundColor="{DynamicResource Accent}"
+                                StrokeThickness="0"
+                                StrokeShape="RoundRectangle 24"
+                                HeightRequest="44"
+                                Padding="14,0"
+                                IsVisible="False">
+                            <HorizontalStackLayout Spacing="6"
+                                                   HorizontalOptions="Center"
+                                                   VerticalOptions="Center">
+                                <Label Text="&#xE2C4;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="16"
+                                       TextColor="{DynamicResource TextOnAccent}"
+                                       VerticalOptions="Center" />
+                                <Label Text="FETCH"
+                                       FontSize="11" FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextOnAccent}"
+                                       VerticalOptions="Center" />
+                            </HorizontalStackLayout>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnFetchFabTapped" />
+                            </Border.GestureRecognizers>
+                        </Border>
+
+                        <!-- Download FAB — shown only on supported novel pages -->
+                        <Border x:Name="FabDownload"
+                                BackgroundColor="{DynamicResource Accent}"
+                                StrokeThickness="0"
+                                StrokeShape="RoundRectangle 24"
+                                HeightRequest="44"
+                                Padding="16,0"
+                                IsVisible="False">
+                            <HorizontalStackLayout Spacing="6"
+                                                   HorizontalOptions="Center"
+                                                   VerticalOptions="Center">
+                                <Label Text="&#xF090;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="18"
+                                       TextColor="{DynamicResource TextOnAccent}"
+                                       VerticalOptions="Center" />
+                                <Label Text="DOWNLOAD"
+                                       FontSize="11" FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextOnAccent}"
+                                       VerticalOptions="Center" />
+                            </HorizontalStackLayout>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnDownloadFabTapped" />
+                            </Border.GestureRecognizers>
+                        </Border>
+
                     </HorizontalStackLayout>
-                    <Border.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnOpenInBrowserTapped" />
-                    </Border.GestureRecognizers>
-                </Border>
 
-                <!-- Fetch FAB — shown on novel pages, pre-fills Download tab URL -->
-                <Border x:Name="FabFetch"
+                </VerticalStackLayout>
+
+                <!-- Toggle FAB — always visible, expands/collapses menu -->
+                <Border x:Name="FabToggle"
                         BackgroundColor="{DynamicResource Accent}"
                         StrokeThickness="0"
-                        StrokeShape="RoundRectangle 24"
-                        HeightRequest="44"
-                        Padding="14,0"
-                        IsVisible="False">
-                    <HorizontalStackLayout Spacing="6"
-                                           HorizontalOptions="Center"
-                                           VerticalOptions="Center">
-                        <Label Text="&#xE2C4;"
-                               FontFamily="{DynamicResource IconFont}"
-                               FontSize="16"
-                               TextColor="{DynamicResource TextOnAccent}"
-                               VerticalOptions="Center" />
-                        <Label Text="FETCH"
-                               FontSize="11" FontAttributes="Bold"
-                               TextColor="{DynamicResource TextOnAccent}"
-                               VerticalOptions="Center" />
-                    </HorizontalStackLayout>
+                        StrokeShape="RoundRectangle 28"
+                        WidthRequest="56"
+                        HeightRequest="56"
+                        HorizontalOptions="End">
+                    <Label x:Name="FabToggleIcon"
+                           Text="&#xE5CE;"
+                           FontFamily="{DynamicResource IconFont}"
+                           FontSize="24"
+                           TextColor="{DynamicResource TextOnAccent}"
+                           HorizontalOptions="Center"
+                           VerticalOptions="Center"
+                           Rotation="0" />
                     <Border.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnFetchFabTapped" />
+                        <TapGestureRecognizer Tapped="OnFabToggleTapped" />
                     </Border.GestureRecognizers>
                 </Border>
 
-                <!-- Download FAB — shown only on supported novel pages -->
-                <Border x:Name="FabDownload"
-                        BackgroundColor="{DynamicResource Accent}"
-                        StrokeThickness="0"
-                        StrokeShape="RoundRectangle 24"
-                        HeightRequest="44"
-                        Padding="16,0"
-                        IsVisible="False">
-                    <HorizontalStackLayout Spacing="6"
-                                           HorizontalOptions="Center"
-                                           VerticalOptions="Center">
-                        <Label Text="&#xF090;"
-                               FontFamily="{DynamicResource IconFont}"
-                               FontSize="18"
-                               TextColor="{DynamicResource TextOnAccent}"
-                               VerticalOptions="Center" />
-                        <Label Text="DOWNLOAD"
-                               FontSize="11" FontAttributes="Bold"
-                               TextColor="{DynamicResource TextOnAccent}"
-                               VerticalOptions="Center" />
-                    </HorizontalStackLayout>
-                    <Border.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnDownloadFabTapped" />
-                    </Border.GestureRecognizers>
-                </Border>
-
-            </HorizontalStackLayout>
+            </VerticalStackLayout>
 
             <!-- Queued toast — bottom-center -->
             <Border x:Name="QueuedToast"

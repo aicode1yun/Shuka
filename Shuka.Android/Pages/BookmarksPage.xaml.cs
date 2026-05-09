@@ -1,0 +1,925 @@
+using Shuka.Android.Services;
+
+namespace Shuka.Android.Pages;
+
+/// <summary>
+/// Displays all bookmarked novels organized by source site.
+/// Supports search, filtering, multi-select, tagging, and batch operations.
+/// </summary>
+public partial class BookmarksPage : ContentPage
+{
+    private readonly string? _filterSiteName;
+    private bool _selectMode = false;
+    private readonly HashSet<string> _selectedUrls = new();
+    private string _searchQuery = "";
+    private string _sortFilter = "latest"; // latest, chapters
+
+    /// <summary>
+    /// Creates a bookmarks page showing all bookmarks or filtered by site.
+    /// </summary>
+    /// <param name="filterSiteName">If provided, only shows bookmarks from this site</param>
+    public BookmarksPage(string? filterSiteName = null)
+    {
+        InitializeComponent();
+        _filterSiteName = filterSiteName;
+
+        if (!string.IsNullOrEmpty(filterSiteName))
+        {
+            TitleLabel.Text = $"{filterSiteName} Bookmarks";
+        }
+
+        BuildFilterChips();
+    }
+
+    protected override void OnAppearing()
+    {
+        base.OnAppearing();
+        BuildBookmarksList();
+    }
+
+    private async void OnBackTapped(object sender, TappedEventArgs e)
+    {
+        if (_selectMode)
+        {
+            // Exit select mode instead of going back
+            ExitSelectMode();
+        }
+        else
+        {
+            await Shell.Current.Navigation.PopAsync();
+        }
+    }
+
+    private void OnSelectModeTapped(object sender, TappedEventArgs e)
+    {
+        System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Select mode tapped. Current: {_selectMode}");
+        
+        if (_selectMode)
+        {
+            ExitSelectMode();
+        }
+        else
+        {
+            EnterSelectMode();
+        }
+    }
+
+    private void EnterSelectMode()
+    {
+        _selectMode = true;
+        _selectedUrls.Clear();
+        
+        System.Diagnostics.Debug.WriteLine("[BookmarksPage] Entering select mode");
+        
+        SelectModeIcon.Text = "\uE5CD"; // close icon
+        SelectModeIcon.SetDynamicResource(Label.TextColorProperty, "AccentLight");
+        
+        // Change title to show we're in select mode
+        TitleLabel.Text = "Select Bookmarks";
+        
+        ActionButton.IsVisible = false;
+        // Action bar visibility will be updated by UpdateSelectionCount
+        SelectionActionBar.SetDynamicResource(Border.StrokeProperty, "Stroke");
+        
+        BuildBookmarksList();
+    }
+
+    private void ExitSelectMode()
+    {
+        _selectMode = false;
+        _selectedUrls.Clear();
+        
+        System.Diagnostics.Debug.WriteLine("[BookmarksPage] Exiting select mode");
+        
+        SelectModeIcon.Text = "\uE8B3"; // check_box icon
+        SelectModeIcon.SetDynamicResource(Label.TextColorProperty, "TextMuted");
+        
+        // Restore original title
+        if (!string.IsNullOrEmpty(_filterSiteName))
+        {
+            TitleLabel.Text = $"{_filterSiteName} Bookmarks";
+        }
+        else
+        {
+            TitleLabel.Text = "Bookmarks";
+        }
+        
+        SelectionActionBar.IsVisible = false;
+        
+        BuildBookmarksList();
+    }
+
+    private void OnActionButtonTapped(object sender, TappedEventArgs e)
+    {
+        // Clear all bookmarks
+        OnClearAllTapped(sender, e);
+    }
+
+    private async void OnClearAllTapped(object sender, TappedEventArgs e)
+    {
+        bool confirm = await DisplayAlertAsync("Clear All Bookmarks",
+            "Are you sure you want to remove all bookmarks? This cannot be undone.",
+            "Clear All", "Cancel");
+
+        if (confirm)
+        {
+            if (!string.IsNullOrEmpty(_filterSiteName))
+            {
+                // Clear only bookmarks for this site
+                var bookmarks = BookmarkService.Instance.GetBookmarksForSite(_filterSiteName);
+                foreach (var bookmark in bookmarks)
+                {
+                    BookmarkService.Instance.RemoveBookmark(bookmark.Url);
+                }
+            }
+            else
+            {
+                // Clear all bookmarks
+                BookmarkService.Instance.ClearAll();
+            }
+            BuildBookmarksList();
+        }
+    }
+
+    // ── Search ────────────────────────────────────────────────────────────────
+
+    private void OnSearchTextChanged(object sender, TextChangedEventArgs e)
+    {
+        _searchQuery = e.NewTextValue?.Trim() ?? "";
+        SearchClearBtn.IsVisible = !string.IsNullOrEmpty(_searchQuery);
+        BuildBookmarksList();
+    }
+
+    private void OnSearchClearTapped(object sender, TappedEventArgs e)
+    {
+        SearchEntry.Text = "";
+        _searchQuery = "";
+        SearchClearBtn.IsVisible = false;
+        BuildBookmarksList();
+    }
+
+    // ── Filter chips ──────────────────────────────────────────────────────────
+
+    private void BuildFilterChips()
+    {
+        FilterChips.Clear();
+
+        // Sort by latest
+        var latestChip = CreateFilterChip("Latest", "latest", _sortFilter == "latest");
+        FilterChips.Add(latestChip);
+
+        // Sort by chapter count
+        var chaptersChip = CreateFilterChip("Most Chapters", "chapters", _sortFilter == "chapters");
+        FilterChips.Add(chaptersChip);
+    }
+
+    private Border CreateFilterChip(string label, string filterValue, bool isActive)
+    {
+        var chipLabel = new Label
+        {
+            Text = label,
+            FontSize = 11,
+            FontAttributes = FontAttributes.Bold,
+            VerticalOptions = LayoutOptions.Center,
+        };
+
+        var chip = new Border
+        {
+            StrokeThickness = 1,
+            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 12 },
+            Padding = new Thickness(12, 6),
+        };
+
+        if (isActive)
+        {
+            chip.SetDynamicResource(Border.BackgroundColorProperty, "AccentContainer");
+            chip.SetDynamicResource(Border.StrokeProperty, "AccentLight");
+            chipLabel.SetDynamicResource(Label.TextColorProperty, "AccentLight");
+        }
+        else
+        {
+            chip.SetDynamicResource(Border.BackgroundColorProperty, "BgCard");
+            chip.SetDynamicResource(Border.StrokeProperty, "Stroke");
+            chipLabel.SetDynamicResource(Label.TextColorProperty, "TextSecondary");
+        }
+
+        chip.Content = chipLabel;
+        chip.GestureRecognizers.Add(new TapGestureRecognizer
+        {
+            Command = new Command(async () =>
+            {
+                await chip.ScaleToAsync(0.92, 70, Easing.CubicOut);
+                await chip.ScaleToAsync(1.0, 70, Easing.SpringOut);
+                
+                _sortFilter = filterValue;
+                BuildFilterChips();
+                BuildBookmarksList();
+            })
+        });
+
+        return chip;
+    }
+
+    // ── Build list ────────────────────────────────────────────────────────────
+
+    private void BuildBookmarksList()
+    {
+        ContentStack.Clear();
+
+        var allBookmarks = BookmarkService.Instance.Bookmarks.ToList();
+
+        // Filter by site if specified
+        if (!string.IsNullOrEmpty(_filterSiteName))
+        {
+            allBookmarks = allBookmarks
+                .Where(b => string.Equals(b.SiteName, _filterSiteName, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+
+        // Filter by search query
+        if (!string.IsNullOrEmpty(_searchQuery))
+        {
+            allBookmarks = allBookmarks
+                .Where(b => 
+                    b.Title.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase) ||
+                    b.Author.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase) ||
+                    b.Tags.Any(t => t.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+        }
+
+        // Apply sorting
+        allBookmarks = _sortFilter switch
+        {
+            "chapters" => allBookmarks.OrderByDescending(b => b.ChapterCount).ToList(),
+            _ => allBookmarks.OrderByDescending(b => b.BookmarkedAt).ToList() // latest
+        };
+
+        // Show empty state if no bookmarks
+        if (allBookmarks.Count == 0)
+        {
+            EmptyState.IsVisible = true;
+            ActionButton.IsVisible = false;
+            
+            if (!string.IsNullOrEmpty(_searchQuery))
+            {
+                EmptyStateTitle.Text = "No results found";
+            }
+            else
+            {
+                EmptyStateTitle.Text = "No bookmarks yet";
+            }
+            return;
+        }
+
+        EmptyState.IsVisible = false;
+        ActionButton.IsVisible = !_selectMode;
+
+        // Group by site
+        var groupedBookmarks = allBookmarks
+            .GroupBy(b => b.SiteName)
+            .OrderBy(g => g.Key);
+
+        foreach (var group in groupedBookmarks)
+        {
+            // Site header
+            var siteHeader = new Label
+            {
+                Text = $"{group.Key} ({group.Count()})",
+                FontSize = 13,
+                FontAttributes = FontAttributes.Bold,
+                Margin = new Thickness(4, 8, 0, 8),
+                CharacterSpacing = 1.2,
+            };
+            siteHeader.SetDynamicResource(Label.TextColorProperty, "TextMuted");
+            ContentStack.Add(siteHeader);
+
+            // Bookmark cards
+            foreach (var bookmark in group)
+            {
+                ContentStack.Add(BuildBookmarkCard(bookmark));
+            }
+        }
+
+        UpdateSelectionCount();
+    }
+
+    private View BuildBookmarkCard(BookmarkItem bookmark)
+    {
+        bool isSelected = _selectedUrls.Contains(bookmark.Url);
+
+        System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Building card for {bookmark.Title}, Selected: {isSelected}, SelectMode: {_selectMode}");
+
+        // ── Main content ─────────────────────────────────────────────────────
+        var iconLabel = new Label
+        {
+            Text = "\uE866",
+            FontFamily = "MaterialSymbols",
+            FontSize = 20,
+            HorizontalOptions = LayoutOptions.Center,
+            VerticalOptions = LayoutOptions.Center,
+        };
+        iconLabel.SetDynamicResource(Label.TextColorProperty, "AccentLight");
+
+        var iconBadge = new Border
+        {
+            StrokeThickness = 0,
+            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 12 },
+            WidthRequest = 44,
+            HeightRequest = 44,
+            VerticalOptions = LayoutOptions.Start,
+            Content = iconLabel,
+        };
+        iconBadge.SetDynamicResource(Border.BackgroundColorProperty, "AccentContainer");
+
+        var titleLabel = new Label
+        {
+            Text = bookmark.Title,
+            FontSize = 14,
+            FontAttributes = FontAttributes.Bold,
+            LineBreakMode = LineBreakMode.TailTruncation,
+            MaxLines = 2,
+        };
+        titleLabel.SetDynamicResource(Label.TextColorProperty, "TextPrimary");
+
+        var infoLabel = new Label
+        {
+            Text = $"{bookmark.Author} • {bookmark.ChapterCount} chapters",
+            FontSize = 11,
+            LineBreakMode = LineBreakMode.TailTruncation,
+        };
+        infoLabel.SetDynamicResource(Label.TextColorProperty, "TextMuted");
+
+        var dateLabel = new Label
+        {
+            Text = FormatDate(bookmark.BookmarkedAt),
+            FontSize = 10,
+        };
+        dateLabel.SetDynamicResource(Label.TextColorProperty, "TextMuted");
+
+        var textStack = new VerticalStackLayout
+        {
+            Spacing = 3,
+            VerticalOptions = LayoutOptions.Start,
+            Children = { titleLabel, infoLabel, dateLabel },
+        };
+
+        // Add tags
+        if (bookmark.Tags.Count > 0)
+        {
+            var tagsStack = new HorizontalStackLayout { Spacing = 6, Margin = new Thickness(0, 4, 0, 0) };
+            foreach (var tag in bookmark.Tags.Take(3))
+            {
+                tagsStack.Add(CreateTagBadge(tag));
+            }
+            if (bookmark.Tags.Count > 3)
+            {
+                var moreLabel = new Label
+                {
+                    Text = $"+{bookmark.Tags.Count - 3}",
+                    FontSize = 9,
+                    VerticalOptions = LayoutOptions.Center,
+                };
+                moreLabel.SetDynamicResource(Label.TextColorProperty, "TextMuted");
+                tagsStack.Add(moreLabel);
+            }
+            textStack.Add(tagsStack);
+        }
+
+        var mainContent = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitionCollection
+            {
+                new ColumnDefinition { Width = GridLength.Auto },
+                new ColumnDefinition { Width = GridLength.Star },
+            },
+            ColumnSpacing = 12,
+        };
+        mainContent.Add(iconBadge, 0, 0);
+        mainContent.Add(textStack, 1, 0);
+
+        // ── Action buttons (only in normal mode) ────────────────────────────
+        View actionButtons;
+        if (_selectMode)
+        {
+            // In select mode, show selection indicator
+            var selectionLabel = new Label
+            {
+                Text = isSelected ? "✓ SELECTED" : "TAP TO SELECT",
+                FontSize = 11,
+                FontAttributes = FontAttributes.Bold,
+                Margin = new Thickness(0, 12, 0, 0),
+            };
+            selectionLabel.SetDynamicResource(Label.TextColorProperty, isSelected ? "AccentLight" : "TextMuted");
+            actionButtons = selectionLabel;
+        }
+        else
+        {
+            // Normal mode - show action buttons
+            var actionsStack = new HorizontalStackLayout
+            {
+                Spacing = 8,
+                Margin = new Thickness(0, 12, 0, 0),
+            };
+
+            actionsStack.Add(CreateActionButton("\uE89E", "Open", async () =>
+            {
+                await Shell.Current.Navigation.PushAsync(new WebBrowsePage(bookmark.Url));
+            }));
+
+            actionsStack.Add(CreateActionButton("\uE2C4", "Fetch", async () =>
+            {
+                if (MainPage.Instance != null)
+                {
+                    WebBrowsePage.OnUrlFetched = MainPage.Instance.FillUrlFromWebView;
+                }
+                WebBrowsePage.OnUrlFetched?.Invoke(bookmark.Url);
+                await Shell.Current.GoToAsync("//MainPage");
+            }));
+
+            actionsStack.Add(CreateActionButton("\uF090", "Download", async () =>
+            {
+                await DownloadBookmarkAsync(bookmark);
+            }));
+
+            actionsStack.Add(CreateActionButton("\uE893", "Tag", async () =>
+            {
+                await ShowTagDialogAsync(bookmark);
+            }));
+
+            actionsStack.Add(CreateActionButton("\uE872", "Remove", async () =>
+            {
+                bool confirm = await DisplayAlertAsync("Remove Bookmark",
+                    $"Remove \"{bookmark.Title}\" from bookmarks?",
+                    "Remove", "Cancel");
+                if (confirm)
+                {
+                    BookmarkService.Instance.RemoveBookmark(bookmark.Url);
+                    BuildBookmarksList();
+                }
+            }, isDestructive: true));
+
+            actionButtons = actionsStack;
+        }
+
+        var cardContent = new VerticalStackLayout
+        {
+            Spacing = 0,
+            Children = { mainContent, actionButtons }
+        };
+
+        // ── Card border ──────────────────────────────────────────────────────
+        var card = new Border
+        {
+            StrokeThickness = (isSelected && _selectMode) ? 4 : 1,
+            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 16 },
+            Padding = new Thickness(14),
+            Content = cardContent,
+        };
+        
+        // Set border color (no background tint)
+        card.SetDynamicResource(Border.BackgroundColorProperty, "BgCard");
+        
+        if (isSelected && _selectMode)
+        {
+            card.SetDynamicResource(Border.StrokeProperty, "AccentLight");
+        }
+        else
+        {
+            card.SetDynamicResource(Border.StrokeProperty, "Stroke");
+        }
+
+        // Card tap behavior
+        var tapGesture = new TapGestureRecognizer
+        {
+            Command = new Command(async () =>
+            {
+                System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Card tapped. Select mode: {_selectMode}, URL: {bookmark.Url}");
+                
+                if (_selectMode)
+                {
+                    // In select mode: toggle selection
+                    if (isSelected)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Deselecting: {bookmark.Url}");
+                        _selectedUrls.Remove(bookmark.Url);
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Selecting: {bookmark.Url}");
+                        _selectedUrls.Add(bookmark.Url);
+                    }
+                    
+                    System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Total selected: {_selectedUrls.Count}");
+                    BuildBookmarksList();
+                }
+                else
+                {
+                    // Normal mode: open in WebView
+                    System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Opening in WebView: {bookmark.Url}");
+                    await card.ScaleToAsync(0.97, 80, Easing.CubicOut);
+                    await card.ScaleToAsync(1.0, 80, Easing.SpringOut);
+                    await Shell.Current.Navigation.PushAsync(new WebBrowsePage(bookmark.Url));
+                }
+            })
+        };
+        card.GestureRecognizers.Add(tapGesture);
+
+        // Long press to enter select mode and select this item
+        var longPressGesture = new PointerGestureRecognizer();
+        longPressGesture.PointerPressed += async (s, e) =>
+        {
+            // Start tracking long press
+            var pressStart = DateTime.Now;
+            
+            // Wait for 500ms (half second is better UX than 3 seconds)
+            await Task.Delay(500);
+            
+            // Check if still pressed (simple time-based check)
+            if ((DateTime.Now - pressStart).TotalMilliseconds >= 500)
+            {
+                // Haptic feedback
+                try
+                {
+#if ANDROID
+#pragma warning disable CA1416 // Version checks are in place
+                    if (global::Android.OS.Build.VERSION.SdkInt >= global::Android.OS.BuildVersionCodes.S)
+                    {
+                        // Android 12+ (API 31+)
+                        var vibratorManager = global::Android.App.Application.Context.GetSystemService(global::Android.Content.Context.VibratorManagerService) as global::Android.OS.VibratorManager;
+                        var vibrator = vibratorManager?.DefaultVibrator;
+                        if (vibrator != null && vibrator.HasVibrator)
+                        {
+                            var effect = global::Android.OS.VibrationEffect.CreateOneShot(50, global::Android.OS.VibrationEffect.DefaultAmplitude);
+                            vibrator.Vibrate(effect);
+                        }
+                    }
+                    else if (global::Android.OS.Build.VERSION.SdkInt >= global::Android.OS.BuildVersionCodes.O)
+                    {
+                        // Android 8+ (API 26+)
+#pragma warning disable CA1422
+                        var vibrator = global::Android.App.Application.Context.GetSystemService(global::Android.Content.Context.VibratorService) as global::Android.OS.Vibrator;
+#pragma warning restore CA1422
+                        if (vibrator != null && vibrator.HasVibrator)
+                        {
+                            var effect = global::Android.OS.VibrationEffect.CreateOneShot(50, global::Android.OS.VibrationEffect.DefaultAmplitude);
+                            vibrator.Vibrate(effect);
+                        }
+                    }
+                    else
+                    {
+                        // Android 7 and below (API 25-)
+#pragma warning disable CA1422
+                        var vibrator = global::Android.App.Application.Context.GetSystemService(global::Android.Content.Context.VibratorService) as global::Android.OS.Vibrator;
+                        if (vibrator != null && vibrator.HasVibrator)
+                        {
+                            vibrator.Vibrate(50);
+                        }
+#pragma warning restore CA1422
+                    }
+#pragma warning restore CA1416
+#endif
+                }
+                catch { }
+                
+                System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Long press detected on: {bookmark.Url}");
+                
+                // Enter select mode if not already in it
+                if (!_selectMode)
+                {
+                    EnterSelectMode();
+                }
+                
+                // Select this item
+                if (!_selectedUrls.Contains(bookmark.Url))
+                {
+                    _selectedUrls.Add(bookmark.Url);
+                    BuildBookmarksList();
+                }
+            }
+        };
+        card.GestureRecognizers.Add(longPressGesture);
+
+        return card;
+    }
+
+    private Border CreateActionButton(string icon, string label, Func<Task> action, bool isDestructive = false)
+    {
+        var iconLabel = new Label
+        {
+            Text = icon,
+            FontFamily = "MaterialSymbols",
+            FontSize = 14,
+            VerticalOptions = LayoutOptions.Center,
+        };
+
+        var textLabel = new Label
+        {
+            Text = label.ToUpper(),
+            FontSize = 9,
+            FontAttributes = FontAttributes.Bold,
+            VerticalOptions = LayoutOptions.Center,
+        };
+
+        if (isDestructive)
+        {
+            iconLabel.SetDynamicResource(Label.TextColorProperty, "Warning");
+            textLabel.SetDynamicResource(Label.TextColorProperty, "Warning");
+        }
+        else
+        {
+            iconLabel.SetDynamicResource(Label.TextColorProperty, "TextSecondary");
+            textLabel.SetDynamicResource(Label.TextColorProperty, "TextSecondary");
+        }
+
+        var stack = new HorizontalStackLayout
+        {
+            Spacing = 4,
+            HorizontalOptions = LayoutOptions.Center,
+            VerticalOptions = LayoutOptions.Center,
+            Children = { iconLabel, textLabel },
+        };
+
+        var button = new Border
+        {
+            StrokeThickness = 1,
+            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 12 },
+            Padding = new Thickness(10, 6),
+            Content = stack,
+        };
+        button.SetDynamicResource(Border.BackgroundColorProperty, "BgCard");
+        button.SetDynamicResource(Border.StrokeProperty, "Stroke");
+
+        button.GestureRecognizers.Add(new TapGestureRecognizer
+        {
+            Command = new Command(async () =>
+            {
+                await button.ScaleToAsync(0.85, 70, Easing.CubicOut);
+                await button.ScaleToAsync(1.0, 70, Easing.SpringOut);
+                await action();
+            })
+        });
+
+        return button;
+    }
+
+    private Border CreateTagBadge(string tag)
+    {
+        var tagLabel = new Label
+        {
+            Text = tag,
+            FontSize = 9,
+            FontAttributes = FontAttributes.Bold,
+        };
+        tagLabel.SetDynamicResource(Label.TextColorProperty, "AccentLight");
+
+        var badge = new Border
+        {
+            StrokeThickness = 0,
+            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 6 },
+            Padding = new Thickness(6, 2),
+            Content = tagLabel,
+        };
+        badge.SetDynamicResource(Border.BackgroundColorProperty, "AccentContainer");
+
+        return badge;
+    }
+
+    private Border CreateActionButton(string icon, string label, bool isDestructive = false)
+    {
+        var iconLabel = new Label
+        {
+            Text = icon,
+            FontFamily = "MaterialSymbols",
+            FontSize = 14,
+            VerticalOptions = LayoutOptions.Center,
+        };
+
+        var textLabel = new Label
+        {
+            Text = label.ToUpper(),
+            FontSize = 9,
+            FontAttributes = FontAttributes.Bold,
+            VerticalOptions = LayoutOptions.Center,
+        };
+
+        if (isDestructive)
+        {
+            iconLabel.SetDynamicResource(Label.TextColorProperty, "Warning");
+            textLabel.SetDynamicResource(Label.TextColorProperty, "Warning");
+        }
+        else
+        {
+            iconLabel.SetDynamicResource(Label.TextColorProperty, "TextSecondary");
+            textLabel.SetDynamicResource(Label.TextColorProperty, "TextSecondary");
+        }
+
+        var stack = new HorizontalStackLayout
+        {
+            Spacing = 4,
+            HorizontalOptions = LayoutOptions.Center,
+            VerticalOptions = LayoutOptions.Center,
+            Children = { iconLabel, textLabel },
+        };
+
+        var button = new Border
+        {
+            StrokeThickness = 1,
+            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 12 },
+            Padding = new Thickness(10, 6),
+            Content = stack,
+        };
+        button.SetDynamicResource(Border.BackgroundColorProperty, "BgCard");
+        button.SetDynamicResource(Border.StrokeProperty, "Stroke");
+
+        return button;
+    }
+
+    // ── Selection actions ─────────────────────────────────────────────────────
+
+    private void UpdateSelectionCount()
+    {
+        SelectionCountLabel.Text = $"{_selectedUrls.Count} selected";
+        
+        // Show action bar only when items are selected
+        SelectionActionBar.IsVisible = _selectMode && _selectedUrls.Count > 0;
+        
+        System.Diagnostics.Debug.WriteLine($"[BookmarksPage] UpdateSelectionCount: {_selectedUrls.Count}, ActionBar visible: {SelectionActionBar.IsVisible}");
+    }
+
+    private async void OnDownloadSelectedTapped(object sender, TappedEventArgs e)
+    {
+        if (_selectedUrls.Count == 0)
+        {
+            await DisplayAlertAsync("No Selection", "Please select bookmarks to download.", "OK");
+            return;
+        }
+
+        var selectedBookmarks = BookmarkService.Instance.Bookmarks
+            .Where(b => _selectedUrls.Contains(b.Url))
+            .ToList();
+
+        string message;
+        if (selectedBookmarks.Count == 1)
+        {
+            message = $"Download \"{selectedBookmarks[0].Title}\"?";
+        }
+        else
+        {
+            message = $"Download {selectedBookmarks.Count} novels?\n\nNote: 2 novels will download simultaneously. Others will be queued.";
+        }
+
+        bool confirm = await DisplayAlertAsync("Download Selected",
+            message,
+            "Download", "Cancel");
+
+        if (confirm)
+        {
+            foreach (var bookmark in selectedBookmarks)
+            {
+                DownloadManager.Instance.Enqueue(bookmark.Url, 0, null);
+            }
+
+            string resultMessage = selectedBookmarks.Count == 1
+                ? $"\"{selectedBookmarks[0].Title}\" queued for download!"
+                : $"{selectedBookmarks.Count} novel(s) queued for download!\n\n2 will start immediately, others are queued.";
+
+            await DisplayAlertAsync("Queued", resultMessage, "OK");
+
+            ExitSelectMode();
+        }
+    }
+
+    private async void OnDeleteSelectedTapped(object sender, TappedEventArgs e)
+    {
+        if (_selectedUrls.Count == 0)
+        {
+            await DisplayAlertAsync("No Selection", "Please select bookmarks to delete.", "OK");
+            return;
+        }
+
+        bool confirm = await DisplayAlertAsync("Delete Selected",
+            $"Delete {_selectedUrls.Count} bookmark(s)? This cannot be undone.",
+            "Delete", "Cancel");
+
+        if (confirm)
+        {
+            foreach (var url in _selectedUrls.ToList())
+            {
+                BookmarkService.Instance.RemoveBookmark(url);
+            }
+
+            ExitSelectMode();
+            BuildBookmarksList();
+        }
+    }
+
+    // ── Tag dialog ────────────────────────────────────────────────────────────
+
+    private async Task ShowTagDialogAsync(BookmarkItem bookmark)
+    {
+        var predefinedTags = new[] { "Downloaded", "Reading", "Completed", "Favorite", "To Read" };
+        var currentTags = bookmark.Tags.ToList();
+
+        var options = predefinedTags
+            .Select(tag => currentTags.Contains(tag) ? $"✓ {tag}" : tag)
+            .Concat(new[] { "Add Custom Tag..." })
+            .ToArray();
+
+        string? choice = await DisplayActionSheetAsync(
+            $"Tags for {bookmark.Title}",
+            "Done",
+            currentTags.Count > 0 ? "Clear All Tags" : null,
+            options);
+
+        if (choice == null || choice == "Done")
+            return;
+
+        if (choice == "Clear All Tags")
+        {
+            BookmarkService.Instance.UpdateBookmarkTags(bookmark.Url, new List<string>());
+            BuildBookmarksList();
+            return;
+        }
+
+        if (choice == "Add Custom Tag...")
+        {
+            string? customTag = await DisplayPromptAsync("Add Tag",
+                "Enter a custom tag:",
+                "Add", "Cancel",
+                maxLength: 20);
+
+            if (!string.IsNullOrWhiteSpace(customTag))
+            {
+                BookmarkService.Instance.AddTag(bookmark.Url, customTag.Trim());
+                BuildBookmarksList();
+            }
+            return;
+        }
+
+        // Toggle predefined tag
+        string tag = choice.TrimStart('✓', ' ');
+        if (currentTags.Contains(tag))
+        {
+            BookmarkService.Instance.RemoveTag(bookmark.Url, tag);
+        }
+        else
+        {
+            BookmarkService.Instance.AddTag(bookmark.Url, tag);
+        }
+        BuildBookmarksList();
+    }
+
+    // ── Download helper ───────────────────────────────────────────────────────
+
+    private async Task DownloadBookmarkAsync(BookmarkItem bookmark)
+    {
+        var existing = DownloadManager.Instance.FindExisting(bookmark.Url);
+        if (existing != null)
+        {
+            string title = string.IsNullOrWhiteSpace(existing.Title) || existing.Title == "Loading..."
+                ? "this novel" : $"\"{existing.Title}\"";
+
+            bool alreadyActive = existing.Status is DownloadStatus.Running or DownloadStatus.Queued;
+            string message = alreadyActive
+                ? $"Already downloading {title}."
+                : $"{title} was already downloaded.";
+
+            string? choice = await DisplayActionSheetAsync(message, "Cancel", null,
+                "Download again", "Go to Downloads");
+
+            if (choice == "Go to Downloads")
+            {
+                await Shell.Current.GoToAsync("//DownloadsPage");
+                return;
+            }
+            if (choice != "Download again") return;
+
+            if (existing.IsFinished)
+                DownloadManager.Instance.Dismiss(existing);
+        }
+
+        DownloadManager.Instance.Enqueue(bookmark.Url, 0, null);
+        await DisplayAlertAsync("Queued", $"\"{bookmark.Title}\" queued for download!", "OK");
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private string FormatDate(DateTime date)
+    {
+        var now = DateTime.Now;
+        var diff = now - date;
+
+        if (diff.TotalMinutes < 1)
+            return "Just now";
+        if (diff.TotalMinutes < 60)
+            return $"{(int)diff.TotalMinutes}m ago";
+        if (diff.TotalHours < 24)
+            return $"{(int)diff.TotalHours}h ago";
+        if (diff.TotalDays < 7)
+            return $"{(int)diff.TotalDays}d ago";
+        if (diff.TotalDays < 30)
+            return $"{(int)(diff.TotalDays / 7)}w ago";
+        
+        return date.ToString("MMM d, yyyy");
+    }
+}
