@@ -29,8 +29,8 @@ public partial class HistoryPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
-        await TabTransition.SlideInAsync(this, myTabIndex: 2);
-        Controls.CustomTabBar.SetActive(2);
+        TabTransition.Prepare(myTabIndex: 2);
+        await TabTransition.SlideInAsync(BodyGrid);
     }
 
     private async Task AnimateIn()

@@ -26,8 +26,8 @@ public partial class SettingsPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
-        await TabTransition.SlideInAsync(this, myTabIndex: 3);
-        Controls.CustomTabBar.SetActive(3);
+        TabTransition.Prepare(myTabIndex: 3);
+        await TabTransition.SlideInAsync(BodyScrollView);
         RefreshRadios(App.CurrentTheme);
         RefreshDownloadPath();
         RefreshUpdateSection();

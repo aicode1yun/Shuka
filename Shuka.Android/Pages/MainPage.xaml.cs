@@ -39,8 +39,8 @@ public partial class MainPage : ContentPage
         // Re-apply tab colors in case the theme changed while on another tab
         SetActiveTab(DownloadPanel.IsVisible);
 
-        await TabTransition.SlideInAsync(this, myTabIndex: 0);
-        Controls.CustomTabBar.SetActive(0);
+        TabTransition.Prepare(myTabIndex: 0);
+        await TabTransition.SlideInAsync(BodyGrid);
     }
 
     protected override void OnDisappearing()

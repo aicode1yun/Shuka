@@ -5,7 +5,7 @@
              x:Class="Shuka.Android.Pages.MainPage"
              BackgroundColor="{DynamicResource BgPage}">
 
-    <Grid RowDefinitions="Auto,Auto,*,Auto">
+    <Grid RowDefinitions="Auto,Auto,*">
 
         <!-- ── Top App Bar ──────────────────────────────────── -->
         <Grid Grid.Row="0"
@@ -87,11 +87,11 @@
 
 
         <!-- ── Body ─────────────────────────────────────────── -->
-        <Grid Grid.Row="2">
+        <Grid Grid.Row="2" x:Name="BodyGrid">
 
             <!-- ══ DOWNLOAD PANEL ══════════════════════════════ -->
             <ScrollView x:Name="DownloadPanel">
-                <VerticalStackLayout x:Name="BodyScrollView" Padding="16,12,16,40" Spacing="14">
+                <VerticalStackLayout x:Name="BodyScrollView" Padding="16,12,16,112" Spacing="14">
 
                     <!-- ── Input card ──────────────────────────── -->
                     <Border BackgroundColor="{DynamicResource BgCard}"
@@ -389,9 +389,6 @@
             </Grid>
 
         </Grid>
-
-        <!-- ── Custom tab bar ────────────────────────────────── -->
-        <controls:CustomTabBar Grid.Row="3" />
 
     </Grid>
 

@@ -81,6 +81,10 @@ public partial class CustomTabBar : Grid
     private static async Task NavigateTo(string route, int index)
     {
         if (ActiveIndex == index) return;
+        // Update the highlight immediately on tap — no waiting for OnAppearing.
+        // SetActive only updates CustomTabBar.ActiveIndex (visual highlight).
+        // AppShell.LastTabIndex / ActiveTabIndex are updated by OnShellNavigating
+        // which fires from GoToAsync, so the slide direction is still correct.
         SetActive(index);
         await Shell.Current.GoToAsync(route);
     }

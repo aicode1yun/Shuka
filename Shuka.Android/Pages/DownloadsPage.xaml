@@ -5,7 +5,7 @@
              x:Class="Shuka.Android.Pages.DownloadsPage"
              BackgroundColor="{DynamicResource BgPage}">
 
-    <Grid RowDefinitions="Auto,*,Auto">
+    <Grid RowDefinitions="Auto,*">
 
         <!-- ── Top App Bar ──────────────────────────────────── -->
         <Grid Grid.Row="0"
@@ -165,14 +165,11 @@
             <!-- Scrollable list — cards injected from code-behind -->
             <ScrollView x:Name="ListScroll" IsVisible="False">
                 <VerticalStackLayout x:Name="CardList"
-                                     Padding="16,20,16,40"
+                                     Padding="16,20,16,112"
                                      Spacing="12" />
             </ScrollView>
 
         </Grid>
-
-        <!-- ── Custom tab bar ────────────────────────────────── -->
-        <controls:CustomTabBar Grid.Row="2" />
 
     </Grid>
 

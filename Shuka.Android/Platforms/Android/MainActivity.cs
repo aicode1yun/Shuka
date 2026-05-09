@@ -3,7 +3,10 @@ using Android.Content;
 using Android.Content.PM;
 using Android.OS;
 using Android.Views;
+using Android.Widget;
 using AndroidUri = Android.Net.Uri;
+using Microsoft.Maui.Platform;
+using AndroidX.Core.View;
 
 namespace Shuka.Android;
 
@@ -89,6 +92,77 @@ public class MainActivity : MauiAppCompatActivity
 
         ApplyStatusBarColor(androidBg,  lightIcons);
         ApplyNavBarColor(androidNav, lightIcons);
+
+        // Add the persistent tab bar as a native overlay on the DecorView.
+        // This places it completely outside the MAUI/Shell/fragment hierarchy
+        // so it is never affected by page transition animations.
+        AddPersistentTabBar();
+    }
+
+    /// <summary>
+    /// Inflates a single CustomTabBar into the DecorView's content frame so it
+    /// sits above all pages and is never part of any fragment transaction.
+    /// Respects the system navigation bar inset so it isn't covered by gesture/button nav.
+    /// </summary>
+    private void AddPersistentTabBar()
+    {
+        try
+        {
+            var decorContent = FindViewById<FrameLayout>(global::Android.Resource.Id.Content);
+            if (decorContent == null) return;
+
+            var mauiContext = Microsoft.Maui.Controls.Application.Current?.Handler?.MauiContext
+                           ?? (Microsoft.Maui.Controls.Application.Current?.Windows.FirstOrDefault()
+                                  ?.Handler?.MauiContext);
+            if (mauiContext == null) return;
+
+            var tabBar = new Controls.CustomTabBar();
+            var nativeTabBar = tabBar.ToPlatform(mauiContext);
+
+            float density   = Resources!.DisplayMetrics!.Density;
+            int   tabBarPx  = (int)(72 * density);            var lp = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MatchParent,
+                tabBarPx,
+                GravityFlags.Bottom);
+
+            decorContent.AddView(nativeTabBar, lp);
+
+            // Apply window insets so the tab bar sits above the system nav bar,
+            // not behind it. This handles both gesture nav and 3-button nav.
+            ViewCompat.SetOnApplyWindowInsetsListener(nativeTabBar, new WindowInsetsCallback(lp, nativeTabBar, tabBarPx));
+        }
+        catch { /* never crash on tab bar setup */ }
+    }
+
+    private sealed class WindowInsetsCallback : Java.Lang.Object, AndroidX.Core.View.IOnApplyWindowInsetsListener
+    {
+        private readonly FrameLayout.LayoutParams _lp;
+        private readonly global::Android.Views.View _view;
+        private readonly int _tabBarPx;
+
+        public WindowInsetsCallback(FrameLayout.LayoutParams lp, global::Android.Views.View view, int tabBarPx)
+        {
+            _lp       = lp;
+            _view     = view;
+            _tabBarPx = tabBarPx;
+        }
+
+        public AndroidX.Core.View.WindowInsetsCompat? OnApplyWindowInsets(
+            global::Android.Views.View? v,
+            AndroidX.Core.View.WindowInsetsCompat? insets)
+        {
+            if (insets == null) return insets;
+
+            var navInsets    = insets!.GetInsets(AndroidX.Core.View.WindowInsetsCompat.Type.SystemBars());
+            int navBarHeight = navInsets?.Bottom ?? 0;
+
+            // Sit the tab bar just above the system navigation bar
+            _lp.BottomMargin       = navBarHeight;
+            _lp.Height             = _tabBarPx;
+            _view.LayoutParameters = _lp;
+
+            return insets;
+        }
     }
 
     public override void OnWindowFocusChanged(bool hasFocus)

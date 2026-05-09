@@ -24,8 +24,8 @@ public partial class DownloadsPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
-        await TabTransition.SlideInAsync(this, myTabIndex: 1);
-        Controls.CustomTabBar.SetActive(1);
+        TabTransition.Prepare(myTabIndex: 1);
+        await TabTransition.SlideInAsync(BodyGrid);
         RefreshSummary();
     }
 
