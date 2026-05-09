@@ -12,7 +12,13 @@ public partial class MainPage : ContentPage
     {
         InitializeComponent();
 
-        UrlEntry.TextChanged   += (_, e) => UrlClearBtn.IsVisible   = !string.IsNullOrEmpty(e.NewTextValue);
+        UrlEntry.TextChanged   += (_, e) => 
+        {
+            UrlClearBtn.IsVisible = !string.IsNullOrEmpty(e.NewTextValue);
+            // Hide preview card when URL is cleared
+            if (string.IsNullOrEmpty(e.NewTextValue))
+                PreviewInfoCard.IsVisible = false;
+        };
         CoverEntry.TextChanged += (_, e) => CoverClearBtn.IsVisible = !string.IsNullOrEmpty(e.NewTextValue);
         GlobalSearchEntry.TextChanged += (_, e) =>
             GlobalSearchClearBtn.IsVisible = !string.IsNullOrEmpty(e.NewTextValue);
@@ -395,6 +401,61 @@ public partial class MainPage : ContentPage
     private View BuildSeeAllButton(IBrowsableAdapter source, string query) => new Label(); // unused
 
     // ── Download handlers (unchanged) ─────────────────────────────────────────
+
+    private async void OnUrlPreviewTapped(object sender, TappedEventArgs e)
+    {
+        await AnimateButtonPress(UrlPreviewBtn);
+
+        string url = UrlEntry.Text?.Trim() ?? "";
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            await DisplayAlertAsync("Missing URL", "Please enter a novel URL first.", "OK");
+            return;
+        }
+
+        // Show loading state
+        PreviewInfoCard.IsVisible = true;
+        PreviewTitle.Text = "Loading...";
+        PreviewAuthor.Text = "";
+        PreviewChapters.Text = "";
+
+        try
+        {
+            var service = new BookService(new Platform.WebViewCloudflareBypass());
+            
+            // Fetch just the index page to get title, author, and chapter count
+            var book = await Task.Run(async () =>
+            {
+                return await service.GatherBookInfo(url, 0, null, 
+                    msg => { /* ignore log messages */ }, 
+                    CancellationToken.None, 0);
+            });
+
+            // Display the preview info
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                PreviewTitle.Text = book.TitleEn ?? book.Title;
+                PreviewAuthor.Text = $"by {book.AuthorEn ?? book.Author}";
+                PreviewChapters.Text = $"{book.Total} Chapters Available";
+                
+                // Animate the card appearance
+                PreviewInfoCard.Opacity = 0;
+                PreviewInfoCard.TranslationY = -10;
+                _ = Task.WhenAll(
+                    PreviewInfoCard.FadeToAsync(1.0, 250, Easing.CubicOut),
+                    PreviewInfoCard.TranslateToAsync(0, 0, 250, Easing.CubicOut));
+            });
+        }
+        catch (Exception ex)
+        {
+            MainThread.BeginInvokeOnMainThread(async () =>
+            {
+                PreviewInfoCard.IsVisible = false;
+                await DisplayAlertAsync("Preview Failed", 
+                    $"Could not fetch novel information:\n{ex.Message}", "OK");
+            });
+        }
+    }
 
     private async void OnDownloadClicked(object sender, TappedEventArgs e)
     {
