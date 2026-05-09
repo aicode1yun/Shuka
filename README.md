@@ -2,15 +2,11 @@
 
 A tool that downloads Chinese web novels, translates them to English via Google Translate, and saves them as `.epub` files ready for any e-reader. Available on **Windows** and **Android**.
 
-![Github Downloads](https://img.shields.io/github/downloads/seizue/Shuka/total?cacheSeconds=60)
-
+![Github Downloads](https://img.shields.io/github/downloads/seizue/Shuka/total?style=flat&logo=github)
 
 ## Screenshot
 
 <img width="1366" height="736" alt="Shuka (1)" src="https://github.com/user-attachments/assets/4d6d8d51-34dd-4226-bac3-7a1d9ad14dba" />
-
-
-
 
 ### Supported Sites
 
