@@ -7,7 +7,8 @@ A tool that downloads Chinese web novels, translates them to English via Google 
 
 ## Screenshot
 
-<img width="1366" height="736" alt="Shuka" src="https://github.com/user-attachments/assets/83cb7f5b-fa75-4038-97f3-fce2f3578894" />
+<img width="1366" height="736" alt="Shuka (1)" src="https://github.com/user-attachments/assets/4d6d8d51-34dd-4226-bac3-7a1d9ad14dba" />
+
 
 
 
@@ -31,18 +32,30 @@ A tool that downloads Chinese web novels, translates them to English via Google 
 - Auto-detects cover image from the novel's index page
 - Generates a styled SVG cover if no image is found
 - Parallel fetch + translate pipeline for faster downloads
-- Paste any page URL — Shuka automatically resolves to the correct index
+- Checkpoint system — resumes interrupted downloads from where they left off
 - Extensible adapter system for adding new sites
 
-### Android
-- Queue multiple novels at once — each download runs independently
-- Downloads continue in the background even when the app is closed or the screen is off
+### Windows 
+- Interactive TUI with Spectre.Console — spinner, live progress bar, and styled output
+- Batch download mode — queue multiple novels and download sequentially
+- Built-in Cloudflare bypass using a headless Chromium browser (Playwright)
+- `--solve-cf` command to manually refresh Cloudflare cookies for protected sites
+- CLI mode — pass URL and options directly to skip the TUI
+
+### Android 
+- Discover tab — browse supported sources in a built-in WebView
+- **Fetch** button in the WebView — grabs the current novel URL and pre-fills the Download tab, ready for custom cover or chapter range
+- **Download** button in the WebView — queues the novel directly without leaving the browser
+- Source filter and pin system — pin favourite sources to the top of the Discover list
+- Draft persistence — the URL field is saved when switching apps and restored on return
+- Queue multiple novels at once — each download runs independently in the background
+- Downloads continue even when the app is closed or the screen is off
 - Auto-retries up to 5 times on error with increasing delay between attempts
 - On failure, Retry and Dismiss buttons appear on the download card
 - Prevents duplicate downloads — queuing the same URL twice is blocked
 - Open or share the finished `.epub` directly from the Downloads tab
 - Custom save location with full storage permission handling (Android 11+)
-- Five built-in themes: Obsidian, Rosewood, Slate, Frost, Amoled
+- Built-in themes: Obsidian, Rosewood, Slate, Amoled, Frost, Parchment, Blossom
 
 ## Installation
 
@@ -117,11 +130,17 @@ Output is saved to `%USERPROFILE%\Downloads` by default.
 
 ### Android
 
-1. Open the app and paste a novel URL into the **Novel URL** field
+**Download tab:**
+1. Paste a novel URL into the **Novel URL** field (or use Fetch from the Discover tab)
 2. Optionally set a cover URL and chapter limit (0 = all)
 3. Tap **Download & Translate** — the download is queued immediately
 4. Switch to the **Downloads** tab to monitor progress, cancel, or manage finished downloads
 5. Once done, tap **Open** to read in your e-reader app or **Share** to send the file
+
+**Discover tab:**
+1. Browse the built-in source list — tap any source to open it in the WebView browser
+2. Navigate to a novel's index page
+3. Tap **FETCH** to send the URL back to the Download tab (for custom cover/chapters), or tap **DOWNLOAD** to queue it immediately
 
 ## Building from source
 
