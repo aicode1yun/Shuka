@@ -6,7 +6,8 @@ A tool that downloads Chinese web novels, translates them to English via Google 
 
 ## Screenshot
 
-<img width="1366" height="736" alt="Shuka (1)" src="https://github.com/user-attachments/assets/4d6d8d51-34dd-4226-bac3-7a1d9ad14dba" />
+<img width="1366" height="736" alt="Shuka (2)" src="https://github.com/user-attachments/assets/c07f2852-306a-4c6d-aec6-7336507d673e" />
+
 
 ### Supported Sites
 
