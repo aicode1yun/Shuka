@@ -46,6 +46,13 @@ public partial class WebBrowsePage : ContentPage
     private readonly string _homeUrl;
     private bool   _isLoading;
 
+    /// <summary>
+    /// Set this before pushing WebBrowsePage. When the user taps Fetch,
+    /// the URL is passed here and the WebView is popped so the caller
+    /// can pre-fill its URL entry.
+    /// </summary>
+    public static Action<string>? OnUrlFetched { get; set; }
+
     public WebBrowsePage(string startUrl)
     {
         InitializeComponent();
@@ -143,26 +150,56 @@ public partial class WebBrowsePage : ContentPage
     }
 
     /// <summary>
-    /// Show the Download FAB on any page belonging to a known source.
-    /// The FAB tap then validates whether the URL is a downloadable novel page.
+    /// Show the Download and Fetch FABs on any page belonging to a known source.
+    /// The FAB taps then validate whether the URL is a downloadable novel page.
     /// </summary>
     private void UpdateDownloadFab(string url)
     {
-        // Show FAB whenever we're on any known source domain
         bool onKnownSite = DetectSite(url) != null;
         MainThread.BeginInvokeOnMainThread(() =>
         {
-            if (FabDownload.IsVisible == onKnownSite) return;
+            // Both FABs appear/disappear together
+            bool wasVisible = FabDownload.IsVisible;
             FabDownload.IsVisible = onKnownSite;
-            if (onKnownSite)
+            FabFetch.IsVisible    = onKnownSite;
+
+            if (onKnownSite && !wasVisible)
             {
-                FabDownload.Opacity      = 0;
-                FabDownload.TranslationY = 20;
-                _ = Task.WhenAll(
-                    FabDownload.FadeToAsync(1.0, 200, Easing.CubicOut),
-                    FabDownload.TranslateToAsync(0, 0, 200, Easing.CubicOut));
+                foreach (var fab in new View[] { FabDownload, FabFetch })
+                {
+                    fab.Opacity      = 0;
+                    fab.TranslationY = 20;
+                    _ = Task.WhenAll(
+                        fab.FadeToAsync(1.0, 200, Easing.CubicOut),
+                        fab.TranslateToAsync(0, 0, 200, Easing.CubicOut));
+                }
             }
         });
+    }
+
+    private async void OnFetchFabTapped(object sender, TappedEventArgs e)
+    {
+        await FabFetch.ScaleToAsync(0.92, 70, Easing.CubicOut);
+        await FabFetch.ScaleToAsync(1.0,  70, Easing.SpringOut);
+
+        string url  = _currentUrl;
+        string site = DetectSite(url) ?? "";
+
+        // Validate: must be a novel index page
+        if (!IsNovelPage(url))
+        {
+            string hint = _exampleUrls.TryGetValue(site, out var ex)
+                ? $"Navigate to a novel's index page.\n{ex}"
+                : "Navigate to a specific novel's index page first.";
+            await ShowInvalidUrlBannerAsync(hint);
+            return;
+        }
+
+        // Fire the callback so the caller (MainPage) can pre-fill its URL entry
+        OnUrlFetched?.Invoke(url);
+
+        // Pop back to the Download tab
+        await Shell.Current.Navigation.PopAsync();
     }
 
     private async void OnDownloadFabTapped(object sender, TappedEventArgs e)

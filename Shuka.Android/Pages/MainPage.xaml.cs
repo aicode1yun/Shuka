@@ -22,6 +22,19 @@ public partial class MainPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+
+        // Restore draft inputs that were saved before the app went to background
+        string savedUrl      = Preferences.Default.Get("draft_url",      "");
+        string savedCover    = Preferences.Default.Get("draft_cover",    "");
+        string savedChapters = Preferences.Default.Get("draft_chapters", "0");
+
+        if (!string.IsNullOrEmpty(savedUrl)   && string.IsNullOrEmpty(UrlEntry.Text))
+            UrlEntry.Text = savedUrl;
+        if (!string.IsNullOrEmpty(savedCover) && string.IsNullOrEmpty(CoverEntry.Text))
+            CoverEntry.Text = savedCover;
+        if (ChaptersEntry.Text == "0" || string.IsNullOrEmpty(ChaptersEntry.Text))
+            ChaptersEntry.Text = savedChapters;
+
         // Only animate the currently visible panel
         var panel = DownloadPanel.IsVisible ? (View)DownloadPanel : DiscoverPanel;
         panel.Opacity = 0;
@@ -29,6 +42,16 @@ public partial class MainPage : ContentPage
         await Task.WhenAll(
             panel.FadeToAsync(1.0, 220, Easing.CubicOut),
             panel.TranslateToAsync(0, 0, 220, Easing.CubicOut));
+    }
+
+    protected override void OnDisappearing()
+    {
+        base.OnDisappearing();
+
+        // Persist draft inputs so they survive app backgrounding / process death
+        Preferences.Default.Set("draft_url",      UrlEntry.Text      ?? "");
+        Preferences.Default.Set("draft_cover",    CoverEntry.Text    ?? "");
+        Preferences.Default.Set("draft_chapters", ChaptersEntry.Text ?? "0");
     }
 
     // ── Top tab switching ─────────────────────────────────────────────────────
@@ -68,6 +91,20 @@ public partial class MainPage : ContentPage
             TabDownloadLabel.TextColor = textMuted;
             TabDownloadBar.Color       = Colors.Transparent;
         }
+    }
+
+    // ── Fetch callback from WebBrowsePage ────────────────────────────────────
+
+    /// <summary>
+    /// Called by WebBrowsePage when the user taps Fetch.
+    /// Switches to the Download tab and pre-fills the URL entry.
+    /// </summary>
+    private void FillUrlFromWebView(string url)
+    {
+        SetActiveTab(download: true);
+        UrlEntry.Text = url;
+        // Scroll to top so the URL field is visible
+        _ = DownloadPanel.ScrollToAsync(0, 0, false);
     }
 
     // ── Discover: pin persistence ─────────────────────────────────────────────
@@ -323,6 +360,10 @@ public partial class MainPage : ContentPage
             {
                 await card.ScaleToAsync(0.97, 80, Easing.CubicOut);
                 await card.ScaleToAsync(1.0,  80, Easing.SpringOut);
+
+                // Register the fetch callback before opening the WebView
+                WebBrowsePage.OnUrlFetched = FillUrlFromWebView;
+
                 await Shell.Current.Navigation.PushAsync(
                     new WebBrowsePage(source.GetRecentUrl(1)));
             })
@@ -405,6 +446,10 @@ public partial class MainPage : ContentPage
         }
 
         DownloadManager.Instance.Enqueue(url, chapters, coverUrl, chapterFrom);
+        // Clear the saved draft — the user has submitted it
+        Preferences.Default.Remove("draft_url");
+        Preferences.Default.Remove("draft_cover");
+        Preferences.Default.Set("draft_chapters", "0");
         await AnimateClearInputs();
         await ShowQueuedBanner();
     }

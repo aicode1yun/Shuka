@@ -128,6 +128,32 @@
                     </Border.GestureRecognizers>
                 </Border>
 
+                <!-- Fetch FAB — shown on novel pages, pre-fills Download tab URL -->
+                <Border x:Name="FabFetch"
+                        BackgroundColor="{DynamicResource Accent}"
+                        StrokeThickness="0"
+                        StrokeShape="RoundRectangle 24"
+                        HeightRequest="44"
+                        Padding="14,0"
+                        IsVisible="False">
+                    <HorizontalStackLayout Spacing="6"
+                                           HorizontalOptions="Center"
+                                           VerticalOptions="Center">
+                        <Label Text="&#xE2C4;"
+                               FontFamily="{DynamicResource IconFont}"
+                               FontSize="16"
+                               TextColor="{DynamicResource TextOnAccent}"
+                               VerticalOptions="Center" />
+                        <Label Text="FETCH"
+                               FontSize="11" FontAttributes="Bold"
+                               TextColor="{DynamicResource TextOnAccent}"
+                               VerticalOptions="Center" />
+                    </HorizontalStackLayout>
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnFetchFabTapped" />
+                    </Border.GestureRecognizers>
+                </Border>
+
                 <!-- Download FAB — shown only on supported novel pages -->
                 <Border x:Name="FabDownload"
                         BackgroundColor="{DynamicResource Accent}"
