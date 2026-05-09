@@ -1,5 +1,6 @@
 using System.Collections.Specialized;
 using System.ComponentModel;
+using Shuka.Android.Behaviors;
 using Shuka.Android.Services;
 
 namespace Shuka.Android.Pages;
@@ -23,19 +24,16 @@ public partial class DownloadsPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
-        await AnimateIn();
+        await TabTransition.SlideInAsync(this, myTabIndex: 1);
+        RefreshSummary();
     }
 
     private async Task AnimateIn()
     {
-        // Animate body content in — same pattern as all other pages
-        BodyGrid.Opacity = 0;
-        BodyGrid.TranslationY = 18;
-
-        await Task.WhenAll(
-            BodyGrid.FadeToAsync(1.0, 220, Easing.CubicOut),
-            BodyGrid.TranslateToAsync(0, 0, 220, Easing.CubicOut)
-        );
+        // kept for internal use (e.g. first load before tab tracking is ready)
+        BodyGrid.Opacity      = 1;
+        BodyGrid.TranslationY = 0;
+        await Task.CompletedTask;
     }
 
     private void OnCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)

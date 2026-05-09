@@ -1,3 +1,4 @@
+using Shuka.Android.Behaviors;
 using Shuka.Android.Services;
 using Shuka.Core;
 
@@ -35,13 +36,7 @@ public partial class MainPage : ContentPage
         if (ChaptersEntry.Text == "0" || string.IsNullOrEmpty(ChaptersEntry.Text))
             ChaptersEntry.Text = savedChapters;
 
-        // Only animate the currently visible panel
-        var panel = DownloadPanel.IsVisible ? (View)DownloadPanel : DiscoverPanel;
-        panel.Opacity = 0;
-        panel.TranslationY = 18;
-        await Task.WhenAll(
-            panel.FadeToAsync(1.0, 220, Easing.CubicOut),
-            panel.TranslateToAsync(0, 0, 220, Easing.CubicOut));
+        await TabTransition.SlideInAsync(this, myTabIndex: 0);
     }
 
     protected override void OnDisappearing()

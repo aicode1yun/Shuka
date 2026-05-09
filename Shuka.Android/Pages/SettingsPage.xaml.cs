@@ -1,3 +1,4 @@
+using Shuka.Android.Behaviors;
 using Shuka.Android.Services;
 #if ANDROID
 using Android.OS;
@@ -25,7 +26,7 @@ public partial class SettingsPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
-        await AnimateIn();
+        await TabTransition.SlideInAsync(this, myTabIndex: 3);
         RefreshRadios(App.CurrentTheme);
         RefreshDownloadPath();
         RefreshUpdateSection();
@@ -33,14 +34,9 @@ public partial class SettingsPage : ContentPage
 
     private async Task AnimateIn()
     {
-        // Animate body content in — same pattern as all other pages
-        BodyScrollView.Opacity = 0;
-        BodyScrollView.TranslationY = 18;
-
-        await Task.WhenAll(
-            BodyScrollView.FadeToAsync(1.0, 220, Easing.CubicOut),
-            BodyScrollView.TranslateToAsync(0, 0, 220, Easing.CubicOut)
-        );
+        BodyScrollView.Opacity      = 1;
+        BodyScrollView.TranslationY = 0;
+        await Task.CompletedTask;
     }
 
     // ── Theme ─────────────────────────────────────────────────────────────────

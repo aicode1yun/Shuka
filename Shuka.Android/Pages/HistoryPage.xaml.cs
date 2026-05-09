@@ -1,4 +1,5 @@
 using System.Collections.Specialized;
+using Shuka.Android.Behaviors;
 using Shuka.Android.Services;
 
 namespace Shuka.Android.Pages;
@@ -28,16 +29,14 @@ public partial class HistoryPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
-        await AnimateIn();
+        await TabTransition.SlideInAsync(this, myTabIndex: 2);
     }
 
     private async Task AnimateIn()
     {
-        BodyGrid.Opacity = 0;
-        BodyGrid.TranslationY = 18;
-        await Task.WhenAll(
-            BodyGrid.FadeToAsync(1.0, 220, Easing.CubicOut),
-            BodyGrid.TranslateToAsync(0, 0, 220, Easing.CubicOut));
+        BodyGrid.Opacity      = 1;
+        BodyGrid.TranslationY = 0;
+        await Task.CompletedTask;
     }
 
     // ── Collection changes ────────────────────────────────────────────────────
