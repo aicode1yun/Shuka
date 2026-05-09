@@ -10,6 +10,18 @@ public partial class AboutPage : ContentPage
         VersionLabel.Text = $"Version {UpdateService.InstalledVersion}";
     }
 
+    protected override void OnAppearing()
+    {
+        base.OnAppearing();
+        MainActivity.Instance?.SetTabBarVisible(false);
+    }
+
+    protected override void OnDisappearing()
+    {
+        base.OnDisappearing();
+        MainActivity.Instance?.SetTabBarVisible(true);
+    }
+
     private async void OnBackTapped(object sender, TappedEventArgs e)
         => await Navigation.PopAsync();
 

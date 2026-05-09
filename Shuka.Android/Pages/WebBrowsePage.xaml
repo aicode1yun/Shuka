@@ -102,6 +102,34 @@
                                    Spacing="10"
                                    Margin="0,0,16,28">
 
+                <!-- Translate FAB — toggles Google Translate proxy -->
+                <Border x:Name="FabTranslate"
+                        BackgroundColor="{DynamicResource BgCard}"
+                        Stroke="{DynamicResource Stroke}"
+                        StrokeThickness="1"
+                        StrokeShape="RoundRectangle 24"
+                        HeightRequest="44"
+                        Padding="14,0">
+                    <HorizontalStackLayout Spacing="6"
+                                           HorizontalOptions="Center"
+                                           VerticalOptions="Center">
+                        <Label x:Name="FabTranslateIcon"
+                               Text="&#xE8E2;"
+                               FontFamily="{DynamicResource IconFont}"
+                               FontSize="16"
+                               TextColor="{DynamicResource TextSecondary}"
+                               VerticalOptions="Center" />
+                        <Label x:Name="FabTranslateLabel"
+                               Text="Translate"
+                               FontSize="11" FontAttributes="Bold"
+                               TextColor="{DynamicResource TextSecondary}"
+                               VerticalOptions="Center" />
+                    </HorizontalStackLayout>
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnTranslateTapped" />
+                    </Border.GestureRecognizers>
+                </Border>
+
                 <!-- Browser FAB — always visible -->
                 <Border x:Name="FabBrowser"
                         BackgroundColor="{DynamicResource BgCard}"

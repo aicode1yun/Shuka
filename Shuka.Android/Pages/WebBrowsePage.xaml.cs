@@ -45,6 +45,8 @@ public partial class WebBrowsePage : ContentPage
     private string _currentUrl;
     private readonly string _homeUrl;
     private bool   _isLoading;
+    private bool   _isTranslated;   // true when currently viewing via Google Translate proxy
+    private string _originalUrl = string.Empty; // the pre-translate URL, so we can toggle back
 
     /// <summary>
     /// Set this before pushing WebBrowsePage. When the user taps Fetch,
@@ -59,6 +61,20 @@ public partial class WebBrowsePage : ContentPage
         _currentUrl = startUrl;
         _homeUrl    = startUrl;
         Navigate(startUrl);
+    }
+
+    protected override void OnAppearing()
+    {
+        base.OnAppearing();
+        // Hide the persistent tab bar — it doesn't belong on the WebView page
+        MainActivity.Instance?.SetTabBarVisible(false);
+    }
+
+    protected override void OnDisappearing()
+    {
+        base.OnDisappearing();
+        // Restore the tab bar when leaving
+        MainActivity.Instance?.SetTabBarVisible(true);
     }
 
     // ── Navigation ────────────────────────────────────────────────────────────
@@ -83,12 +99,69 @@ public partial class WebBrowsePage : ContentPage
         => SiteWebView.Reload();
 
     private void OnHomeSourceTapped(object sender, TappedEventArgs e)
-        => Navigate(_homeUrl);
+    {
+        // Reset translate state when going home
+        if (_isTranslated)
+        {
+            _isTranslated = false;
+            UpdateTranslateFabAppearance();
+        }
+        Navigate(_homeUrl);
+    }
 
     private async void OnOpenInBrowserTapped(object sender, TappedEventArgs e)
     {
         try { await Launcher.Default.OpenAsync(new Uri(_currentUrl)); }
         catch { /* ignore */ }
+    }
+
+    private async void OnTranslateTapped(object sender, TappedEventArgs e)
+    {
+        await FabTranslate.ScaleToAsync(0.92, 70, Easing.CubicOut);
+        await FabTranslate.ScaleToAsync(1.0,  70, Easing.SpringOut);
+
+        if (_isTranslated)
+        {
+            // Revert to the original URL
+            _isTranslated = false;
+            UpdateTranslateFabAppearance();
+            Navigate(_originalUrl);
+        }
+        else
+        {
+            // Build the Google Translate proxy URL and navigate to it
+            _originalUrl  = _currentUrl;
+            _isTranslated = true;
+            UpdateTranslateFabAppearance();
+
+            string encoded = Uri.EscapeDataString(_originalUrl);
+            string translateUrl = $"https://translate.google.com/translate?sl=auto&tl=en&u={encoded}";
+            Navigate(translateUrl);
+        }
+    }
+
+    /// <summary>
+    /// Updates the Translate FAB to show active/inactive state.
+    /// Active = currently translated (accent color + "Original" label).
+    /// </summary>
+    private void UpdateTranslateFabAppearance()
+    {
+        if (_isTranslated)
+        {
+            FabTranslate.SetDynamicResource(Border.BackgroundColorProperty, "AccentContainer");
+            FabTranslate.SetDynamicResource(Border.StrokeProperty, "AccentLight");
+            FabTranslateIcon.SetDynamicResource(Label.TextColorProperty, "AccentLight");
+            FabTranslateLabel.SetDynamicResource(Label.TextColorProperty, "AccentLight");
+            FabTranslateLabel.Text = "Original";
+        }
+        else
+        {
+            FabTranslate.SetDynamicResource(Border.BackgroundColorProperty, "BgCard");
+            FabTranslate.SetDynamicResource(Border.StrokeProperty, "Stroke");
+            FabTranslateIcon.SetDynamicResource(Label.TextColorProperty, "TextSecondary");
+            FabTranslateLabel.SetDynamicResource(Label.TextColorProperty, "TextSecondary");
+            FabTranslateLabel.Text = "Translate";
+        }
     }
 
     // ── WebView events ────────────────────────────────────────────────────────

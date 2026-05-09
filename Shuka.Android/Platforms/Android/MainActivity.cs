@@ -99,6 +99,23 @@ public class MainActivity : MauiAppCompatActivity
         AddPersistentTabBar();
     }
 
+    private global::Android.Views.View? _persistentTabBar;
+
+    /// <summary>
+    /// Show or hide the persistent tab bar overlay.
+    /// Call SetTabBarVisible(false) on pages that shouldn't show the tab bar (e.g. WebBrowsePage).
+    /// </summary>
+    public void SetTabBarVisible(bool visible)
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            if (_persistentTabBar != null)
+                _persistentTabBar.Visibility = visible
+                    ? global::Android.Views.ViewStates.Visible
+                    : global::Android.Views.ViewStates.Gone;
+        });
+    }
+
     /// <summary>
     /// Inflates a single CustomTabBar into the DecorView's content frame so it
     /// sits above all pages and is never part of any fragment transaction.
@@ -118,9 +135,12 @@ public class MainActivity : MauiAppCompatActivity
 
             var tabBar = new Controls.CustomTabBar();
             var nativeTabBar = tabBar.ToPlatform(mauiContext);
+            _persistentTabBar = nativeTabBar;
 
-            float density   = Resources!.DisplayMetrics!.Density;
-            int   tabBarPx  = (int)(72 * density);            var lp = new FrameLayout.LayoutParams(
+            float density  = Resources!.DisplayMetrics!.Density;
+            int   tabBarPx = (int)(72 * density);
+
+            var lp = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MatchParent,
                 tabBarPx,
                 GravityFlags.Bottom);

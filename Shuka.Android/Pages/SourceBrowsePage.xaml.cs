@@ -37,6 +37,18 @@ public partial class SourceBrowsePage : ContentPage
         _ = LoadPageAsync(reset: true);
     }
 
+    protected override void OnAppearing()
+    {
+        base.OnAppearing();
+        MainActivity.Instance?.SetTabBarVisible(false);
+    }
+
+    protected override void OnDisappearing()
+    {
+        base.OnDisappearing();
+        MainActivity.Instance?.SetTabBarVisible(true);
+    }
+
     // ── Navigation ────────────────────────────────────────────────────────────
 
     private async void OnBackTapped(object sender, TappedEventArgs e)
