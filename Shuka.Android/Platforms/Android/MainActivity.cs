@@ -64,6 +64,12 @@ public class MainActivity : MauiAppCompatActivity
         base.OnCreate(savedInstanceState);
         Instance = this;
 
+#if DEBUG
+        // Enable WebView debugging for logcat output
+        global::Android.Webkit.WebView.SetWebContentsDebuggingEnabled(true);
+        System.Diagnostics.Debug.WriteLine("[MainActivity] WebView debugging enabled");
+#endif
+
         // Request POST_NOTIFICATIONS permission on Android 13+
 #pragma warning disable CA1416
         if (Build.VERSION.SdkInt >= BuildVersionCodes.Tiramisu)

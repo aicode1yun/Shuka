@@ -8,7 +8,7 @@
 
         <!-- ── Top bar ───────────────────────────────────────── -->
         <Grid Grid.Row="0"
-              ColumnDefinitions="44,44,*,44,44"
+              ColumnDefinitions="44,44,*,44,44,44"
               HeightRequest="96"
               Padding="8,44,8,8"
               BackgroundColor="{DynamicResource BgCard}">
@@ -66,8 +66,25 @@
                        MaxLines="1" />
             </Border>
 
-            <!-- Reload button -->
+            <!-- Ad blocker toggle -->
             <Grid Grid.Column="3"
+                  x:Name="AdBlockerButton"
+                  WidthRequest="44"
+                  HorizontalOptions="Center"
+                  VerticalOptions="Center">
+                <Label x:Name="AdBlockerIcon"
+                       Text="&#xE14B;"
+                       FontFamily="{DynamicResource IconFont}"
+                       FontSize="20"
+                       HorizontalOptions="Center"
+                       VerticalOptions="Center" />
+                <Grid.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnAdBlockerToggleTapped" />
+                </Grid.GestureRecognizers>
+            </Grid>
+
+            <!-- Reload button -->
+            <Grid Grid.Column="4"
                   WidthRequest="44"
                   HorizontalOptions="Center"
                   VerticalOptions="Center">
@@ -83,7 +100,7 @@
             </Grid>
 
             <!-- Home / close source button -->
-            <Grid Grid.Column="4"
+            <Grid Grid.Column="5"
                   WidthRequest="44"
                   HorizontalOptions="Center"
                   VerticalOptions="Center">

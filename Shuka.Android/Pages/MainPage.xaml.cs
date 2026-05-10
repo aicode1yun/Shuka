@@ -454,14 +454,39 @@ public partial class MainPage : ContentPage
         {
             Command = new Command(async () =>
             {
-                await card.ScaleToAsync(0.97, 80, Easing.CubicOut);
-                await card.ScaleToAsync(1.0,  80, Easing.SpringOut);
+                try
+                {
+                    await card.ScaleToAsync(0.97, 80, Easing.CubicOut);
+                    await card.ScaleToAsync(1.0,  80, Easing.SpringOut);
 
-                // Register the fetch callback before opening the WebView
-                WebBrowsePage.OnUrlFetched = FillUrlFromWebView;
+                    // Get the URL and validate it
+                    string url = source.GetRecentUrl(1);
+                    if (string.IsNullOrWhiteSpace(url))
+                    {
+                        await DisplayAlertAsync("Error", 
+                            $"Could not get browse URL for {source.SiteName}", "OK");
+                        return;
+                    }
 
-                await Shell.Current.Navigation.PushAsync(
-                    new WebBrowsePage(source.GetRecentUrl(1)));
+                    // Register the fetch callback before opening the WebView
+                    WebBrowsePage.OnUrlFetched = FillUrlFromWebView;
+
+                    // Create a new instance each time to avoid NameScope conflicts
+                    var webPage = new WebBrowsePage(url);
+                    
+                    // Ensure the page is not cached by Shell
+                    Shell.SetPresentationMode(webPage, PresentationMode.NotAnimated);
+                    
+                    await Shell.Current.Navigation.PushAsync(webPage, true);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[MainPage] Source card tap error: {ex.Message}");
+                    System.Diagnostics.Debug.WriteLine($"[MainPage] Stack trace: {ex.StackTrace}");
+                    
+                    await DisplayAlertAsync("Navigation Error", 
+                        $"Could not open {source.SiteName}:\n{ex.Message}", "OK");
+                }
             })
         });
 

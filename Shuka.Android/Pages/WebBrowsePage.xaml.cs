@@ -59,15 +59,84 @@ public partial class WebBrowsePage : ContentPage
 
     public WebBrowsePage(string startUrl)
     {
-        InitializeComponent();
-        _currentUrl = startUrl;
-        _homeUrl    = startUrl;
-        
-        // Subscribe to WebView error events
-        SiteWebView.Navigating += OnNavigating!;
-        SiteWebView.Navigated += OnNavigated!;
-        
-        Navigate(startUrl);
+        try
+        {
+            // Assign unique instance ID
+            _instanceId = System.Threading.Interlocked.Increment(ref _instanceCounter);
+            System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] Creating instance #{_instanceId}");
+            
+            // Try to clear any existing NameScope first
+            try
+            {
+                var existingScope = Microsoft.Maui.Controls.Internals.NameScope.GetNameScope(this);
+                if (existingScope != null)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] Found existing NameScope, clearing it");
+                    Microsoft.Maui.Controls.Internals.NameScope.SetNameScope(this, null);
+                }
+            }
+            catch { /* ignore */ }
+            
+            // Create a completely new NameScope for this instance
+            var nameScope = new Microsoft.Maui.Controls.Internals.NameScope();
+            Microsoft.Maui.Controls.Internals.NameScope.SetNameScope(this, nameScope);
+            
+            try
+            {
+                InitializeComponent();
+            }
+            catch (ArgumentException ex) when (ex.Message.Contains("already exists in this NameScope"))
+            {
+                // MAUI bug: NameScope conflict. Try to recover by forcing a new NameScope
+                System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] NameScope conflict detected, attempting recovery");
+                
+                // Force clear and retry
+                Microsoft.Maui.Controls.Internals.NameScope.SetNameScope(this, null);
+                System.GC.Collect();
+                System.GC.WaitForPendingFinalizers();
+                
+                var newScope = new Microsoft.Maui.Controls.Internals.NameScope();
+                Microsoft.Maui.Controls.Internals.NameScope.SetNameScope(this, newScope);
+                
+                // Retry InitializeComponent
+                InitializeComponent();
+            }
+            
+            // Validate startUrl before proceeding
+            if (string.IsNullOrWhiteSpace(startUrl))
+            {
+                startUrl = "https://www.google.com";
+                System.Diagnostics.Debug.WriteLine("[WebBrowsePage] Warning: Empty startUrl, using fallback");
+            }
+            
+            _currentUrl = startUrl;
+            _homeUrl    = startUrl;
+            
+            // Subscribe to WebView error events
+            SiteWebView.Navigating += OnNavigating!;
+            SiteWebView.Navigated += OnNavigated!;
+
+            // Initialize ad blocker icon state
+            UpdateAdBlockerIcon();
+            
+            Navigate(startUrl);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] Constructor error: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] Stack trace: {ex.StackTrace}");
+            
+            // Log to crash file
+            try
+            {
+                var logPath = Path.Combine(FileSystem.CacheDirectory, "crash.log");
+                var logEntry = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] WebBrowsePage constructor: {ex.Message}\n{ex.StackTrace}\n\n";
+                File.AppendAllText(logPath, logEntry);
+            }
+            catch { /* ignore logging errors */ }
+            
+            throw; // Re-throw to show error to user
+        }
     }
 
     protected override void OnAppearing()
@@ -80,11 +149,32 @@ public partial class WebBrowsePage : ContentPage
     protected override void OnDisappearing()
     {
         base.OnDisappearing();
+        System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] Instance #{_instanceId} disappearing");
+        
         // Restore the tab bar when leaving
         MainActivity.Instance?.SetTabBarVisible(true);
         
         // Clean up WebView to prevent memory leaks
         CleanupWebView();
+        
+        // Clear the NameScope to prevent "element already exists" errors on next navigation
+        try
+        {
+            // Get the current NameScope and clear all registrations
+            var nameScope = Microsoft.Maui.Controls.Internals.NameScope.GetNameScope(this);
+            if (nameScope is Microsoft.Maui.Controls.Internals.NameScope ns)
+            {
+                // Clear all registered names
+                System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] Clearing NameScope for instance #{_instanceId}");
+            }
+            
+            // Set a new empty NameScope
+            Microsoft.Maui.Controls.Internals.NameScope.SetNameScope(this, new Microsoft.Maui.Controls.Internals.NameScope());
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] Error clearing NameScope: {ex.Message}");
+        }
     }
 
     /// <summary>
@@ -153,10 +243,34 @@ public partial class WebBrowsePage : ContentPage
                 }
 #endif
             }
+            
+            // Clear the handler to help with cleanup
+            try
+            {
+                if (SiteWebView?.Handler != null)
+                {
+                    SiteWebView.Handler.DisconnectHandler();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] Error disconnecting handler: {ex.Message}");
+            }
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] Error during WebView cleanup: {ex.Message}");
+        }
+    }
+    
+    protected override void OnHandlerChanged()
+    {
+        base.OnHandlerChanged();
+        
+        // If handler is being removed, clean up
+        if (Handler == null)
+        {
+            System.Diagnostics.Debug.WriteLine("[WebBrowsePage] Handler removed, cleaning up");
         }
     }
 
@@ -198,12 +312,27 @@ public partial class WebBrowsePage : ContentPage
             }
 
             _currentUrl = url;
-            UrlBarLabel.Text = url;
-            SiteWebView.Source = new UrlWebViewSource { Url = url };
-            UpdateDownloadFab(url);
+            
+            // Update UI on main thread
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                try
+                {
+                    UrlBarLabel.Text = url;
+                    SiteWebView.Source = new UrlWebViewSource { Url = url };
+                    UpdateDownloadFab(url);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] UI update error: {ex.Message}");
+                    ShowNavigationError("Navigation Error", "Failed to load the page.");
+                }
+            });
         }
         catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] Navigate error: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] Stack trace: {ex.StackTrace}");
             ShowNavigationError("Navigation Error", $"Failed to navigate to URL:\n{ex.Message}");
         }
     }
@@ -285,6 +414,49 @@ public partial class WebBrowsePage : ContentPage
             UpdateTranslateFabAppearance();
         }
         Navigate(_homeUrl);
+    }
+
+    private async void OnAdBlockerToggleTapped(object sender, TappedEventArgs e)
+    {
+        // Toggle the ad blocker
+        AdBlockerService.Instance.IsEnabled = !AdBlockerService.Instance.IsEnabled;
+        UpdateAdBlockerIcon();
+
+        // Animate the button
+        await AdBlockerButton.ScaleToAsync(0.8, 80, Easing.CubicOut);
+        await AdBlockerButton.ScaleToAsync(1.0, 80, Easing.SpringOut);
+
+        // Show toast notification
+        string message = AdBlockerService.Instance.IsEnabled 
+            ? "Ad Blocker: ON" 
+            : "Ad Blocker: OFF";
+        await ShowQueuedToastAsync(message);
+
+        // Full navigation reapplies native interception + injected filters (Reload alone can be cache-heavy).
+        await MainThread.InvokeOnMainThreadAsync(() =>
+        {
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(_currentUrl))
+                    Navigate(_currentUrl);
+                else
+                    SiteWebView.Reload();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] Ad blocker toggle refresh: {ex.Message}");
+            }
+        });
+    }
+
+    private void UpdateAdBlockerIcon()
+    {
+        bool enabled = AdBlockerService.Instance.IsEnabled;
+        // shield icon when on, shield-off when disabled
+        AdBlockerIcon.Text = enabled ? "\uE14B" : "\uE14B";
+        AdBlockerIcon.SetDynamicResource(Label.TextColorProperty,
+            enabled ? "AccentLight" : "TextMuted");
+        AdBlockerButton.Opacity = enabled ? 1.0 : 0.45;
     }
 
     private async void OnOpenInBrowserTapped(object sender, TappedEventArgs e)
@@ -462,12 +634,86 @@ public partial class WebBrowsePage : ContentPage
 
             UpdateDownloadFab(e.Url);
             UpdateNavigationButtons();
+
+            // Inject ad blocker cosmetic filter from MAUI layer as well,
+            // since OnPageFinished in the native handler may fire before ad scripts run.
+            _ = InjectAdBlockerAsync();
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] OnNavigated error: {ex.Message}");
             _isLoading = false;
             LoadingBar.IsVisible = false;
+        }
+    }
+
+    /// <summary>
+    /// Injects the ad blocker script immediately and with multiple delayed passes
+    /// to catch ads that are injected by scripts after the page finishes loading.
+    /// Uses an aggressive multi-pass approach like uBlock Origin.
+    /// </summary>
+    private async Task InjectAdBlockerAsync()
+    {
+        try
+        {
+            System.Diagnostics.Debug.WriteLine("[WebBrowsePage] ===== AD BLOCKER INJECTION START =====");
+            
+            var js = AdBlockerService.Instance.GetCosmeticFilterScript();
+            if (string.IsNullOrEmpty(js))
+            {
+                System.Diagnostics.Debug.WriteLine("[WebBrowsePage] WARNING: Ad blocker script is empty!");
+                return;
+            }
+
+            System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] Ad blocker script length: {js.Length} chars");
+
+            // First pass — run immediately
+            await SiteWebView.EvaluateJavaScriptAsync(js);
+            System.Diagnostics.Debug.WriteLine("[WebBrowsePage] ✓ Ad blocker pass 1 complete");
+
+            // Check if it's working by inspecting the page
+            await Task.Delay(500);
+            var inspectJs = @"
+(function(){
+  var report = {
+    iframes: document.querySelectorAll('iframe').length,
+    adElements: document.querySelectorAll('[class*=""ad""], [id*=""ad""]').length,
+    scripts: document.querySelectorAll('script[src*=""ad""], script[src*=""doubleclick""]').length
+  };
+  return JSON.stringify(report);
+})();
+";
+            var result = await SiteWebView.EvaluateJavaScriptAsync(inspectJs);
+            System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] After pass 1: {result}");
+
+            // Second pass — wait for lazy-loaded / script-injected ads (500ms)
+            await Task.Delay(500);
+            await SiteWebView.EvaluateJavaScriptAsync(js);
+            System.Diagnostics.Debug.WriteLine("[WebBrowsePage] ✓ Ad blocker pass 2 complete");
+
+            // Third pass — catch delayed ads (1.5s)
+            await Task.Delay(1000);
+            await SiteWebView.EvaluateJavaScriptAsync(js);
+            result = await SiteWebView.EvaluateJavaScriptAsync(inspectJs);
+            System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] After pass 3: {result}");
+
+            // Fourth pass — some sites inject ads even later (3s)
+            await Task.Delay(1500);
+            await SiteWebView.EvaluateJavaScriptAsync(js);
+            System.Diagnostics.Debug.WriteLine("[WebBrowsePage] ✓ Ad blocker pass 4 complete");
+            
+            // Fifth pass — final cleanup (5s)
+            await Task.Delay(2000);
+            await SiteWebView.EvaluateJavaScriptAsync(js);
+            result = await SiteWebView.EvaluateJavaScriptAsync(inspectJs);
+            System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] After pass 5: {result}");
+            
+            System.Diagnostics.Debug.WriteLine("[WebBrowsePage] ===== AD BLOCKER INJECTION COMPLETE =====");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] ❌ AdBlocker inject error: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] Stack trace: {ex.StackTrace}");
         }
     }
 
@@ -513,6 +759,10 @@ public partial class WebBrowsePage : ContentPage
         ["dmxs.org"]    = "e.g. https://www.dmxs.org/book/23204.html",
         ["52shuku.net"] = "e.g. https://www.52shuku.net/xiandaidushi/08_b/bkdKE.html",
     };
+    
+    // Static counter to ensure unique instances
+    private static int _instanceCounter = 0;
+    private readonly int _instanceId;
 
     /// <summary>
     /// Returns the site key (domain) that the current URL belongs to,

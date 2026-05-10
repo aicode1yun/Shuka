@@ -18,6 +18,8 @@ public static class MauiProgram
                 handlers.AddHandler<Entry, ThemedEntryHandler>();
 #if ANDROID
                 handlers.AddHandler<Shell, ShukaShellRenderer>();
+                // Re-enable AdBlockingWebViewHandler with improved implementation
+                handlers.AddHandler<Microsoft.Maui.Controls.WebView, AdBlockingWebViewHandler>();
 #endif
             });
 

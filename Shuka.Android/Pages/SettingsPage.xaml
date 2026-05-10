@@ -479,6 +479,58 @@
                     </VerticalStackLayout>
                 </Border>
 
+                <!-- ── BROWSER ─────────────────────────────── -->
+                <Label Text="BROWSER"
+                       FontSize="11"
+                       FontAttributes="Bold"
+                       TextColor="{DynamicResource AccentLight}"
+                       CharacterSpacing="1.5"
+                       Margin="4,16,0,6" />
+
+                <Border BackgroundColor="{DynamicResource BgCard}"
+                        Stroke="{DynamicResource Stroke}"
+                        StrokeThickness="1"
+                        StrokeShape="RoundRectangle 20"
+                        Padding="0">
+                    <VerticalStackLayout>
+
+                        <!-- Ad Blocker Toggle -->
+                        <Grid ColumnDefinitions="Auto,*,Auto" Padding="16,16,16,16">
+                            <Border Grid.Column="0"
+                                    BackgroundColor="{DynamicResource AccentContainer}"
+                                    StrokeThickness="0"
+                                    StrokeShape="RoundRectangle 12"
+                                    WidthRequest="40" HeightRequest="40"
+                                    VerticalOptions="Center"
+                                    Margin="0,0,14,0">
+                                <Label Text="&#xE14B;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="20"
+                                       TextColor="{DynamicResource AccentLight}"
+                                       HorizontalOptions="Center"
+                                       VerticalOptions="Center" />
+                            </Border>
+                            <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                                <Label Text="Ad Blocker"
+                                       FontSize="15"
+                                       FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}" />
+                                <Label Text="Block ads and trackers in WebView"
+                                       FontSize="12"
+                                       TextColor="{DynamicResource TextMuted}" />
+                            </VerticalStackLayout>
+                            <Switch x:Name="AdBlockerSwitch"
+                                    Grid.Column="2"
+                                    IsToggled="True"
+                                    OnColor="{DynamicResource AccentLight}"
+                                    ThumbColor="White"
+                                    VerticalOptions="Center"
+                                    Toggled="OnAdBlockerToggled" />
+                        </Grid>
+
+                    </VerticalStackLayout>
+                </Border>
+
                 <!-- ── UPDATE ─────────────────────────────── -->
                 <Label Text="UPDATE"
                        FontSize="11"

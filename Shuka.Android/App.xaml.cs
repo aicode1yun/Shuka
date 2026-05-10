@@ -12,6 +12,11 @@ public partial class App : Application
     public App()
     {
         InitializeComponent();
+        
+        // Set up global exception handlers
+        AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
+        TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
+        
         var saved = Preferences.Default.Get("app_theme", nameof(AppTheme.Slate));
         if (saved == "Parchment") saved = nameof(AppTheme.Frost);
         var theme = Enum.TryParse<AppTheme>(saved, out var t) ? t : AppTheme.Slate;
@@ -19,6 +24,41 @@ public partial class App : Application
 
         // Background update check — runs once per session, doesn't block startup
         _ = CheckForUpdateSilentlyAsync();
+    }
+
+    private void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
+    {
+        if (e.ExceptionObject is Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[App] Unhandled exception: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"[App] Stack trace: {ex.StackTrace}");
+            
+            // Log to a file for debugging
+            try
+            {
+                var logPath = Path.Combine(FileSystem.CacheDirectory, "crash.log");
+                var logEntry = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}\n\n";
+                File.AppendAllText(logPath, logEntry);
+            }
+            catch { /* ignore logging errors */ }
+        }
+    }
+
+    private void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
+    {
+        System.Diagnostics.Debug.WriteLine($"[App] Unobserved task exception: {e.Exception.Message}");
+        System.Diagnostics.Debug.WriteLine($"[App] Stack trace: {e.Exception.StackTrace}");
+        
+        // Log to a file for debugging
+        try
+        {
+            var logPath = Path.Combine(FileSystem.CacheDirectory, "crash.log");
+            var logEntry = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Unobserved: {e.Exception.GetType().Name}: {e.Exception.Message}\n{e.Exception.StackTrace}\n\n";
+            File.AppendAllText(logPath, logEntry);
+        }
+        catch { /* ignore logging errors */ }
+        
+        e.SetObserved(); // Prevent app crash
     }
 
     protected override Window CreateWindow(IActivationState? activationState)

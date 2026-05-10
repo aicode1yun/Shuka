@@ -21,6 +21,9 @@ public partial class SettingsPage : ContentPage
         RefreshRadios(App.CurrentTheme);
         RefreshDownloadPath();
         RefreshUpdateSection();
+        
+        // Initialize ad blocker switch state
+        AdBlockerSwitch.IsToggled = AdBlockerService.Instance.IsEnabled;
     }
 
     protected override async void OnAppearing()
@@ -232,6 +235,19 @@ public partial class SettingsPage : ContentPage
         RefreshDownloadPath();
         await DisplayAlertAsync("Reset",
             $"Download location reset to default:\n{DownloadManager.GetOutputDirectory()}", "OK");
+    }
+
+    // ── Browser ───────────────────────────────────────────────────────────────
+
+    private void OnAdBlockerToggled(object sender, ToggledEventArgs e)
+    {
+        AdBlockerService.Instance.IsEnabled = e.Value;
+        
+        string message = e.Value 
+            ? "Ad blocker enabled. Ads and trackers will be blocked in the WebView browser."
+            : "Ad blocker disabled. Ads and trackers will load normally.";
+        
+        System.Diagnostics.Debug.WriteLine($"[Settings] Ad blocker: {(e.Value ? "enabled" : "disabled")}");
     }
 
     // ── Update ────────────────────────────────────────────────────────────────

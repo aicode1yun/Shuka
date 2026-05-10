@@ -46,6 +46,7 @@ A tool that downloads Chinese web novels, translates them to English via Google 
 - **Bookmark** button in the WebView — saves novels for quick access later
 - Bookmarks page — view all saved novels organized by source, with search, filtering, and tagging
 - Multi-select mode — select multiple bookmarks to batch download or delete
+- Built-in ad blocker — blocks ads and trackers in the WebView browser (can be toggled in Settings)
 - Source filter and pin system — pin favourite sources to the top of the Discover list
 - Draft persistence — the URL field is saved when switching apps and restored on return
 - Queue multiple novels at once — each download runs independently in the background
@@ -128,34 +129,6 @@ Shuka.exe https://www.quanben.io/n/aoshidanshen/list.html 3
 
 Output is saved to `%USERPROFILE%\Downloads` by default.
 
-### Android
-
-**Download tab:**
-1. Paste a novel URL into the **Novel URL** field (or use Fetch from the Discover tab)
-2. Optionally set a cover URL and chapter limit (0 = all)
-3. Tap **Download & Translate** — the download is queued immediately
-4. Switch to the **Downloads** tab to monitor progress, cancel, or manage finished downloads
-5. Once done, tap **Open** to read in your e-reader app or **Share** to send the file
-
-**Discover tab:**
-1. Browse the built-in source list — tap any source to open it in the WebView browser
-2. Navigate to a novel's index page
-3. Use the floating action buttons:
-   - **BOOKMARK** — save the novel to your bookmarks for later
-   - **TRANSLATE** — open the page in Google Translate
-   - **BROWSER** — open the page in your default browser
-   - **FETCH** — send the URL back to the Download tab (for custom cover/chapters)
-   - **DOWNLOAD** — queue the novel immediately
-
-**Bookmarks:**
-1. Tap the bookmark icon (with count badge) on any source card in the Discover tab
-2. View all bookmarked novels organized by source site
-3. Search by title, author, or tags
-4. Filter by latest added or most chapters
-5. Long press any bookmark to enter multi-select mode
-6. Select multiple bookmarks to batch download or delete
-7. Add custom tags to organize your bookmarks (Downloaded, Reading, Completed, etc.)
-8. Tap any bookmark to open it in the WebView browser
 
 ## Building from source
 
