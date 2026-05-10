@@ -4,6 +4,7 @@ using Shuka.Android.Platforms.Android;
 using Shuka.Android.Services;
 using Shuka.Core.Adapters;
 using Shuka.Core;
+using Shuka.Android.Platform;
 
 namespace Shuka.Android.Pages;
 
@@ -41,9 +42,9 @@ public partial class WebBrowsePage : ContentPage
         ["czbooks.net"] = url => System.Text.RegularExpressions.Regex.IsMatch(
             url, @"czbooks\.net/n/[^/?#]+", System.Text.RegularExpressions.RegexOptions.IgnoreCase),
 
-        // 69shuba.com: /book/{numericId}.htm
+        // 69shuba.com: /book/{numericId}/ or /book/{numericId}.htm
         ["69shuba.com"] = url => System.Text.RegularExpressions.Regex.IsMatch(
-            url, @"69shuba\.com/book/\d+\.htm", System.Text.RegularExpressions.RegexOptions.IgnoreCase),
+            url, @"69shuba\.com/book/\d+(?:\.htm)?/?", System.Text.RegularExpressions.RegexOptions.IgnoreCase),
 
         // dmxs.org: /{category}/{numericId}.html  (not /news_last/, /tags, etc.)
         ["dmxs.org"] = url => System.Text.RegularExpressions.Regex.IsMatch(
@@ -1674,8 +1675,8 @@ public partial class WebBrowsePage : ContentPage
             FabBookmarkLabel.Text = "LOADING...";
             FabBookmark.IsEnabled = false;
 
-            // Fetch book info (title and author in Chinese) using BookService
-            var bookService = new BookService();
+            // Fetch book info (title and author in Chinese) using BookService with Cloudflare bypass
+            var bookService = new BookService(new WebViewCloudflareBypass());
             var bookInfo = await bookService.GatherBookInfo(url, 0, null);
 
             if (bookInfo == null || string.IsNullOrWhiteSpace(bookInfo.Title))
