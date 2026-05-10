@@ -1,5 +1,6 @@
 using System.IO;
 using Android.Graphics;
+using Android.OS;
 using Android.Webkit;
 using Java.Interop;
 using Microsoft.Maui.Handlers;
@@ -157,8 +158,11 @@ internal sealed class ShukaAdWebViewClient(WebViewClient inner) : WebViewClient
     private readonly WebViewClient _inner = inner ?? throw new ArgumentNullException(nameof(inner));
 
     [System.Runtime.Versioning.SupportedOSPlatform("android24.0")]
-    public override bool ShouldOverrideUrlLoading(AWebView? view, IWebResourceRequest? request) =>
-        _inner.ShouldOverrideUrlLoading(view, request);
+    public override bool ShouldOverrideUrlLoading(AWebView? view, IWebResourceRequest? request)
+    {
+        TryNoteSubFrameSiteUrl(request);
+        return _inner.ShouldOverrideUrlLoading(view, request);
+    }
 
     public override void OnPageStarted(AWebView? view, string? url, Bitmap? favicon) =>
         _inner.OnPageStarted(view, url, favicon);
@@ -178,6 +182,9 @@ internal sealed class ShukaAdWebViewClient(WebViewClient inner) : WebViewClient
     public override WebResourceResponse? ShouldInterceptRequest(AWebView? view, IWebResourceRequest? request)
     {
 #pragma warning disable CA1416
+        if (Build.VERSION.SdkInt >= BuildVersionCodes.N)
+            TryNoteSubFrameDocumentRequest(request);
+
         var url = request?.Url?.ToString();
         if (!string.IsNullOrEmpty(url) &&
             AdBlockerService.Instance.IsEnabled &&
@@ -192,6 +199,89 @@ internal sealed class ShukaAdWebViewClient(WebViewClient inner) : WebViewClient
 
         return _inner.ShouldInterceptRequest(view, request);
 #pragma warning restore CA1416
+    }
+
+    /// <summary>Navigation intents for child frames (e.g. Google Translate content iframe).</summary>
+    private static void TryNoteSubFrameSiteUrl(IWebResourceRequest? request)
+    {
+        try
+        {
+            if (Build.VERSION.SdkInt < BuildVersionCodes.N || request == null || request.IsForMainFrame)
+                return;
+
+            // Novel sites often prefetch the next chapter in a hidden iframe; those requests are not user-initiated.
+            if (!RequestAppearsUserInitiated(request))
+                return;
+
+            TranslateEmbeddedFrameTracker.NoteUrlIfEmbeddedSite(request.Url?.ToString());
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ShukaAdWebView] TryNoteSubFrameSiteUrl: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Subframe document loads often skip <see cref="ShouldOverrideUrlLoading"/>; <c>Accept: text/html</c> filters out XHR/assets.
+    /// </summary>
+    private static void TryNoteSubFrameDocumentRequest(IWebResourceRequest? request)
+    {
+        try
+        {
+            if (request == null || request.IsForMainFrame)
+                return;
+
+            if (!RequestHeadersSuggestHtml(request))
+                return;
+
+            if (!RequestAppearsUserInitiated(request))
+                return;
+
+            TranslateEmbeddedFrameTracker.NoteUrlIfEmbeddedSite(request.Url?.ToString());
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ShukaAdWebView] TryNoteSubFrameDocumentRequest: {ex.Message}");
+        }
+    }
+
+    /// <summary>Ignore prefetch / prerender / background iframe navigations (common on chapter readers).</summary>
+    private static bool RequestAppearsUserInitiated(IWebResourceRequest request)
+    {
+        try
+        {
+            if (Build.VERSION.SdkInt >= BuildVersionCodes.M && !request.HasGesture)
+                return false;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ShukaAdWebView] RequestAppearsUserInitiated: {ex.Message}");
+        }
+
+        return true;
+    }
+
+    private static bool RequestHeadersSuggestHtml(IWebResourceRequest request)
+    {
+        try
+        {
+            var headers = request.RequestHeaders;
+            if (headers == null)
+                return false;
+
+            foreach (var e in headers)
+            {
+                if (e.Key.Equals("Accept", StringComparison.OrdinalIgnoreCase) &&
+                    e.Value.Contains("text/html", StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ShukaAdWebView] RequestHeadersSuggestHtml: {ex.Message}");
+        }
+
+        return false;
     }
 }
 

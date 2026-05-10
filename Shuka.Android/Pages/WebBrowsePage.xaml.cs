@@ -1,3 +1,6 @@
+using System.Text.Json;
+using System.Text.RegularExpressions;
+using Shuka.Android.Platforms.Android;
 using Shuka.Android.Services;
 using Shuka.Core.Adapters;
 using Shuka.Core;
@@ -43,12 +46,19 @@ public partial class WebBrowsePage : ContentPage
         return _novelPageChecks.TryGetValue(site, out var check) && check(url);
     }
 
+    private enum WebTranslateMode { None, GoogleProxy }
+
     private string _currentUrl;
     private readonly string _homeUrl;
     private bool   _isLoading;
-    private bool   _isTranslated;   // true when currently viewing via Google Translate proxy
-    private string _originalUrl = string.Empty; // the pre-translate URL, so we can toggle back
+    /// <summary>Google proxy loads translate.google.com; <see cref="_originalUrl"/> tracks the embedded site URL for re-translate.</summary>
+    private WebTranslateMode _translateMode;
+    /// <summary>Real page URL behind the Google Translate wrapper (updated when you follow links while translated).</summary>
+    private string _originalUrl = string.Empty;
+    private int    _translateEmbeddedSyncGeneration;
     private bool   _fabMenuExpanded = false; // tracks FAB menu state
+
+    private bool IsTranslateActive => _translateMode != WebTranslateMode.None;
 
     /// <summary>
     /// Set this before pushing WebBrowsePage. When the user taps Fetch,
@@ -407,10 +417,10 @@ public partial class WebBrowsePage : ContentPage
     private void OnHomeSourceTapped(object sender, TappedEventArgs e)
     {
         // Reset translate state when going home
-        if (_isTranslated)
+        if (IsTranslateActive)
         {
-            _isTranslated = false;
-            _originalUrl  = string.Empty;
+            _translateMode = WebTranslateMode.None;
+            _originalUrl   = string.Empty;
             UpdateTranslateFabAppearance();
         }
         Navigate(_homeUrl);
@@ -479,85 +489,311 @@ public partial class WebBrowsePage : ContentPage
             await FabTranslate.ScaleToAsync(0.92, 70, Easing.CubicOut);
             await FabTranslate.ScaleToAsync(1.0,  70, Easing.SpringOut);
 
-            if (_isTranslated)
+            if (IsTranslateActive)
             {
-                // Revert to the original URL
-                string urlToRestore = _originalUrl;
-                _isTranslated = false;
-                _originalUrl  = string.Empty;
-                UpdateTranslateFabAppearance();
-                Navigate(urlToRestore);
-            }
-            else
-            {
-                // Validate current URL before translating
-                if (string.IsNullOrWhiteSpace(_currentUrl))
+                // Exit Google’s translate frame: open the real site URL for what you’re reading now (not the menu you started from).
+                if (_translateMode == WebTranslateMode.GoogleProxy)
                 {
-                    await DisplayAlertAsync("Cannot Translate", "No page is currently loaded.", "OK");
-                    return;
+                    // Native subframe history — iframe[src] and top u= often stay on the first chapter.
+                    string? leaveUrl = TranslateEmbeddedFrameTracker.TryGetLatest(out var tracked) ? tracked : null;
+                    if (string.IsNullOrWhiteSpace(leaveUrl))
+                        leaveUrl = await ResolveGoogleTranslateEmbeddedOriginalAsync().ConfigureAwait(true);
+                    if (string.IsNullOrWhiteSpace(leaveUrl) && TryExtractLastEmbeddedUParameter(_currentUrl, out var fromBar))
+                        leaveUrl = fromBar;
+                    if (string.IsNullOrWhiteSpace(leaveUrl))
+                        leaveUrl = _originalUrl;
+
+                    _translateMode = WebTranslateMode.None;
+                    _originalUrl   = string.Empty;
+                    UpdateTranslateFabAppearance();
+                    TranslateEmbeddedFrameTracker.Clear();
+
+                    if (!string.IsNullOrWhiteSpace(leaveUrl))
+                        Navigate(leaveUrl);
+                    else
+                        await ShowQueuedToastAsync("Could not leave translate. Try Back or reload the site.");
                 }
 
-                // Check if current site is CF-protected BEFORE trying to translate
-                string? site = DetectSite(_currentUrl);
+                return;
+            }
 
-                if (site != null && _cfSites.Contains(site))
+            if (string.IsNullOrWhiteSpace(_currentUrl))
+            {
+                await DisplayAlertAsync("Cannot Translate", "No page is currently loaded.", "OK");
+                return;
+            }
+
+            string? site = DetectSite(_currentUrl);
+            bool isCf    = site != null && _cfSites.Contains(site);
+
+            if (isCf)
+            {
+                string? choiceCf = await DisplayActionSheetAsync(
+                    $"{site} uses Cloudflare — Google Translate often fails inside this WebView. "
+                    + "Use your browser for translation, or copy / open the page.",
+                    "Cancel",
+                    null,
+                    "Google Translate (browser)",
+                    "Copy URL",
+                    "Open page (browser)");
+
+                if (choiceCf == "Google Translate (browser)")
                 {
-                    // CF-protected sites can't be translated via web proxies
-                    // Offer alternatives
-                    string? choice = await DisplayActionSheetAsync(
-                        $"{site} uses Cloudflare protection which blocks web translation services.",
-                        "Cancel",
-                        null,
-                        "Copy URL",
-                        "Open in Browser");
-
-                    if (choice == "Copy URL")
+                    string encoded      = Uri.EscapeDataString(_currentUrl);
+                    string translateUrl = $"https://translate.google.com/translate?sl=auto&tl=en&u={encoded}";
+                    try { await Launcher.Default.OpenAsync(new Uri(translateUrl)); }
+                    catch (Exception ex)
                     {
-                        await Clipboard.Default.SetTextAsync(_currentUrl);
-                        await ShowQueuedToastAsync("URL copied to clipboard!");
+                        await DisplayAlertAsync("Error", $"Could not open browser:\n{ex.Message}", "OK");
                     }
-                    else if (choice == "Open in Browser")
+                }
+                else if (choiceCf == "Copy URL")
+                {
+                    await Clipboard.Default.SetTextAsync(_currentUrl);
+                    await ShowQueuedToastAsync("URL copied to clipboard!");
+                }
+                else if (choiceCf == "Open page (browser)")
+                {
+                    try { await Launcher.Default.OpenAsync(new Uri(_currentUrl)); }
+                    catch (Exception ex)
                     {
-                        try { await Launcher.Default.OpenAsync(new Uri(_currentUrl)); }
-                        catch (Exception ex)
-                        {
-                            await DisplayAlertAsync("Error", $"Could not open browser:\n{ex.Message}", "OK");
-                        }
+                        await DisplayAlertAsync("Error", $"Could not open browser:\n{ex.Message}", "OK");
                     }
-                    return;
                 }
 
-                // Non-CF site: translate in-app via Google Translate proxy
-                string encoded      = Uri.EscapeDataString(_currentUrl);
-                string translateUrl = $"https://translate.google.com/translate?sl=auto&tl=en&u={encoded}";
-                
-                _originalUrl  = _currentUrl;
-                _isTranslated = true;
-                UpdateTranslateFabAppearance();
-                Navigate(translateUrl);
+                return;
             }
+
+            await StartGoogleProxyTranslateAsync().ConfigureAwait(true);
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] Translate error: {ex.Message}");
-            await DisplayAlertAsync("Translation Error", 
+            await DisplayAlertAsync("Translation Error",
                 $"An error occurred while translating:\n{ex.Message}", "OK");
         }
     }
 
+    private static bool IsGoogleTranslateWrapperPage(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url) || !Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            return false;
+
+        string host = uri.IdnHost ?? uri.Host;
+        return host.Equals("translate.google.com", StringComparison.OrdinalIgnoreCase)
+            || host.EndsWith(".translate.google.com", StringComparison.OrdinalIgnoreCase)
+            || host.Equals("translate.googleusercontent.com", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task StartGoogleProxyTranslateAsync()
+    {
+        TranslateEmbeddedFrameTracker.Clear();
+
+        string targetUrl = _currentUrl;
+        if (IsGoogleTranslateWrapperPage(_currentUrl))
+        {
+            var embedded = await ResolveGoogleTranslateEmbeddedOriginalAsync().ConfigureAwait(true);
+            if (!string.IsNullOrWhiteSpace(embedded))
+                targetUrl = embedded;
+            else if (TryExtractLastEmbeddedUParameter(_currentUrl, out var fromBar))
+                targetUrl = fromBar;
+        }
+
+        if (string.IsNullOrWhiteSpace(targetUrl))
+            return;
+
+        string encoded      = Uri.EscapeDataString(targetUrl);
+        string translateUrl = $"https://translate.google.com/translate?sl=auto&tl=en&u={encoded}";
+
+        _originalUrl   = targetUrl;
+        _translateMode = WebTranslateMode.GoogleProxy;
+        UpdateTranslateFabAppearance();
+        Navigate(translateUrl);
+    }
+
+    /// <summary>
+    /// Google Translate keeps the top WebView URL fixed; the real page updates inside an iframe whose <c>src</c> carries an updated <c>u=</c>.
+    /// </summary>
+    private async Task<string?> ResolveGoogleTranslateEmbeddedOriginalAsync()
+    {
+        try
+        {
+            const string collectIframeSrcJs = """
+(function(){
+  var nodes = document.querySelectorAll('iframe[src]');
+  var preferred = [];
+  var rest = [];
+  for (var i = 0; i < nodes.length; i++) {
+    var s = (nodes[i].src || '').trim();
+    if (!s) continue;
+    if (s.indexOf('translate.google') >= 0 || s.indexOf('googleusercontent') >= 0)
+      preferred.push(s);
+    else
+      rest.push(s);
+  }
+  return JSON.stringify(preferred.concat(rest));
+})()
+""";
+
+            string? raw = await SiteWebView.EvaluateJavaScriptAsync(collectIframeSrcJs).ConfigureAwait(true);
+            if (TryDeserializeJsonStringArray(UnwrapJsResultJsonString(raw), out var iframeSrcs))
+            {
+                foreach (string src in iframeSrcs)
+                {
+                    if (TryExtractLastEmbeddedUParameter(src, out var embedded))
+                        return embedded;
+                }
+            }
+
+            if (TryExtractLastEmbeddedUParameter(_currentUrl, out var fromTopBar))
+                return fromTopBar;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] ResolveGoogleTranslateEmbeddedOriginal: {ex.Message}");
+        }
+
+        return null;
+    }
+
+    private void ScheduleTranslateEmbeddedOriginalSync()
+    {
+        int gen = System.Threading.Interlocked.Increment(ref _translateEmbeddedSyncGeneration);
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(450).ConfigureAwait(false);
+                if (gen != _translateEmbeddedSyncGeneration)
+                    return;
+
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    try
+                    {
+                        if (_translateMode != WebTranslateMode.GoogleProxy)
+                            return;
+                        if (TranslateEmbeddedFrameTracker.TryGetLatest(out var t) && !string.IsNullOrWhiteSpace(t))
+                        {
+                            _originalUrl = t;
+                            return;
+                        }
+
+                        string? u = await ResolveGoogleTranslateEmbeddedOriginalAsync().ConfigureAwait(true);
+                        if (!string.IsNullOrWhiteSpace(u))
+                            _originalUrl = u;
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] ScheduleTranslateEmbeddedOriginalSync: {ex.Message}");
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] ScheduleTranslateEmbeddedOriginalSync outer: {ex.Message}");
+            }
+        });
+    }
+
+    /// <summary>Last <c>u=</c> query segment decodes to the embedded http(s) URL (Translate top URL or iframe <c>src</c>).</summary>
+    private static bool TryExtractLastEmbeddedUParameter(string? url, out string embeddedUrl)
+    {
+        embeddedUrl = "";
+        if (string.IsNullOrWhiteSpace(url))
+            return false;
+
+        MatchCollection matches = Regex.Matches(url, @"[?&]u=([^&]*)", RegexOptions.IgnoreCase);
+        if (matches.Count == 0)
+            return false;
+
+        string encVal = matches[matches.Count - 1].Groups[1].Value;
+        if (string.IsNullOrEmpty(encVal))
+            return false;
+
+        string? decoded = TryDecodeTranslateUValueToHttpUrl(encVal.Replace('+', ' '));
+        if (string.IsNullOrWhiteSpace(decoded))
+            return false;
+
+        embeddedUrl = decoded;
+        return true;
+    }
+
+    private static string? TryDecodeTranslateUValueToHttpUrl(string value)
+    {
+        string s = value;
+        for (var pass = 0; pass < 4; pass++)
+        {
+            if (Uri.TryCreate(s, UriKind.Absolute, out var uri) &&
+                (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+                return uri.ToString();
+
+            try
+            {
+                string next = Uri.UnescapeDataString(s);
+                if (next == s)
+                    return null;
+                s = next;
+            }
+            catch (UriFormatException)
+            {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool TryDeserializeJsonStringArray(string? json, out List<string> items)
+    {
+        items = new List<string>();
+        if (string.IsNullOrWhiteSpace(json))
+            return false;
+
+        json = json.Trim();
+        if (json.Length < 2 || json[0] != '[')
+            return false;
+
+        try
+        {
+            items = JsonSerializer.Deserialize<List<string>>(json) ?? new List<string>();
+            return items.Count > 0;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>MAUI/Android wraps JS results as a JSON string literal — unwrap one level.</summary>
+    private static string? UnwrapJsResultJsonString(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return null;
+
+        raw = raw.Trim();
+        if (raw.Length >= 2 && raw[0] == '"' && raw[^1] == '"')
+        {
+            try { return JsonSerializer.Deserialize<string>(raw); }
+            catch (JsonException) { /* ignore */ }
+        }
+
+        return raw;
+    }
+
     /// <summary>
     /// Updates the Translate FAB to show active/inactive state.
-    /// Active = currently translated (accent color + "Original" label).
+    /// Active = Google Translate session (accent + DON'T TRANSLATE — leaves wrapper to the current site URL).
     /// </summary>
     private void UpdateTranslateFabAppearance()
     {
-        if (_isTranslated)
+        if (IsTranslateActive)
         {
             FabTranslate.SetDynamicResource(Border.BackgroundColorProperty, "AccentContainer");
             FabTranslate.SetDynamicResource(Border.StrokeProperty, "AccentLight");
             FabTranslateIcon.SetDynamicResource(Label.TextColorProperty, "AccentLight");
             FabTranslateLabel.SetDynamicResource(Label.TextColorProperty, "AccentLight");
-            FabTranslateLabel.Text = "ORIGINAL";
+            FabTranslateLabel.Text = "DON'T TRANSLATE";
         }
         else
         {
@@ -596,6 +832,7 @@ public partial class WebBrowsePage : ContentPage
 
             _currentUrl      = e.Url;
             UrlBarLabel.Text = e.Url;
+
             UpdateDownloadFab(e.Url);
             UpdateNavigationButtons();
         }
@@ -631,6 +868,9 @@ public partial class WebBrowsePage : ContentPage
 
             _currentUrl      = e.Url;
             UrlBarLabel.Text = e.Url;
+
+            if (_translateMode == WebTranslateMode.GoogleProxy)
+                ScheduleTranslateEmbeddedOriginalSync();
 
             UpdateDownloadFab(e.Url);
             UpdateNavigationButtons();
@@ -784,8 +1024,8 @@ public partial class WebBrowsePage : ContentPage
     private void UpdateDownloadFab(string url)
     {
         // Hide Fetch/Download when in translated mode
-        // User must press ORIGINAL first to use these features
-        if (_isTranslated)
+        // User must turn off translate mode first to use these features
+        if (IsTranslateActive)
         {
             MainThread.BeginInvokeOnMainThread(() =>
             {

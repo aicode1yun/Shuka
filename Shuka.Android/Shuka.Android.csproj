@@ -44,8 +44,7 @@
 
   <!-- Android platform resources -->
   <ItemGroup>
-    <AndroidResource Include="Platforms\Android\Resources\xml\file_provider_paths.xml"
-                     SubType="Designer" />
+    <AndroidResource Include="Platforms\Android\Resources\xml\file_provider_paths.xml" SubType="Designer" />
   </ItemGroup>
 
   <!--
