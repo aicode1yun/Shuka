@@ -22,6 +22,9 @@ internal static class TranslateEmbeddedFrameTracker
         lock (Gate) { _last = url; }
     }
 
+    /// <summary>Http(s) page on a real site — not Google translate shell or a static asset.</summary>
+    public static bool IsPlausibleReaderSiteUrl(string? url) => CouldBeOriginalSitePage(url);
+
     public static bool TryGetLatest(out string? url)
     {
         lock (Gate)
@@ -55,6 +58,8 @@ internal static class TranslateEmbeddedFrameTracker
         if (host is "translate.google.com" or "translate.googleusercontent.com")
             return true;
         if (host.EndsWith(".translate.google.com", StringComparison.Ordinal))
+            return true;
+        if (host.EndsWith(".translate.goog", StringComparison.Ordinal))
             return true;
         if (host is "www.google.com" or "google.com")
             return true;

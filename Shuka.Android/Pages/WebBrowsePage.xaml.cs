@@ -56,6 +56,11 @@ public partial class WebBrowsePage : ContentPage
     /// <summary>Real page URL behind the Google Translate wrapper (updated when you follow links while translated).</summary>
     private string _originalUrl = string.Empty;
     private int    _translateEmbeddedSyncGeneration;
+    /// <summary>
+    /// Always the last real <c>e.Url</c> from WebView Navigating/Navigated (never a “hoped for” target during leave-translate).
+    /// Used with the address bar to detect if we are still on Google Translate.
+    /// </summary>
+    private string _actualWebNavigationUrl = string.Empty;
     private bool   _fabMenuExpanded = false; // tracks FAB menu state
 
     private bool IsTranslateActive => _translateMode != WebTranslateMode.None;
@@ -119,8 +124,9 @@ public partial class WebBrowsePage : ContentPage
                 System.Diagnostics.Debug.WriteLine("[WebBrowsePage] Warning: Empty startUrl, using fallback");
             }
             
-            _currentUrl = startUrl;
-            _homeUrl    = startUrl;
+            _currentUrl              = startUrl;
+            _actualWebNavigationUrl  = startUrl;
+            _homeUrl                 = startUrl;
             
             // Subscribe to WebView error events
             SiteWebView.Navigating += OnNavigating!;
@@ -321,8 +327,9 @@ public partial class WebBrowsePage : ContentPage
                 return;
             }
 
-            _currentUrl = url;
-            
+            _currentUrl             = url;
+            _actualWebNavigationUrl = url;
+
             // Update UI on main thread
             MainThread.BeginInvokeOnMainThread(() =>
             {
@@ -494,14 +501,7 @@ public partial class WebBrowsePage : ContentPage
                 // Exit Google’s translate frame: open the real site URL for what you’re reading now (not the menu you started from).
                 if (_translateMode == WebTranslateMode.GoogleProxy)
                 {
-                    // Native subframe history — iframe[src] and top u= often stay on the first chapter.
-                    string? leaveUrl = TranslateEmbeddedFrameTracker.TryGetLatest(out var tracked) ? tracked : null;
-                    if (string.IsNullOrWhiteSpace(leaveUrl))
-                        leaveUrl = await ResolveGoogleTranslateEmbeddedOriginalAsync().ConfigureAwait(true);
-                    if (string.IsNullOrWhiteSpace(leaveUrl) && TryExtractLastEmbeddedUParameter(_currentUrl, out var fromBar))
-                        leaveUrl = fromBar;
-                    if (string.IsNullOrWhiteSpace(leaveUrl))
-                        leaveUrl = _originalUrl;
+                    string? leaveUrl = SanitizeLeaveTranslateTarget(await PickBestLeaveTranslateUrlAsync().ConfigureAwait(true));
 
                     _translateMode = WebTranslateMode.None;
                     _originalUrl   = string.Empty;
@@ -509,7 +509,7 @@ public partial class WebBrowsePage : ContentPage
                     TranslateEmbeddedFrameTracker.Clear();
 
                     if (!string.IsNullOrWhiteSpace(leaveUrl))
-                        Navigate(leaveUrl);
+                        await DontTranslateReloadReaderInWebViewAsync(leaveUrl).ConfigureAwait(true);
                     else
                         await ShowQueuedToastAsync("Could not leave translate. Try Back or reload the site.");
                 }
@@ -582,7 +582,75 @@ public partial class WebBrowsePage : ContentPage
         string host = uri.IdnHost ?? uri.Host;
         return host.Equals("translate.google.com", StringComparison.OrdinalIgnoreCase)
             || host.EndsWith(".translate.google.com", StringComparison.OrdinalIgnoreCase)
-            || host.Equals("translate.googleusercontent.com", StringComparison.OrdinalIgnoreCase);
+            || host.Equals("translate.googleusercontent.com", StringComparison.OrdinalIgnoreCase)
+            || host.EndsWith(".translate.goog", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Mobile / WebView translate proxy: <c>https://www-52shuku-net.translate.goog/path?_x_tr_sl=...</c>
+    /// → <c>https://www.52shuku.net/path</c> (host: hyphens → dots; strip <c>_x_tr_*</c> query params).
+    /// </summary>
+    /// <remarks>
+    /// The decoded host matches reader domains in <c>Shuka.Core.Adapters</c> (e.g. <c>52shuku.net</c>, <c>dmxs.org</c>,
+    /// <c>czbooks.net</c>) — same sites as <see cref="BookService"/>, but we avoid adapter <c>NormalizeUrl</c> here
+    /// because it rewrites chapter URLs for downloading.
+    /// </remarks>
+    private static bool TryUnwrapTranslateGoogProxyUrl(string? url, out string originalUrl)
+    {
+        originalUrl = "";
+        if (string.IsNullOrWhiteSpace(url) || !Uri.TryCreate(url.Trim(), UriKind.Absolute, out var uri))
+            return false;
+
+        if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+            return false;
+
+        var host = (uri.IdnHost ?? uri.Host).ToLowerInvariant();
+        const string googSuffix = ".translate.goog";
+        if (!host.EndsWith(googSuffix, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        string encodedHost = host[..^googSuffix.Length];
+        if (string.IsNullOrEmpty(encodedHost))
+            return false;
+
+        string realHost = encodedHost.Replace('-', '.');
+        if (string.IsNullOrEmpty(realHost))
+            return false;
+
+        var kept = new List<string>();
+        string q = uri.Query;
+        if (!string.IsNullOrEmpty(q) && q[0] == '?')
+            q = q[1..];
+
+        if (!string.IsNullOrEmpty(q))
+        {
+            foreach (var part in q.Split('&', StringSplitOptions.RemoveEmptyEntries))
+            {
+                int eq = part.IndexOf('=');
+                string name = eq >= 0 ? part[..eq] : part;
+                if (name.StartsWith("_x_tr_", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                kept.Add(part);
+            }
+        }
+
+        try
+        {
+            var ub = new UriBuilder(uri)
+            {
+                Host = realHost,
+            };
+
+            ub.Query = kept.Count > 0 ? string.Join("&", kept) : string.Empty;
+
+            originalUrl = ub.Uri.AbsoluteUri;
+            return Uri.TryCreate(originalUrl, UriKind.Absolute, out var ok)
+                && (ok.Scheme == Uri.UriSchemeHttp || ok.Scheme == Uri.UriSchemeHttps);
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private async Task StartGoogleProxyTranslateAsync()
@@ -592,11 +660,12 @@ public partial class WebBrowsePage : ContentPage
         string targetUrl = _currentUrl;
         if (IsGoogleTranslateWrapperPage(_currentUrl))
         {
-            var embedded = await ResolveGoogleTranslateEmbeddedOriginalAsync().ConfigureAwait(true);
-            if (!string.IsNullOrWhiteSpace(embedded))
-                targetUrl = embedded;
-            else if (TryExtractLastEmbeddedUParameter(_currentUrl, out var fromBar))
-                targetUrl = fromBar;
+            var acc = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            await AddLeaveCandidatesFromTranslateDomAsync(acc).ConfigureAwait(true);
+            AddLeaveCandidatesFromString(_currentUrl, acc);
+            var best = PickLongestLeaveTarget(acc);
+            if (!string.IsNullOrWhiteSpace(best))
+                targetUrl = best;
         }
 
         if (string.IsNullOrWhiteSpace(targetUrl))
@@ -612,48 +681,332 @@ public partial class WebBrowsePage : ContentPage
     }
 
     /// <summary>
-    /// Google Translate keeps the top WebView URL fixed; the real page updates inside an iframe whose <c>src</c> carries an updated <c>u=</c>.
+    /// Collects every <c>u=</c> target and direct reader URL, then picks the <b>longest</b> plausible site URL
+    /// so e.g. <c>/gl/09_b/bkdLu.html</c> wins over <c>/gl/</c> when both appear (52shuku + Google Translate).
     /// </summary>
-    private async Task<string?> ResolveGoogleTranslateEmbeddedOriginalAsync()
+    private async Task<string?> PickBestLeaveTranslateUrlAsync()
     {
+        string? bar = GetAddressBarUrlForLeave();
+        var acc = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         try
         {
-            const string collectIframeSrcJs = """
-(function(){
-  var nodes = document.querySelectorAll('iframe[src]');
-  var preferred = [];
-  var rest = [];
-  for (var i = 0; i < nodes.length; i++) {
-    var s = (nodes[i].src || '').trim();
-    if (!s) continue;
-    if (s.indexOf('translate.google') >= 0 || s.indexOf('googleusercontent') >= 0)
-      preferred.push(s);
-    else
-      rest.push(s);
-  }
-  return JSON.stringify(preferred.concat(rest));
-})()
-""";
-
-            string? raw = await SiteWebView.EvaluateJavaScriptAsync(collectIframeSrcJs).ConfigureAwait(true);
-            if (TryDeserializeJsonStringArray(UnwrapJsResultJsonString(raw), out var iframeSrcs))
-            {
-                foreach (string src in iframeSrcs)
-                {
-                    if (TryExtractLastEmbeddedUParameter(src, out var embedded))
-                        return embedded;
-                }
-            }
-
-            if (TryExtractLastEmbeddedUParameter(_currentUrl, out var fromTopBar))
-                return fromTopBar;
+            if (TranslateEmbeddedFrameTracker.TryGetLatest(out var tracked))
+                AddLeaveCandidatesFromString(tracked, acc);
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] ResolveGoogleTranslateEmbeddedOriginal: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] PickBestLeaveTranslateUrl tracker: {ex.Message}");
         }
 
+        try
+        {
+            await AddLeaveCandidatesFromTranslateDomAsync(acc).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] PickBestLeaveTranslateUrl dom: {ex.Message}");
+        }
+
+        string? topJsHref = null;
+        try
+        {
+            string? topRaw = await SiteWebView.EvaluateJavaScriptAsync("window.location.href").ConfigureAwait(true);
+            topJsHref = UnwrapJsResultJsonString(topRaw);
+            AddLeaveCandidatesFromString(topJsHref, acc);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] PickBestLeaveTranslateUrl top href: {ex.Message}");
+        }
+
+        AddLeaveCandidatesFromString(bar, acc);
+        AddLeaveCandidatesFromString(_currentUrl, acc);
+        AddLeaveCandidatesFromString(UrlBarLabel.Text, acc);
+        AddLeaveCandidatesFromString(_originalUrl, acc);
+
+        var best = PickLongestLeaveTarget(acc);
+        if (!string.IsNullOrWhiteSpace(best))
+            return best;
+
+        return FallbackDecodeFromTranslateWrapper(bar)
+            ?? FallbackDecodeFromTranslateWrapper(_currentUrl)
+            ?? FallbackDecodeFromTranslateWrapper(topJsHref)
+            ?? (TranslateEmbeddedFrameTracker.IsPlausibleReaderSiteUrl(_originalUrl) ? _originalUrl : null)
+            ?? (IsLeaveTargetRelaxed(_originalUrl) ? _originalUrl : null);
+    }
+
+    /// <summary>What the user sees in the URL bar (label can be fresher than <see cref="_currentUrl"/> on some navigations).</summary>
+    private string? GetAddressBarUrlForLeave()
+    {
+        try
+        {
+            string? label = UrlBarLabel.Text?.Trim();
+            if (!string.IsNullOrWhiteSpace(label) &&
+                (label.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                 label.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
+                return label;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] GetAddressBarUrlForLeave label: {ex.Message}");
+        }
+
+        string? cur = _currentUrl?.Trim();
+        if (!string.IsNullOrWhiteSpace(cur))
+            return cur;
+
         return null;
+    }
+
+    private async Task AddLeaveCandidatesFromTranslateDomAsync(HashSet<string> acc)
+    {
+        const string collectRawJs = """
+(function(){
+  var out = [];
+  function push(s) {
+    if (!s) return;
+    s = String(s).trim();
+    if (!s) return;
+    if (out.indexOf(s) < 0) out.push(s);
+  }
+  var ifs = document.querySelectorAll('iframe');
+  for (var i = 0; i < ifs.length; i++) {
+    var f = ifs[i];
+    try {
+      if (f.contentWindow && f.contentWindow.location && f.contentWindow.location.href)
+        push(f.contentWindow.location.href);
+    } catch (e) {}
+    push(f.src || '');
+  }
+  if (window.location && window.location.href) push(window.location.href);
+  return JSON.stringify({ raw: out });
+})()
+""";
+
+        string? raw = await SiteWebView.EvaluateJavaScriptAsync(collectRawJs).ConfigureAwait(true);
+        string? json = UnwrapJsResultJsonString(raw)?.Trim();
+        if (string.IsNullOrEmpty(json))
+            return;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("raw", out var arr) || arr.ValueKind != JsonValueKind.Array)
+                return;
+
+            foreach (var el in arr.EnumerateArray())
+            {
+                string? s = el.GetString();
+                AddLeaveCandidatesFromString(s, acc);
+            }
+        }
+        catch (JsonException ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] AddLeaveCandidatesFromTranslateDom parse: {ex.Message}");
+        }
+    }
+
+    /// <summary>Pulls every decoded <c>u=</c> chain plus the string itself if it is already a reader URL.</summary>
+    private static void AddLeaveCandidatesFromString(string? blob, HashSet<string> acc, int depth = 0)
+    {
+        if (depth > 8 || string.IsNullOrWhiteSpace(blob))
+            return;
+
+        blob = blob.Trim();
+        if (TryUnwrapTranslateGoogProxyUrl(blob, out var fromGoog))
+        {
+            acc.Add(fromGoog);
+            AddLeaveCandidatesFromString(fromGoog, acc, depth + 1);
+        }
+
+        foreach (Match m in Regex.Matches(blob, @"[?&]u=([^&]*)", RegexOptions.IgnoreCase))
+        {
+            string enc = m.Groups[1].Value;
+            if (string.IsNullOrEmpty(enc))
+                continue;
+
+            string? dec = TryDecodeTranslateUValueToHttpUrl(enc.Replace('+', ' '));
+            if (string.IsNullOrWhiteSpace(dec))
+                continue;
+
+            acc.Add(dec);
+            AddLeaveCandidatesFromString(dec, acc, depth + 1);
+        }
+
+        if (TranslateEmbeddedFrameTracker.IsPlausibleReaderSiteUrl(blob))
+            acc.Add(blob);
+    }
+
+    private static string? PickLongestLeaveTarget(HashSet<string> acc)
+    {
+        IEnumerable<string> NonShell(IEnumerable<string> q) =>
+            q.Where(s => !IsGoogleTranslateWrapperPage(s) && !IsGoogleSearchOrRedirectShell(s));
+
+        var strict = NonShell(acc.Where(TranslateEmbeddedFrameTracker.IsPlausibleReaderSiteUrl))
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var pool = strict.Count > 0
+            ? strict
+            : NonShell(acc.Where(IsLeaveTargetRelaxed)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (pool.Count == 0)
+            return null;
+
+        return pool
+            .OrderByDescending(u => u.Length)
+            .ThenByDescending(u => Uri.TryCreate(u, UriKind.Absolute, out var x) ? x.AbsolutePath.Length : 0)
+            .First();
+    }
+
+    /// <summary>Never “leave” to another Google translate/search URL — that keeps the WebView in translate mode.</summary>
+    private static bool IsGoogleSearchOrRedirectShell(string? u)
+    {
+        if (string.IsNullOrWhiteSpace(u) || !Uri.TryCreate(u.Trim(), UriKind.Absolute, out var x))
+            return false;
+
+        var h = (x.IdnHost ?? x.Host).ToLowerInvariant();
+        if (h is "google.com" or "www.google.com")
+            return true;
+        if (h.EndsWith(".googleusercontent.com", StringComparison.Ordinal))
+            return true;
+        if (h.EndsWith(".gstatic.com", StringComparison.Ordinal))
+            return true;
+
+        return false;
+    }
+
+    /// <summary>Unwrap nested translate wrappers until we have a normal site URL (or null).</summary>
+    private static string? SanitizeLeaveTranslateTarget(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+            return null;
+
+        url = url.Trim();
+        if (TryUnwrapTranslateGoogProxyUrl(url, out var googUnwrapped))
+            url = googUnwrapped;
+
+        for (var i = 0; i < 6 && (IsGoogleTranslateWrapperPage(url) || IsGoogleSearchOrRedirectShell(url)); i++)
+        {
+            string? next = FallbackDecodeFromTranslateWrapper(url);
+            if (string.IsNullOrWhiteSpace(next) && TryExtractLastEmbeddedUParameter(url, out var one))
+                next = one;
+            if (string.IsNullOrWhiteSpace(next) || string.Equals(next.Trim(), url, StringComparison.OrdinalIgnoreCase))
+                return null;
+            url = next.Trim();
+        }
+
+        if (IsGoogleTranslateWrapperPage(url) || IsGoogleSearchOrRedirectShell(url))
+            return null;
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var u) || (u.Scheme != Uri.UriSchemeHttp && u.Scheme != Uri.UriSchemeHttps))
+            return null;
+
+        return BookService.EnsureHttpsIfKnownReaderSite(url);
+    }
+
+    private void HideLeaveTranslateOverlay()
+    {
+        LeaveOriginalSpinner.IsRunning  = false;
+        LeaveOriginalOverlay.IsVisible = false;
+        LeaveOriginalSubtitle.Text       = "";
+    }
+
+    /// <summary>Loads the sanitized reader URL in the WebView only (no external browser).</summary>
+    private async Task DontTranslateReloadReaderInWebViewAsync(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+            return;
+
+        url = BookService.EnsureHttpsIfKnownReaderSite(url.Trim());
+
+        HideLeaveTranslateOverlay();
+
+        await MainThread.InvokeOnMainThreadAsync(() =>
+        {
+            try
+            {
+                LoadingBar.IsVisible = true;
+                LoadingBar.Progress  = 0;
+                _ = AnimateLoadingBarAsync();
+
+#if ANDROID
+                if (SiteWebView.Handler?.PlatformView is global::Android.Webkit.WebView wv)
+                {
+                    try
+                    {
+                        wv.StopLoading();
+                        wv.LoadUrl(url);
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] DontTranslate ReloadWeb LoadUrl: {ex.Message}");
+                    }
+                }
+#endif
+                SiteWebView.Source             = new UrlWebViewSource { Url = url };
+                _currentUrl                    = url;
+                _actualWebNavigationUrl        = url;
+                UrlBarLabel.Text               = url;
+                UpdateDownloadFab(url);
+                UpdateNavigationButtons();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] DontTranslateReload UI: {ex.Message}");
+                ShowNavigationError("Navigation Error", "Could not reload reader.");
+            }
+        }).ConfigureAwait(true);
+
+        await ShowQueuedToastAsync("Left translate — showing the original page here.");
+    }
+
+    /// <summary>Http(s) target that is not Google’s translate hostname (looser than <see cref="TranslateEmbeddedFrameTracker.IsPlausibleReaderSiteUrl"/>).</summary>
+    private static bool IsLeaveTargetRelaxed(string? u)
+    {
+        if (string.IsNullOrWhiteSpace(u))
+            return false;
+        if (!Uri.TryCreate(u.Trim(), UriKind.Absolute, out var x))
+            return false;
+        if (x.Scheme != Uri.UriSchemeHttp && x.Scheme != Uri.UriSchemeHttps)
+            return false;
+
+        var h = (x.IdnHost ?? x.Host).ToLowerInvariant();
+        if (h.Contains("translate.google", StringComparison.Ordinal))
+            return false;
+        if (h is "translate.googleusercontent.com")
+            return false;
+        if (IsGoogleSearchOrRedirectShell(u))
+            return false;
+
+        return true;
+    }
+
+    /// <summary>Decode every <c>u=</c> from a translate wrapper URL and pick the longest usable target.</summary>
+    private static string? FallbackDecodeFromTranslateWrapper(string? wrapperUrl)
+    {
+        if (string.IsNullOrWhiteSpace(wrapperUrl))
+            return null;
+
+        var decoded = new List<string>();
+        foreach (Match m in Regex.Matches(wrapperUrl.Trim(), @"[?&]u=([^&]*)", RegexOptions.IgnoreCase))
+        {
+            string? d = TryDecodeTranslateUValueToHttpUrl(m.Groups[1].Value.Replace('+', ' '));
+            if (!string.IsNullOrWhiteSpace(d))
+                decoded.Add(d!);
+        }
+
+        if (decoded.Count == 0)
+            return null;
+
+        var strict = decoded.Where(TranslateEmbeddedFrameTracker.IsPlausibleReaderSiteUrl).ToList();
+        var pool = strict.Count > 0 ? strict : decoded.Where(IsLeaveTargetRelaxed).ToList();
+        if (pool.Count == 0)
+            return null;
+
+        var picked = pool
+            .OrderByDescending(u => u.Length)
+            .ThenByDescending(u => Uri.TryCreate(u, UriKind.Absolute, out var x) ? x.AbsolutePath.Length : 0)
+            .First();
+
+        return IsGoogleTranslateWrapperPage(picked) || IsGoogleSearchOrRedirectShell(picked) ? null : picked;
     }
 
     private void ScheduleTranslateEmbeddedOriginalSync()
@@ -673,15 +1026,14 @@ public partial class WebBrowsePage : ContentPage
                     {
                         if (_translateMode != WebTranslateMode.GoogleProxy)
                             return;
-                        if (TranslateEmbeddedFrameTracker.TryGetLatest(out var t) && !string.IsNullOrWhiteSpace(t))
-                        {
-                            _originalUrl = t;
-                            return;
-                        }
-
-                        string? u = await ResolveGoogleTranslateEmbeddedOriginalAsync().ConfigureAwait(true);
-                        if (!string.IsNullOrWhiteSpace(u))
-                            _originalUrl = u;
+                        var acc = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        if (TranslateEmbeddedFrameTracker.TryGetLatest(out var t))
+                            AddLeaveCandidatesFromString(t, acc);
+                        await AddLeaveCandidatesFromTranslateDomAsync(acc).ConfigureAwait(true);
+                        AddLeaveCandidatesFromString(_currentUrl, acc);
+                        var best = PickLongestLeaveTarget(acc);
+                        if (!string.IsNullOrWhiteSpace(best))
+                            _originalUrl = best;
                     }
                     catch (Exception ex)
                     {
@@ -742,27 +1094,6 @@ public partial class WebBrowsePage : ContentPage
         }
 
         return null;
-    }
-
-    private static bool TryDeserializeJsonStringArray(string? json, out List<string> items)
-    {
-        items = new List<string>();
-        if (string.IsNullOrWhiteSpace(json))
-            return false;
-
-        json = json.Trim();
-        if (json.Length < 2 || json[0] != '[')
-            return false;
-
-        try
-        {
-            items = JsonSerializer.Deserialize<List<string>>(json) ?? new List<string>();
-            return items.Count > 0;
-        }
-        catch (JsonException)
-        {
-            return false;
-        }
     }
 
     /// <summary>MAUI/Android wraps JS results as a JSON string literal — unwrap one level.</summary>
@@ -830,10 +1161,11 @@ public partial class WebBrowsePage : ContentPage
             LoadingBar.Progress  = 0;
             _ = AnimateLoadingBarAsync();
 
-            _currentUrl      = e.Url;
-            UrlBarLabel.Text = e.Url;
+            _actualWebNavigationUrl = e.Url ?? string.Empty;
+            _currentUrl             = e.Url ?? string.Empty;
+            UrlBarLabel.Text        = _currentUrl;
 
-            UpdateDownloadFab(e.Url);
+            UpdateDownloadFab(_currentUrl);
             UpdateNavigationButtons();
         }
         catch (Exception ex)
@@ -866,13 +1198,14 @@ public partial class WebBrowsePage : ContentPage
                 return;
             }
 
-            _currentUrl      = e.Url;
-            UrlBarLabel.Text = e.Url;
+            _actualWebNavigationUrl = e.Url ?? string.Empty;
+            _currentUrl             = e.Url ?? string.Empty;
+            UrlBarLabel.Text        = _currentUrl;
 
             if (_translateMode == WebTranslateMode.GoogleProxy)
                 ScheduleTranslateEmbeddedOriginalSync();
 
-            UpdateDownloadFab(e.Url);
+            UpdateDownloadFab(_currentUrl);
             UpdateNavigationButtons();
 
             // Inject ad blocker cosmetic filter from MAUI layer as well,

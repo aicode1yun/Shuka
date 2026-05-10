@@ -132,6 +132,33 @@
                          HeightRequest="3"
                          IsVisible="False" />
 
+            <!-- Full-page spinner while escaping Google Translate (no about:blank dead time) -->
+            <Grid x:Name="LeaveOriginalOverlay"
+                  IsVisible="False"
+                  BackgroundColor="#99101010">
+                <VerticalStackLayout VerticalOptions="Center"
+                                     HorizontalOptions="Center"
+                                     Spacing="12"
+                                     Margin="32">
+                    <ActivityIndicator x:Name="LeaveOriginalSpinner"
+                                       IsRunning="True"
+                                       Color="{DynamicResource AccentLight}"
+                                       HorizontalOptions="Center"
+                                       WidthRequest="40"
+                                       HeightRequest="40" />
+                    <Label Text="Opening original page…"
+                           TextColor="{DynamicResource TextPrimary}"
+                           FontSize="13"
+                           HorizontalTextAlignment="Center" />
+                    <Label x:Name="LeaveOriginalSubtitle"
+                           FontSize="10"
+                           TextColor="{DynamicResource TextMuted}"
+                           HorizontalTextAlignment="Center"
+                           MaxLines="3"
+                           LineBreakMode="MiddleTruncation" />
+                </VerticalStackLayout>
+            </Grid>
+
             <!-- FABs — bottom-right corner, collapsible menu -->
             <VerticalStackLayout x:Name="FabContainer"
                                  HorizontalOptions="End"

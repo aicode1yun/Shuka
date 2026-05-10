@@ -16,6 +16,29 @@ public class BookService
     private static readonly ISiteAdapter[] Adapters =
         [new ShukuAdapter(), new CzBooksAdapter(), new DmxsAdapter(), new ShubaAdapter(), new QuanbenAdapter()];
 
+    /// <summary>
+    /// Upgrades <c>http://</c> to <c>https://</c> when the URL matches a known reader site.
+    /// Does not change paths: <see cref="ISiteAdapter.NormalizeUrl"/> is for the download pipeline and often
+    /// redirects chapter URLs to the book index, which would be wrong while browsing.
+    /// </summary>
+    public static string EnsureHttpsIfKnownReaderSite(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+            return url;
+
+        string t = url.Trim();
+        if (!t.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+            return url;
+
+        foreach (var a in Adapters)
+        {
+            if (a.Matches(t))
+                return "https://" + t[7..];
+        }
+
+        return url;
+    }
+
     public BookService(ICloudflareBypass? cfBypass = null)
     {
         _fetcher = new HttpFetcher(cfBypass);

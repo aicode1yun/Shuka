@@ -182,9 +182,6 @@ internal sealed class ShukaAdWebViewClient(WebViewClient inner) : WebViewClient
     public override WebResourceResponse? ShouldInterceptRequest(AWebView? view, IWebResourceRequest? request)
     {
 #pragma warning disable CA1416
-        if (Build.VERSION.SdkInt >= BuildVersionCodes.N)
-            TryNoteSubFrameDocumentRequest(request);
-
         var url = request?.Url?.ToString();
         if (!string.IsNullOrEmpty(url) &&
             AdBlockerService.Instance.IsEnabled &&
@@ -201,16 +198,16 @@ internal sealed class ShukaAdWebViewClient(WebViewClient inner) : WebViewClient
 #pragma warning restore CA1416
     }
 
-    /// <summary>Navigation intents for child frames (e.g. Google Translate content iframe).</summary>
+    /// <summary>
+    /// Subframe navigations (e.g. taps inside Google Translate’s content iframe). Prefetch rarely uses this callback;
+    /// <see cref="ShouldInterceptRequest"/> is not used for tracking to avoid prerender/prefetch HTML stealing the URL.
+    /// Translate often reports <c>HasGesture=false</c> here, so we do not gate on gesture.
+    /// </summary>
     private static void TryNoteSubFrameSiteUrl(IWebResourceRequest? request)
     {
         try
         {
             if (Build.VERSION.SdkInt < BuildVersionCodes.N || request == null || request.IsForMainFrame)
-                return;
-
-            // Novel sites often prefetch the next chapter in a hidden iframe; those requests are not user-initiated.
-            if (!RequestAppearsUserInitiated(request))
                 return;
 
             TranslateEmbeddedFrameTracker.NoteUrlIfEmbeddedSite(request.Url?.ToString());
@@ -219,69 +216,6 @@ internal sealed class ShukaAdWebViewClient(WebViewClient inner) : WebViewClient
         {
             System.Diagnostics.Debug.WriteLine($"[ShukaAdWebView] TryNoteSubFrameSiteUrl: {ex.Message}");
         }
-    }
-
-    /// <summary>
-    /// Subframe document loads often skip <see cref="ShouldOverrideUrlLoading"/>; <c>Accept: text/html</c> filters out XHR/assets.
-    /// </summary>
-    private static void TryNoteSubFrameDocumentRequest(IWebResourceRequest? request)
-    {
-        try
-        {
-            if (request == null || request.IsForMainFrame)
-                return;
-
-            if (!RequestHeadersSuggestHtml(request))
-                return;
-
-            if (!RequestAppearsUserInitiated(request))
-                return;
-
-            TranslateEmbeddedFrameTracker.NoteUrlIfEmbeddedSite(request.Url?.ToString());
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"[ShukaAdWebView] TryNoteSubFrameDocumentRequest: {ex.Message}");
-        }
-    }
-
-    /// <summary>Ignore prefetch / prerender / background iframe navigations (common on chapter readers).</summary>
-    private static bool RequestAppearsUserInitiated(IWebResourceRequest request)
-    {
-        try
-        {
-            if (Build.VERSION.SdkInt >= BuildVersionCodes.M && !request.HasGesture)
-                return false;
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"[ShukaAdWebView] RequestAppearsUserInitiated: {ex.Message}");
-        }
-
-        return true;
-    }
-
-    private static bool RequestHeadersSuggestHtml(IWebResourceRequest request)
-    {
-        try
-        {
-            var headers = request.RequestHeaders;
-            if (headers == null)
-                return false;
-
-            foreach (var e in headers)
-            {
-                if (e.Key.Equals("Accept", StringComparison.OrdinalIgnoreCase) &&
-                    e.Value.Contains("text/html", StringComparison.OrdinalIgnoreCase))
-                    return true;
-            }
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"[ShukaAdWebView] RequestHeadersSuggestHtml: {ex.Message}");
-        }
-
-        return false;
     }
 }
 
