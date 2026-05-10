@@ -21,6 +21,8 @@ namespace Shuka.Android;
 public class MainActivity : MauiAppCompatActivity
 {
     public static MainActivity? Instance { get; private set; }
+    private int _persistentTabBarHeightPx;
+    private int _systemNavBarInsetPx;
 
     // Folder picker support
     public const int FolderPickerRequestCode = 9001;
@@ -145,6 +147,7 @@ public class MainActivity : MauiAppCompatActivity
 
             float density  = Resources!.DisplayMetrics!.Density;
             int   tabBarPx = (int)(72 * density);
+            _persistentTabBarHeightPx = tabBarPx;
 
             var lp = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MatchParent,
@@ -155,19 +158,21 @@ public class MainActivity : MauiAppCompatActivity
 
             // Apply window insets so the tab bar sits above the system nav bar,
             // not behind it. This handles both gesture nav and 3-button nav.
-            ViewCompat.SetOnApplyWindowInsetsListener(nativeTabBar, new WindowInsetsCallback(lp, nativeTabBar, tabBarPx));
+            ViewCompat.SetOnApplyWindowInsetsListener(nativeTabBar, new WindowInsetsCallback(this, lp, nativeTabBar, tabBarPx));
         }
         catch { /* never crash on tab bar setup */ }
     }
 
     private sealed class WindowInsetsCallback : Java.Lang.Object, AndroidX.Core.View.IOnApplyWindowInsetsListener
     {
+        private readonly MainActivity _activity;
         private readonly FrameLayout.LayoutParams _lp;
         private readonly global::Android.Views.View _view;
         private readonly int _tabBarPx;
 
-        public WindowInsetsCallback(FrameLayout.LayoutParams lp, global::Android.Views.View view, int tabBarPx)
+        public WindowInsetsCallback(MainActivity activity, FrameLayout.LayoutParams lp, global::Android.Views.View view, int tabBarPx)
         {
+            _activity = activity;
             _lp       = lp;
             _view     = view;
             _tabBarPx = tabBarPx;
@@ -181,6 +186,7 @@ public class MainActivity : MauiAppCompatActivity
 
             var navInsets    = insets!.GetInsets(AndroidX.Core.View.WindowInsetsCompat.Type.SystemBars());
             int navBarHeight = navInsets?.Bottom ?? 0;
+            _activity._systemNavBarInsetPx = navBarHeight;
 
             // Sit the tab bar just above the system navigation bar
             _lp.BottomMargin       = navBarHeight;
@@ -189,6 +195,17 @@ public class MainActivity : MauiAppCompatActivity
 
             return insets;
         }
+    }
+
+    /// <summary>
+    /// Returns a recommended bottom inset (in MAUI dips) for overlays that should sit
+    /// above the persistent tab bar and system navigation bar.
+    /// </summary>
+    public double GetOverlayBottomInsetDip(double extraDip = 16)
+    {
+        float density = Resources?.DisplayMetrics?.Density ?? 1f;
+        double insetDip = (_persistentTabBarHeightPx + _systemNavBarInsetPx) / density;
+        return insetDip + extraDip;
     }
 
     public override void OnWindowFocusChanged(bool hasFocus)

@@ -8,11 +8,18 @@ namespace Shuka.Android.Pages;
 /// </summary>
 public partial class BookmarksPage : ContentPage
 {
+    private static readonly string[] _predefinedTags =
+        { "Downloaded", "Reading", "Completed", "Favorite", "To Read" };
+
     private readonly string? _filterSiteName;
     private bool _selectMode = false;
     private readonly HashSet<string> _selectedUrls = new();
     private string _searchQuery = "";
     private string _sortFilter = "latest"; // latest, chapters
+    private bool _isTagSheetOpen;
+    private BookmarkItem? _tagSheetBookmark;
+    private bool _isRemoveBookmarkSheetOpen;
+    private BookmarkItem? _removeBookmarkTarget;
 
     /// <summary>
     /// Creates a bookmarks page showing all bookmarks or filtered by site.
@@ -34,7 +41,14 @@ public partial class BookmarksPage : ContentPage
     protected override void OnAppearing()
     {
         base.OnAppearing();
+        UpdateSheetBottomMargins();
         BuildBookmarksList();
+    }
+
+    protected override void OnSizeAllocated(double width, double height)
+    {
+        base.OnSizeAllocated(width, height);
+        UpdateSheetBottomMargins();
     }
 
     private async void OnBackTapped(object sender, TappedEventArgs e)
@@ -448,14 +462,7 @@ public partial class BookmarksPage : ContentPage
 
             actionsStack.Add(CreateActionButton("\uE872", "Remove", async () =>
             {
-                bool confirm = await DisplayAlertAsync("Remove Bookmark",
-                    $"Remove \"{bookmark.Title}\" from bookmarks?",
-                    "Remove", "Cancel");
-                if (confirm)
-                {
-                    BookmarkService.Instance.RemoveBookmark(bookmark.Url);
-                    BuildBookmarksList();
-                }
+                await ShowRemoveBookmarkSheetAsync(bookmark);
             }, isDestructive: true));
 
             actionButtons = actionsStack;
@@ -817,56 +824,8 @@ public partial class BookmarksPage : ContentPage
 
     private async Task ShowTagDialogAsync(BookmarkItem bookmark)
     {
-        var predefinedTags = new[] { "Downloaded", "Reading", "Completed", "Favorite", "To Read" };
-        var currentTags = bookmark.Tags.ToList();
-
-        var options = predefinedTags
-            .Select(tag => currentTags.Contains(tag) ? $"✓ {tag}" : tag)
-            .Concat(new[] { "Add Custom Tag..." })
-            .ToArray();
-
-        string? choice = await DisplayActionSheetAsync(
-            $"Tags for {bookmark.Title}",
-            "Done",
-            currentTags.Count > 0 ? "Clear All Tags" : null,
-            options);
-
-        if (choice == null || choice == "Done")
-            return;
-
-        if (choice == "Clear All Tags")
-        {
-            BookmarkService.Instance.UpdateBookmarkTags(bookmark.Url, new List<string>());
-            BuildBookmarksList();
-            return;
-        }
-
-        if (choice == "Add Custom Tag...")
-        {
-            string? customTag = await DisplayPromptAsync("Add Tag",
-                "Enter a custom tag:",
-                "Add", "Cancel",
-                maxLength: 20);
-
-            if (!string.IsNullOrWhiteSpace(customTag))
-            {
-                BookmarkService.Instance.AddTag(bookmark.Url, customTag.Trim());
-                BuildBookmarksList();
-            }
-            return;
-        }
-
-        // Toggle predefined tag
-        string tag = choice.TrimStart('✓', ' ');
-        if (currentTags.Contains(tag))
-        {
-            BookmarkService.Instance.RemoveTag(bookmark.Url, tag);
-        }
-        else
-        {
-            BookmarkService.Instance.AddTag(bookmark.Url, tag);
-        }
-        BuildBookmarksList();
+        _tagSheetBookmark = bookmark;
+        await ShowTagSheetAsync();
     }
 
     // ── Download helper ───────────────────────────────────────────────────────
@@ -921,5 +880,245 @@ public partial class BookmarksPage : ContentPage
             return $"{(int)(diff.TotalDays / 7)}w ago";
         
         return date.ToString("MMM d, yyyy");
+    }
+
+    private void BuildTagSheetOptions()
+    {
+        if (_tagSheetBookmark == null)
+            return;
+
+        TagSheetOptionsList.Clear();
+        TagSheetSubtitle.Text = _tagSheetBookmark.Title;
+        TagSheetClearAllBtn.IsVisible = _tagSheetBookmark.Tags.Count > 0;
+
+        foreach (var tag in _predefinedTags)
+        {
+            bool selected = _tagSheetBookmark.Tags.Contains(tag);
+
+            var row = new Border
+            {
+                StrokeThickness = 1,
+                Padding = new Thickness(12, 10),
+                StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 14 },
+            };
+            row.SetDynamicResource(Border.BackgroundColorProperty, selected ? "AccentContainer" : "BgInput");
+            row.SetDynamicResource(Border.StrokeProperty, selected ? "AccentLight" : "Stroke");
+
+            var grid = new Grid
+            {
+                ColumnDefinitions = new ColumnDefinitionCollection
+                {
+                    new ColumnDefinition(GridLength.Auto),
+                    new ColumnDefinition(GridLength.Star),
+                    new ColumnDefinition(GridLength.Auto)
+                },
+                ColumnSpacing = 10
+            };
+
+            var icon = new Label
+            {
+                Text = selected ? "\uE876" : "\uE835", // check_box / check_box_outline_blank
+                FontFamily = "MaterialSymbols",
+                FontSize = 18,
+                VerticalOptions = LayoutOptions.Center
+            };
+            icon.SetDynamicResource(Label.TextColorProperty, selected ? "AccentLight" : "TextMuted");
+
+            var title = new Label
+            {
+                Text = tag,
+                FontSize = 13,
+                FontAttributes = FontAttributes.Bold,
+                VerticalOptions = LayoutOptions.Center
+            };
+            title.SetDynamicResource(Label.TextColorProperty, selected ? "AccentLight" : "TextPrimary");
+
+            var chevron = new Label
+            {
+                Text = "\uE5CC",
+                FontFamily = "MaterialSymbols",
+                FontSize = 18,
+                VerticalOptions = LayoutOptions.Center
+            };
+            chevron.SetDynamicResource(Label.TextColorProperty, selected ? "AccentLight" : "TextMuted");
+
+            grid.Add(icon, 0, 0);
+            grid.Add(title, 1, 0);
+            grid.Add(chevron, 2, 0);
+            row.Content = grid;
+            row.GestureRecognizers.Add(new TapGestureRecognizer
+            {
+                Command = new Command(() => ToggleTag(tag))
+            });
+
+            TagSheetOptionsList.Add(row);
+        }
+    }
+
+    private void ToggleTag(string tag)
+    {
+        if (_tagSheetBookmark == null)
+            return;
+
+        if (_tagSheetBookmark.Tags.Contains(tag))
+            BookmarkService.Instance.RemoveTag(_tagSheetBookmark.Url, tag);
+        else
+            BookmarkService.Instance.AddTag(_tagSheetBookmark.Url, tag);
+
+        // Refresh current bookmark snapshot and UI.
+        _tagSheetBookmark = BookmarkService.Instance.Bookmarks
+            .FirstOrDefault(b => b.Url == _tagSheetBookmark.Url) ?? _tagSheetBookmark;
+        BuildTagSheetOptions();
+        BuildBookmarksList();
+    }
+
+    private async Task ShowTagSheetAsync()
+    {
+        if (_isTagSheetOpen || _tagSheetBookmark == null)
+            return;
+
+        _isTagSheetOpen = true;
+        BuildTagSheetOptions();
+        TagSheetOverlay.IsVisible = true;
+        TagSheetOverlay.Opacity = 0;
+        TagSheet.Opacity = 0;
+        TagSheet.TranslationY = 28;
+
+        await Task.WhenAll(
+            TagSheetOverlay.FadeToAsync(1, 160, Easing.CubicOut),
+            TagSheet.FadeToAsync(1, 180, Easing.CubicOut),
+            TagSheet.TranslateToAsync(0, 0, 180, Easing.CubicOut));
+    }
+
+    private async Task HideTagSheetAsync()
+    {
+        if (!_isTagSheetOpen)
+            return;
+
+        _isTagSheetOpen = false;
+        await Task.WhenAll(
+            TagSheet.FadeToAsync(0, 140, Easing.CubicIn),
+            TagSheet.TranslateToAsync(0, 24, 140, Easing.CubicIn),
+            TagSheetOverlay.FadeToAsync(0, 140, Easing.CubicIn));
+        TagSheetOverlay.IsVisible = false;
+        _tagSheetBookmark = null;
+    }
+
+    private async void OnTagSheetOverlayTapped(object sender, TappedEventArgs e)
+    {
+        await HideTagSheetAsync();
+    }
+
+    private void OnTagSheetTapped(object sender, TappedEventArgs e)
+    {
+        // Swallow tap so overlay handler does not close it.
+    }
+
+    private async void OnTagSheetCloseTapped(object sender, TappedEventArgs e)
+    {
+        await HideTagSheetAsync();
+    }
+
+    private void OnTagSheetClearAllTapped(object sender, TappedEventArgs e)
+    {
+        if (_tagSheetBookmark == null)
+            return;
+
+        BookmarkService.Instance.UpdateBookmarkTags(_tagSheetBookmark.Url, new List<string>());
+        _tagSheetBookmark = BookmarkService.Instance.Bookmarks
+            .FirstOrDefault(b => b.Url == _tagSheetBookmark.Url) ?? _tagSheetBookmark;
+        BuildTagSheetOptions();
+        BuildBookmarksList();
+    }
+
+    private async void OnTagSheetAddCustomTapped(object sender, TappedEventArgs e)
+    {
+        if (_tagSheetBookmark == null)
+            return;
+
+        string? customTag = await DisplayPromptAsync("Add Tag",
+            "Enter a custom tag:",
+            "Add", "Cancel",
+            maxLength: 20);
+
+        if (string.IsNullOrWhiteSpace(customTag))
+            return;
+
+        BookmarkService.Instance.AddTag(_tagSheetBookmark.Url, customTag.Trim());
+        _tagSheetBookmark = BookmarkService.Instance.Bookmarks
+            .FirstOrDefault(b => b.Url == _tagSheetBookmark.Url) ?? _tagSheetBookmark;
+        BuildTagSheetOptions();
+        BuildBookmarksList();
+    }
+
+    private async Task ShowRemoveBookmarkSheetAsync(BookmarkItem bookmark)
+    {
+        if (_isRemoveBookmarkSheetOpen)
+            return;
+
+        _isRemoveBookmarkSheetOpen = true;
+        _removeBookmarkTarget = bookmark;
+        RemoveBookmarkSheetSubtitle.Text = $"Remove \"{bookmark.Title}\" from bookmarks?";
+
+        RemoveBookmarkSheetOverlay.IsVisible = true;
+        RemoveBookmarkSheetOverlay.Opacity = 0;
+        RemoveBookmarkSheet.Opacity = 0;
+        RemoveBookmarkSheet.TranslationY = 28;
+
+        await Task.WhenAll(
+            RemoveBookmarkSheetOverlay.FadeToAsync(1, 160, Easing.CubicOut),
+            RemoveBookmarkSheet.FadeToAsync(1, 180, Easing.CubicOut),
+            RemoveBookmarkSheet.TranslateToAsync(0, 0, 180, Easing.CubicOut));
+    }
+
+    private async Task HideRemoveBookmarkSheetAsync()
+    {
+        if (!_isRemoveBookmarkSheetOpen)
+            return;
+
+        _isRemoveBookmarkSheetOpen = false;
+        await Task.WhenAll(
+            RemoveBookmarkSheet.FadeToAsync(0, 140, Easing.CubicIn),
+            RemoveBookmarkSheet.TranslateToAsync(0, 24, 140, Easing.CubicIn),
+            RemoveBookmarkSheetOverlay.FadeToAsync(0, 140, Easing.CubicIn));
+        RemoveBookmarkSheetOverlay.IsVisible = false;
+        _removeBookmarkTarget = null;
+    }
+
+    private async void OnRemoveBookmarkSheetOverlayTapped(object sender, TappedEventArgs e)
+    {
+        await HideRemoveBookmarkSheetAsync();
+    }
+
+    private void OnRemoveBookmarkSheetTapped(object sender, TappedEventArgs e)
+    {
+        // Swallow tap so overlay handler does not close it.
+    }
+
+    private async void OnRemoveBookmarkCancelTapped(object sender, TappedEventArgs e)
+    {
+        await HideRemoveBookmarkSheetAsync();
+    }
+
+    private async void OnRemoveBookmarkConfirmTapped(object sender, TappedEventArgs e)
+    {
+        if (_removeBookmarkTarget != null)
+        {
+            BookmarkService.Instance.RemoveBookmark(_removeBookmarkTarget.Url);
+            BuildBookmarksList();
+        }
+        await HideRemoveBookmarkSheetAsync();
+    }
+
+    private void UpdateSheetBottomMargins()
+    {
+        double bottomInset = 16;
+#if ANDROID
+        if (MainActivity.Instance is { } activity)
+            bottomInset = Math.Max(bottomInset, activity.GetOverlayBottomInsetDip(14));
+#endif
+
+        TagSheet.Margin = new Thickness(12, 0, 12, bottomInset);
+        RemoveBookmarkSheet.Margin = new Thickness(12, 0, 12, bottomInset);
     }
 }

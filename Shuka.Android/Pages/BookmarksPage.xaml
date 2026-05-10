@@ -238,5 +238,191 @@
             </Grid>
         </Border>
 
+        <!-- Tag management bottom sheet -->
+        <Grid x:Name="TagSheetOverlay"
+              IsVisible="False"
+              BackgroundColor="#88000000"
+              Grid.RowSpan="4">
+            <Grid.GestureRecognizers>
+                <TapGestureRecognizer Tapped="OnTagSheetOverlayTapped" />
+            </Grid.GestureRecognizers>
+
+            <Border x:Name="TagSheet"
+                    Margin="12,0,12,16"
+                    Padding="14,14,14,10"
+                    VerticalOptions="End"
+                    Stroke="{DynamicResource Stroke}"
+                    StrokeThickness="1"
+                    StrokeShape="RoundRectangle 18"
+                    BackgroundColor="{DynamicResource BgCard}"
+                    TranslationY="28"
+                    Opacity="0">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnTagSheetTapped" />
+                </Border.GestureRecognizers>
+                <Grid RowDefinitions="Auto,*,Auto"
+                      RowSpacing="10">
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+                        <VerticalStackLayout Spacing="2">
+                            <Label Text="Manage Tags"
+                                   FontSize="16"
+                                   FontAttributes="Bold"
+                                   TextColor="{DynamicResource TextPrimary}" />
+                            <Label x:Name="TagSheetSubtitle"
+                                   FontSize="11"
+                                   TextColor="{DynamicResource TextMuted}" />
+                        </VerticalStackLayout>
+                        <Label Grid.Column="1"
+                               Text="&#xE5CD;"
+                               FontFamily="{DynamicResource IconFont}"
+                               FontSize="20"
+                               TextColor="{DynamicResource TextMuted}">
+                            <Label.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnTagSheetCloseTapped" />
+                            </Label.GestureRecognizers>
+                        </Label>
+                    </Grid>
+
+                    <ScrollView Grid.Row="1"
+                                HeightRequest="320">
+                        <VerticalStackLayout x:Name="TagSheetOptionsList"
+                                             Spacing="8" />
+                    </ScrollView>
+
+                    <HorizontalStackLayout Grid.Row="2"
+                                           HorizontalOptions="End"
+                                           Spacing="8">
+                        <Border x:Name="TagSheetClearAllBtn"
+                                BackgroundColor="{DynamicResource BgInput}"
+                                Stroke="{DynamicResource Stroke}"
+                                StrokeShape="RoundRectangle 14"
+                                Padding="12,8"
+                                IsVisible="False">
+                            <Label Text="Clear All"
+                                   FontSize="11"
+                                   FontAttributes="Bold"
+                                   TextColor="{DynamicResource Warning}">
+                                <Label.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnTagSheetClearAllTapped" />
+                                </Label.GestureRecognizers>
+                            </Label>
+                        </Border>
+
+                        <Border BackgroundColor="{DynamicResource BgInput}"
+                                Stroke="{DynamicResource Stroke}"
+                                StrokeShape="RoundRectangle 14"
+                                Padding="12,8">
+                            <Label Text="+ Custom Tag"
+                                   FontSize="11"
+                                   FontAttributes="Bold"
+                                   TextColor="{DynamicResource AccentLight}">
+                                <Label.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnTagSheetAddCustomTapped" />
+                                </Label.GestureRecognizers>
+                            </Label>
+                        </Border>
+
+                        <Border BackgroundColor="{DynamicResource BgInput}"
+                                Stroke="{DynamicResource Stroke}"
+                                StrokeShape="RoundRectangle 14"
+                                Padding="14,8">
+                            <Label Text="Done"
+                                   FontSize="11"
+                                   FontAttributes="Bold"
+                                   TextColor="{DynamicResource TextSecondary}">
+                                <Label.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnTagSheetCloseTapped" />
+                                </Label.GestureRecognizers>
+                            </Label>
+                        </Border>
+                    </HorizontalStackLayout>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Remove bookmark confirmation sheet -->
+        <Grid x:Name="RemoveBookmarkSheetOverlay"
+              IsVisible="False"
+              BackgroundColor="#88000000"
+              Grid.RowSpan="4">
+            <Grid.GestureRecognizers>
+                <TapGestureRecognizer Tapped="OnRemoveBookmarkSheetOverlayTapped" />
+            </Grid.GestureRecognizers>
+
+            <Border x:Name="RemoveBookmarkSheet"
+                    Margin="12,0,12,16"
+                    Padding="14,14,14,10"
+                    VerticalOptions="End"
+                    Stroke="{DynamicResource Stroke}"
+                    StrokeThickness="1"
+                    StrokeShape="RoundRectangle 18"
+                    BackgroundColor="{DynamicResource BgCard}"
+                    TranslationY="28"
+                    Opacity="0">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnRemoveBookmarkSheetTapped" />
+                </Border.GestureRecognizers>
+
+                <VerticalStackLayout Spacing="10">
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                        <Label Text="&#xE872;"
+                               FontFamily="{DynamicResource IconFont}"
+                               FontSize="20"
+                               TextColor="{DynamicResource Warning}"
+                               VerticalOptions="Center" />
+                        <VerticalStackLayout Grid.Column="1" Spacing="2">
+                            <Label Text="Remove Bookmark"
+                                   FontSize="16"
+                                   FontAttributes="Bold"
+                                   TextColor="{DynamicResource TextPrimary}" />
+                            <Label x:Name="RemoveBookmarkSheetSubtitle"
+                                   FontSize="11"
+                                   TextColor="{DynamicResource TextMuted}" />
+                        </VerticalStackLayout>
+                        <Label Grid.Column="2"
+                               Text="&#xE5CD;"
+                               FontFamily="{DynamicResource IconFont}"
+                               FontSize="20"
+                               TextColor="{DynamicResource TextMuted}">
+                            <Label.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnRemoveBookmarkCancelTapped" />
+                            </Label.GestureRecognizers>
+                        </Label>
+                    </Grid>
+
+                    <HorizontalStackLayout HorizontalOptions="End" Spacing="8">
+                        <Border BackgroundColor="{DynamicResource BgInput}"
+                                Stroke="{DynamicResource Stroke}"
+                                StrokeShape="RoundRectangle 14"
+                                Padding="14,8">
+                            <Label Text="Cancel"
+                                   FontSize="11"
+                                   FontAttributes="Bold"
+                                   TextColor="{DynamicResource TextSecondary}">
+                                <Label.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnRemoveBookmarkCancelTapped" />
+                                </Label.GestureRecognizers>
+                            </Label>
+                        </Border>
+
+                        <Border BackgroundColor="{DynamicResource AccentContainer}"
+                                Stroke="{DynamicResource Warning}"
+                                StrokeShape="RoundRectangle 14"
+                                StrokeThickness="1"
+                                Padding="14,8">
+                            <Label Text="Remove"
+                                   FontSize="11"
+                                   FontAttributes="Bold"
+                                   TextColor="{DynamicResource Warning}">
+                                <Label.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnRemoveBookmarkConfirmTapped" />
+                                </Label.GestureRecognizers>
+                            </Label>
+                        </Border>
+                    </HorizontalStackLayout>
+                </VerticalStackLayout>
+            </Border>
+        </Grid>
+
     </Grid>
 </ContentPage>

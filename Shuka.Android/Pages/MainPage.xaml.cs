@@ -314,7 +314,7 @@ public partial class MainPage : ContentPage
             Text       = pinned ? "\uE9C9" : "\uE9C7", // active pin / default pushpin-style
             FontFamily = "MaterialSymbols",
             FontSize   = 20,
-            Rotation   = pinned ? 0 : -35, // make default state look like a tilted pushpin
+            Rotation   = 0,
             HorizontalOptions = LayoutOptions.Center,
             VerticalOptions   = LayoutOptions.Center,
         };

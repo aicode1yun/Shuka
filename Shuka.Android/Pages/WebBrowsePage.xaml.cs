@@ -191,6 +191,7 @@ public partial class WebBrowsePage : ContentPage
         base.OnAppearing();
         // Hide the persistent tab bar — it doesn't belong on the WebView page
         MainActivity.Instance?.SetTabBarVisible(false);
+        UpdateBottomSheetMargins();
     }
 
     protected override void OnDisappearing()
@@ -222,6 +223,12 @@ public partial class WebBrowsePage : ContentPage
         {
             System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] Error clearing NameScope: {ex.Message}");
         }
+    }
+
+    protected override void OnSizeAllocated(double width, double height)
+    {
+        base.OnSizeAllocated(width, height);
+        UpdateBottomSheetMargins();
     }
 
     /// <summary>
@@ -2375,5 +2382,18 @@ public partial class WebBrowsePage : ContentPage
     private async void OnCloudflareOpenBrowserTapped(object sender, TappedEventArgs e)
     {
         await HideCloudflareTranslateSheetAsync(CloudflareChoiceOpenBrowser);
+    }
+
+    private void UpdateBottomSheetMargins()
+    {
+        double bottomInset = 16;
+#if ANDROID
+        if (MainActivity.Instance is { } activity)
+            bottomInset = Math.Max(bottomInset, activity.GetOverlayBottomInsetDip(14));
+#endif
+
+        BrowserMenuSheet.Margin = new Thickness(12, 0, 12, bottomInset);
+        RecentLinksSheet.Margin = new Thickness(12, 0, 12, bottomInset);
+        CloudflareSheet.Margin = new Thickness(12, 0, 12, bottomInset);
     }
 }

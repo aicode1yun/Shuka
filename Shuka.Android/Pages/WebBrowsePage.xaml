@@ -536,7 +536,7 @@
                 </Grid.GestureRecognizers>
 
                 <Border x:Name="BrowserMenuSheet"
-                        Margin="12,0,12,18"
+                        Margin="12,0,12,16"
                         Padding="14,14,14,10"
                         VerticalOptions="End"
                         Stroke="{DynamicResource Stroke}"
@@ -737,7 +737,7 @@
                 </Grid.GestureRecognizers>
 
                 <Border x:Name="RecentLinksSheet"
-                        Margin="12,0,12,18"
+                        Margin="12,0,12,16"
                         Padding="14,14,14,10"
                         VerticalOptions="End"
                         Stroke="{DynamicResource Stroke}"
@@ -823,7 +823,7 @@
                 </Grid.GestureRecognizers>
 
                 <Border x:Name="CloudflareSheet"
-                        Margin="12,0,12,18"
+                        Margin="12,0,12,16"
                         Padding="14,14,14,10"
                         VerticalOptions="End"
                         Stroke="{DynamicResource Stroke}"
