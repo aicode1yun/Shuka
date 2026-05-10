@@ -311,9 +311,10 @@ public partial class MainPage : ContentPage
         // ── Pin button ───────────────────────────────────────────────────────
         var pinIcon = new Label
         {
-            Text       = pinned ? "\uE9C9" : "\uE9C7", // push_pin filled / push_pin outlined
+            Text       = pinned ? "\uE9C9" : "\uE9C7", // active pin / default pushpin-style
             FontFamily = "MaterialSymbols",
             FontSize   = 20,
+            Rotation   = pinned ? 0 : -35, // make default state look like a tilted pushpin
             HorizontalOptions = LayoutOptions.Center,
             VerticalOptions   = LayoutOptions.Center,
         };
