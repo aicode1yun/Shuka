@@ -4,6 +4,22 @@ using Shuka.Core;
 
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
+// Background release check (non-blocking).
+ReleaseUpdateService.StartBackgroundCheck(message =>
+{
+    try
+    {
+        Console.WriteLine();
+        Console.WriteLine(message);
+        Console.WriteLine("Open releases: https://github.com/seizue/Shuka/releases");
+        Console.WriteLine();
+    }
+    catch
+    {
+        // Keep CLI flow resilient if console output fails.
+    }
+});
+
 // ── Usage ─────────────────────────────────────────────────────────────────────
 if (args.Length == 0)
 {

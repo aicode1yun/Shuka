@@ -10,6 +10,7 @@ namespace Shuka.Android.Services;
 public static class UpdateService
 {
     private const string ApiUrl     = "https://api.github.com/repos/seizue/Shuka/releases/latest";
+    public const string ReleasesPageUrl = "https://github.com/seizue/Shuka/releases";
     private const string UserAgent  = "Shuka-Android-Updater/1.0";
     private const string PrefKeyLastCheck = "update_last_check_utc";
     private const string PrefKeyLatestTag = "update_latest_tag";
@@ -59,6 +60,9 @@ public static class UpdateService
 
             string tagName = root.GetProperty("tag_name").GetString() ?? "";
             string body    = root.TryGetProperty("body", out var b) ? b.GetString() ?? "" : "";
+            string releasePageUrl = root.TryGetProperty("html_url", out var h)
+                ? (h.GetString() ?? ReleasesPageUrl)
+                : ReleasesPageUrl;
 
             // Find the Android APK asset
             string? apkUrl  = null;
@@ -89,7 +93,7 @@ public static class UpdateService
             Preferences.Default.Set(PrefKeyLastCheck,
                 DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString());
 
-            return new ReleaseInfo(tagName, latestVersion, apkUrl, apkSize, body);
+            return new ReleaseInfo(tagName, latestVersion, apkUrl, apkSize, body, releasePageUrl);
         }
         catch
         {
@@ -197,7 +201,8 @@ public record ReleaseInfo(
     Version Version,
     string  ApkUrl,
     long    Size,
-    string  Notes)
+    string  Notes,
+    string  ReleasePageUrl)
 {
     public double SizeMb => Size / 1_048_576.0;
     public bool IsNewerThan(Version installed) => Version > installed;

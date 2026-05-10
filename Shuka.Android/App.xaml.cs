@@ -8,6 +8,8 @@ public enum AppTheme { Obsidian, Rosewood, Slate, Frost, Amoled, Parchment, Blos
 public partial class App : Application
 {
     public static AppTheme CurrentTheme { get; private set; } = AppTheme.Obsidian;
+    private const string PrefKeyLastNotifiedTag = "update_last_notified_tag";
+    private static readonly TimeSpan UpdatePollInterval = TimeSpan.FromHours(6);
 
     public App()
     {
@@ -22,8 +24,8 @@ public partial class App : Application
         var theme = Enum.TryParse<AppTheme>(saved, out var t) ? t : AppTheme.Slate;
         ApplyTheme(theme);
 
-        // Background update check — runs once per session, doesn't block startup
-        _ = CheckForUpdateSilentlyAsync();
+        // Background update checks — run in a low-frequency loop while app is alive.
+        _ = RunBackgroundUpdateLoopAsync();
     }
 
     private void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
@@ -64,7 +66,26 @@ public partial class App : Application
     protected override Window CreateWindow(IActivationState? activationState)
         => new Window(new AppShell());
 
-    // ── Silent update check ───────────────────────────────────────────────────
+    // ── Silent update checks ──────────────────────────────────────────────────
+
+    private static async Task RunBackgroundUpdateLoopAsync()
+    {
+        // Small startup delay so initial UI stays snappy.
+        await Task.Delay(TimeSpan.FromSeconds(8));
+        while (true)
+        {
+            try
+            {
+                await CheckForUpdateSilentlyAsync();
+            }
+            catch
+            {
+                // Never break the loop because of updater errors.
+            }
+
+            await Task.Delay(UpdatePollInterval);
+        }
+    }
 
     private static async Task CheckForUpdateSilentlyAsync()
     {
@@ -75,6 +96,7 @@ public partial class App : Application
         long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
         if (now - lastCheck < checkIntervalSec) return;
+        if (Connectivity.Current.NetworkAccess != NetworkAccess.Internet) return;
 
         try
         {
@@ -82,8 +104,14 @@ public partial class App : Application
             if (release == null) return;
             if (!release.IsNewerThan(UpdateService.InstalledVersion)) return;
 
+            // Don't spam notifications for the same tag.
+            string lastNotified = Preferences.Default.Get(PrefKeyLastNotifiedTag, "");
+            if (string.Equals(lastNotified, release.Tag, StringComparison.OrdinalIgnoreCase))
+                return;
+
             // Post a system notification
             PostUpdateNotification(release);
+            Preferences.Default.Set(PrefKeyLastNotifiedTag, release.Tag);
         }
         catch { /* silent — never crash on background check */ }
     }
@@ -114,12 +142,14 @@ public partial class App : Application
 #pragma warning restore CA1416, CS8602
         }
 
-        // Build tap intent — opens the app to Settings tab
-        var launchIntent = ctx.PackageManager
-            ?.GetLaunchIntentForPackage(ctx.PackageName ?? "")
-            ?.SetFlags(global::Android.Content.ActivityFlags.SingleTop)
-            ?? new global::Android.Content.Intent(ctx,
-                   typeof(global::Shuka.Android.MainActivity));
+        // Build tap intent — opens GitHub release page directly.
+        var launchIntent = new global::Android.Content.Intent(
+            global::Android.Content.Intent.ActionView,
+            global::Android.Net.Uri.Parse(
+                string.IsNullOrWhiteSpace(release.ReleasePageUrl)
+                    ? UpdateService.ReleasesPageUrl
+                    : release.ReleasePageUrl));
+        launchIntent.AddFlags(global::Android.Content.ActivityFlags.NewTask);
 
 #pragma warning disable CA1416
         var pendingFlags = global::Android.OS.Build.VERSION.SdkInt >=
@@ -136,7 +166,7 @@ public partial class App : Application
         var notification = new AndroidX.Core.App.NotificationCompat.Builder(ctx, ChannelId)
 #pragma warning restore CS8602
             .SetContentTitle("Shuka update available")
-            .SetContentText($"v{release.Version} is ready to install")
+            .SetContentText($"v{release.Version} is available - tap to view release")
             .SetSmallIcon(global::Android.Resource.Drawable.StatSysDownload)
             .SetAutoCancel(true)
 #pragma warning disable CS8604
