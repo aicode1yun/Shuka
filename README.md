@@ -1,12 +1,24 @@
-# Shuka
+<img src="https://github.com/user-attachments/assets/92bec4c5-db17-4f5a-bbfa-c8bc658acb1f"
+     width="140"
+     height="140"
+     alt="appicon" />
 
-A tool that downloads Chinese web novels, translates them to English via Google Translate, and saves them as `.epub` files ready for any e-reader. Available on **Windows** and **Android**.
+# Shuka 
+A tool for downloading Chinese web novels, translating them to English via Google Translate, and exporting them as `.epub` files ready for any e-reader. Available as a **PowerShell CLI on Windows** and an **Android app built using .NET MAUI.**
 
 ![Github Downloads](https://img.shields.io/github/downloads/seizue/Shuka/total?style=flat&logo=github)
 
 ## Screenshot
 
-<img width="1366" height="736" alt="Shuka (2)" src="https://github.com/user-attachments/assets/c07f2852-306a-4c6d-aec6-7336507d673e" />
+<details>
+ <summary>🔽 <strong>[ OPEN SCREENSHOT ]</strong></summary>
+
+  <br>
+
+  <img width="1366" alt="Shuka Screenshot"
+       src="https://github.com/user-attachments/assets/c07f2852-306a-4c6d-aec6-7336507d673e" />
+
+</details>
 
 
 ### Supported Sites
