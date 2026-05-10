@@ -110,47 +110,125 @@ public class DmxsAdapter : ISiteAdapter
 
     public List<string> ExtractChapterText(string html)
     {
-        // Remove noise blocks
+        // Remove noise blocks (scripts/styles and global chrome — body text still lives in read_chapterDetail)
         html = Regex.Replace(html, @"<script[\s\S]*?</script>", "", RegexOptions.IgnoreCase);
         html = Regex.Replace(html, @"<style[\s\S]*?</style>",   "", RegexOptions.IgnoreCase);
         html = Regex.Replace(html, @"<nav[\s\S]*?</nav>",       "", RegexOptions.IgnoreCase);
         html = Regex.Replace(html, @"<header[\s\S]*?</header>", "", RegexOptions.IgnoreCase);
         html = Regex.Replace(html, @"<footer[\s\S]*?</footer>", "", RegexOptions.IgnoreCase);
 
-        // dmxs chapter content is in <div id="content"> or <div class="content">
-        string? content = null;
-        foreach (var pattern in new[]
+        // Current dmxs layout: prose is only inside .read_chapterDetail (between title/tags/nav and 推荐阅读).
+        // Prefer a match that ends at the paging block so we never swallow .hotlist / .newpageNav.
+        string? content = TryExtractReadChapterDetail(html);
+        if (content == null)
         {
-            @"<div[^>]+id=[""']content[""'][^>]*>([\s\S]*?)</div>",
-            @"<div[^>]+class=[""'][^""']*\bcontent\b[^""']*[""'][^>]*>([\s\S]*?)</div>",
-            @"<article[^>]*>([\s\S]*?)</article>",
-        })
-        {
-            var m = Regex.Match(html, pattern, RegexOptions.IgnoreCase);
-            if (m.Success && m.Groups[1].Value.Length > 100)
+            foreach (var pattern in new[]
             {
-                content = m.Groups[1].Value;
-                break;
+                @"<div[^>]+id=[""']content[""'][^>]*>([\s\S]*?)</div>",
+                @"<div[^>]+class=[""'][^""']*\bcontent\b[^""']*[""'][^>]*>([\s\S]*?)</div>",
+                @"<article[^>]*>([\s\S]*?)</article>",
+            })
+            {
+                var m = Regex.Match(html, pattern, RegexOptions.IgnoreCase);
+                if (m.Success && m.Groups[1].Value.Length > 100)
+                {
+                    content = m.Groups[1].Value;
+                    break;
+                }
             }
         }
 
         content ??= html;
 
-        // Convert <br> and <p> to newlines, strip remaining tags
-        content = Regex.Replace(content, @"<br\s*/?>", "\n", RegexOptions.IgnoreCase);
-        content = Regex.Replace(content, @"<p[^>]*>",  "\n", RegexOptions.IgnoreCase);
-        content = Regex.Replace(content, @"<[^>]+>",   "");
-        content = System.Net.WebUtility.HtmlDecode(content);
-
         var result = new List<string>();
-        foreach (var line in content.Split('\n'))
+        foreach (var para in SplitParagraphs(content))
         {
-            string trimmed = line.Trim().TrimStart('\u3000').Trim();
-            // Keep lines with CJK characters or meaningful punctuation-only lines
-            if (trimmed.Length > 0 &&
-                Regex.IsMatch(trimmed, @"[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]"))
+            string trimmed = para.Trim().TrimStart('\u3000').Trim();
+            if (trimmed.Length == 0 || IsDmxsNoiseLine(trimmed))
+                continue;
+            // Novel body: keep CJK lines (translator joins with \n in BookService).
+            if (Regex.IsMatch(trimmed, @"[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]"))
                 result.Add(trimmed);
         }
+
         return result;
+    }
+
+    /// <summary>
+    /// Isolates <c>div.read_chapterDetail</c> inner HTML. Anchors to the following page-nav div when present
+    /// so nested <c>div</c>s inside the chapter cannot truncate the match early.
+    /// </summary>
+    private static string? TryExtractReadChapterDetail(string html)
+    {
+        const string open = @"<div[^>]+class\s*=\s*[""'][^""']*\bread_chapterDetail\b[^""']*[""'][^>]*>";
+
+        var anchored = Regex.Match(html,
+            open + @"([\s\S]*?)</div>\s*<div[^>]+class\s*=\s*[""'][^""']*\b(?:pageNav|newpageNav)\b",
+            RegexOptions.IgnoreCase);
+        if (anchored.Success && anchored.Groups[1].Length > 20)
+            return anchored.Groups[1].Value;
+
+        var loose = Regex.Match(html, open + @"([\s\S]*?)</div>", RegexOptions.IgnoreCase);
+        if (loose.Success && loose.Groups[1].Length > 20)
+            return loose.Groups[1].Value;
+
+        return null;
+    }
+
+    /// <summary>
+    /// Pull plain text from <c>&lt;p&gt;</c> blocks; fall back to legacy br/tag stripping if there are no paragraphs.
+    /// </summary>
+    private static IEnumerable<string> SplitParagraphs(string htmlFragment)
+    {
+        var matches = Regex.Matches(htmlFragment, @"<p[^>]*>([\s\S]*?)</p>", RegexOptions.IgnoreCase);
+        if (matches.Count > 0)
+        {
+            foreach (Match m in matches)
+            {
+                string chunk = m.Groups[1].Value;
+                chunk = Regex.Replace(chunk, @"<br\s*/?>", "\n", RegexOptions.IgnoreCase);
+                chunk = Regex.Replace(chunk, @"<[^>]+>", "");
+                chunk = System.Net.WebUtility.HtmlDecode(chunk);
+                foreach (var line in chunk.Split('\n'))
+                {
+                    var t = line.Trim();
+                    if (t.Length > 0)
+                        yield return t;
+                }
+            }
+            yield break;
+        }
+
+        string legacy = Regex.Replace(htmlFragment, @"<br\s*/?>", "\n", RegexOptions.IgnoreCase);
+        legacy = Regex.Replace(legacy, @"<p[^>]*>", "\n", RegexOptions.IgnoreCase);
+        legacy = Regex.Replace(legacy, @"<[^>]+>", "");
+        legacy = System.Net.WebUtility.HtmlDecode(legacy);
+        foreach (var line in legacy.Split('\n'))
+        {
+            var t = line.Trim();
+            if (t.Length > 0)
+                yield return t;
+        }
+    }
+
+    /// <summary>
+    /// Drops nav / UI strings that sometimes appear inside the content area on mobile or older templates.
+    /// </summary>
+    private static bool IsDmxsNoiseLine(string t)
+    {
+        string withoutRepl = t.Replace("\uFFFD", "", StringComparison.Ordinal).Trim();
+        if (withoutRepl.Length == 0)
+            return true;
+
+        // Chapter pager, TOC, site promos (English strings help when UI was translated with the body)
+        if (Regex.IsMatch(t,
+                @"(返回目录|下一章|尾章|回目录|章节目录|推荐阅读|Sign\s*up\s*to\s*log\s*in|Danmei\s+novel|Back\s+to\s+Table\s+of\s+Contents|Next\s+Chapter|End\s+Table)",
+                RegexOptions.IgnoreCase))
+            return true;
+
+        if (Regex.IsMatch(t, @"^\d+/\d+$"))
+            return true;
+
+        return false;
     }
 }
