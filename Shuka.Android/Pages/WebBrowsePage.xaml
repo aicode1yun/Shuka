@@ -66,20 +66,39 @@
                        MaxLines="1" />
             </Border>
 
-            <!-- Ad blocker toggle -->
+            <!-- Tabs -->
             <Grid Grid.Column="3"
-                  x:Name="AdBlockerButton"
+                  x:Name="TabsButton"
                   WidthRequest="44"
                   HorizontalOptions="Center"
                   VerticalOptions="Center">
-                <Label x:Name="AdBlockerIcon"
-                       Text="&#xE14B;"
-                       FontFamily="{DynamicResource IconFont}"
-                       FontSize="20"
-                       HorizontalOptions="Center"
-                       VerticalOptions="Center" />
+                <Grid>
+                    <Label Text="&#xE8D2;"
+                           FontFamily="{DynamicResource IconFont}"
+                           FontSize="20"
+                           TextColor="{DynamicResource TextPrimary}"
+                           HorizontalOptions="Center"
+                           VerticalOptions="Center" />
+                    <Border BackgroundColor="{DynamicResource Accent}"
+                            StrokeThickness="0"
+                            WidthRequest="16"
+                            HeightRequest="16"
+                            StrokeShape="RoundRectangle 8"
+                            HorizontalOptions="End"
+                            VerticalOptions="Start"
+                            Margin="0,2,2,0">
+                        <Label x:Name="TabCountLabel"
+                               Text="1"
+                               FontSize="9"
+                               TextColor="{DynamicResource TextOnAccent}"
+                               HorizontalOptions="Center"
+                               VerticalOptions="Center"
+                               HorizontalTextAlignment="Center"
+                               VerticalTextAlignment="Center" />
+                    </Border>
+                </Grid>
                 <Grid.GestureRecognizers>
-                    <TapGestureRecognizer Tapped="OnAdBlockerToggleTapped" />
+                    <TapGestureRecognizer Tapped="OnTabsTapped" />
                 </Grid.GestureRecognizers>
             </Grid>
 
@@ -99,19 +118,19 @@
                 </Grid.GestureRecognizers>
             </Grid>
 
-            <!-- Home / close source button -->
+            <!-- More menu -->
             <Grid Grid.Column="5"
                   WidthRequest="44"
                   HorizontalOptions="Center"
                   VerticalOptions="Center">
-                <Label Text="&#xE88A;"
+                <Label Text="&#xE5D4;"
                        FontFamily="{DynamicResource IconFont}"
                        FontSize="20"
                        TextColor="{DynamicResource TextMuted}"
                        HorizontalOptions="Center"
                        VerticalOptions="Center" />
                 <Grid.GestureRecognizers>
-                    <TapGestureRecognizer Tapped="OnHomeSourceTapped" />
+                    <TapGestureRecognizer Tapped="OnMoreTapped" />
                 </Grid.GestureRecognizers>
             </Grid>
         </Grid>
@@ -399,6 +418,527 @@
                     </VerticalStackLayout>
                 </Grid>
             </Border>
+
+            <!-- Tab overview panel -->
+            <Grid x:Name="TabOverviewOverlay"
+                  IsVisible="False"
+                  BackgroundColor="#AA101010"
+                  Padding="16,24,16,24">
+                <Border BackgroundColor="{DynamicResource BgCard}"
+                        Stroke="{DynamicResource Stroke}"
+                        StrokeThickness="1"
+                        StrokeShape="RoundRectangle 18"
+                        Padding="14"
+                        VerticalOptions="Fill"
+                        HorizontalOptions="Fill">
+                    <Grid RowDefinitions="Auto,Auto,*,Auto"
+                          RowSpacing="12">
+                        <Grid Grid.Row="0"
+                              ColumnDefinitions="*,Auto">
+                            <VerticalStackLayout Spacing="2">
+                                <Label Text="Tabs"
+                                       FontSize="18"
+                                       FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}" />
+                                <Label x:Name="TabOverviewCountLabel"
+                                       Text="1 tab"
+                                       FontSize="11"
+                                       TextColor="{DynamicResource TextMuted}" />
+                            </VerticalStackLayout>
+                            <Label Grid.Column="1"
+                                   Text="&#xE5CD;"
+                                   FontFamily="{DynamicResource IconFont}"
+                                   FontSize="22"
+                                   TextColor="{DynamicResource TextMuted}"
+                                   HorizontalOptions="End"
+                                   VerticalOptions="Center">
+                                <Label.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnTabOverviewDoneTapped" />
+                                </Label.GestureRecognizers>
+                            </Label>
+                        </Grid>
+
+                        <HorizontalStackLayout Grid.Row="1"
+                                               Spacing="8">
+                            <Border BackgroundColor="{DynamicResource AccentContainer}"
+                                    Stroke="{DynamicResource AccentLight}"
+                                    StrokeShape="RoundRectangle 16"
+                                    Padding="12,8">
+                                <Label Text="+ New Tab"
+                                       FontSize="11"
+                                       FontAttributes="Bold"
+                                       TextColor="{DynamicResource AccentLight}">
+                                    <Label.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnTabOverviewNewTabTapped" />
+                                    </Label.GestureRecognizers>
+                                </Label>
+                            </Border>
+
+                            <Border BackgroundColor="{DynamicResource BgInput}"
+                                    Stroke="{DynamicResource Stroke}"
+                                    StrokeShape="RoundRectangle 16"
+                                    Padding="12,8">
+                                <Label Text="Close Others"
+                                       FontSize="11"
+                                       FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextSecondary}">
+                                    <Label.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnTabOverviewCloseOthersTapped" />
+                                    </Label.GestureRecognizers>
+                                </Label>
+                            </Border>
+
+                            <Border BackgroundColor="{DynamicResource BgInput}"
+                                    Stroke="{DynamicResource Stroke}"
+                                    StrokeShape="RoundRectangle 16"
+                                    Padding="12,8">
+                                <Label Text="Recent Links"
+                                       FontSize="11"
+                                       FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextSecondary}">
+                                    <Label.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnTabOverviewRecentTapped" />
+                                    </Label.GestureRecognizers>
+                                </Label>
+                            </Border>
+                        </HorizontalStackLayout>
+
+                        <ScrollView Grid.Row="2">
+                            <VerticalStackLayout x:Name="TabOverviewList"
+                                                 Spacing="10" />
+                        </ScrollView>
+
+                        <Border Grid.Row="3"
+                                BackgroundColor="{DynamicResource BgInput}"
+                                Stroke="{DynamicResource Stroke}"
+                                StrokeShape="RoundRectangle 16"
+                                Padding="14,10"
+                                HorizontalOptions="Center">
+                            <Label Text="Done"
+                                   FontSize="12"
+                                   FontAttributes="Bold"
+                                   TextColor="{DynamicResource TextSecondary}">
+                                <Label.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnTabOverviewDoneTapped" />
+                                </Label.GestureRecognizers>
+                            </Label>
+                        </Border>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- Browser menu bottom sheet -->
+            <Grid x:Name="BrowserMenuOverlay"
+                  IsVisible="False"
+                  BackgroundColor="#88000000">
+                <Grid.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnBrowserMenuOverlayTapped" />
+                </Grid.GestureRecognizers>
+
+                <Border x:Name="BrowserMenuSheet"
+                        Margin="12,0,12,18"
+                        Padding="14,14,14,10"
+                        VerticalOptions="End"
+                        Stroke="{DynamicResource Stroke}"
+                        StrokeThickness="1"
+                        StrokeShape="RoundRectangle 18"
+                        BackgroundColor="{DynamicResource BgCard}"
+                        TranslationY="30"
+                        Opacity="0">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnBrowserMenuSheetTapped" />
+                    </Border.GestureRecognizers>
+                    <VerticalStackLayout Spacing="6">
+                        <Grid ColumnDefinitions="*,Auto"
+                              Padding="2,0,2,8">
+                            <Label Text="Browser Menu"
+                                   FontSize="16"
+                                   FontAttributes="Bold"
+                                   TextColor="{DynamicResource TextPrimary}" />
+                            <Label Grid.Column="1"
+                                   Text="&#xE5CD;"
+                                   FontFamily="{DynamicResource IconFont}"
+                                   FontSize="20"
+                                   TextColor="{DynamicResource TextMuted}">
+                                <Label.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnBrowserMenuCloseTapped" />
+                                </Label.GestureRecognizers>
+                            </Label>
+                        </Grid>
+
+                        <Border StyleClass="MenuRow"
+                                Stroke="{DynamicResource Stroke}"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 14"
+                                BackgroundColor="{DynamicResource BgInput}"
+                                Padding="12,10">
+                            <Grid ColumnDefinitions="24,*,Auto"
+                                  ColumnSpacing="10">
+                                <Label Text="&#xE889;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="18"
+                                       TextColor="{DynamicResource TextMuted}"
+                                       VerticalOptions="Center" />
+                                <Label Grid.Column="1"
+                                       Text="Recent links"
+                                       FontSize="13"
+                                       FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}"
+                                       VerticalOptions="Center" />
+                                <Label Grid.Column="2"
+                                       Text="&#xE5CC;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="18"
+                                       TextColor="{DynamicResource TextMuted}"
+                                       VerticalOptions="Center" />
+                            </Grid>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnBrowserMenuRecentTapped" />
+                            </Border.GestureRecognizers>
+                        </Border>
+
+                        <Border x:Name="BrowserMenuAdBlockRow"
+                                Stroke="{DynamicResource Stroke}"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 14"
+                                BackgroundColor="{DynamicResource BgInput}"
+                                Padding="12,10">
+                            <Grid ColumnDefinitions="24,*,Auto"
+                                  ColumnSpacing="10">
+                                <Label x:Name="BrowserMenuAdBlockIcon"
+                                       Text="&#xE14B;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="18"
+                                       TextColor="{DynamicResource TextMuted}"
+                                       VerticalOptions="Center" />
+                                <VerticalStackLayout Grid.Column="1"
+                                                     Spacing="0">
+                                    <Label Text="Ad blocker"
+                                           FontSize="13"
+                                           FontAttributes="Bold"
+                                           TextColor="{DynamicResource TextPrimary}" />
+                                    <Label x:Name="BrowserMenuAdBlockSubtitle"
+                                           Text="Off"
+                                           FontSize="10"
+                                           TextColor="{DynamicResource TextMuted}" />
+                                </VerticalStackLayout>
+                                <Label Grid.Column="2"
+                                       x:Name="BrowserMenuAdBlockState"
+                                       Text="OFF"
+                                       FontSize="10"
+                                       FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextMuted}"
+                                       VerticalOptions="Center" />
+                            </Grid>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnBrowserMenuAdBlockTapped" />
+                            </Border.GestureRecognizers>
+                        </Border>
+
+                        <Border Stroke="{DynamicResource Stroke}"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 14"
+                                BackgroundColor="{DynamicResource BgInput}"
+                                Padding="12,10">
+                            <Grid ColumnDefinitions="24,*,Auto"
+                                  ColumnSpacing="10">
+                                <Label Text="&#xE5D5;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="18"
+                                       TextColor="{DynamicResource TextMuted}"
+                                       VerticalOptions="Center" />
+                                <Label Grid.Column="1"
+                                       Text="Refresh"
+                                       FontSize="13"
+                                       FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}"
+                                       VerticalOptions="Center" />
+                                <Label Grid.Column="2"
+                                       Text="&#xE5CC;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="18"
+                                       TextColor="{DynamicResource TextMuted}"
+                                       VerticalOptions="Center" />
+                            </Grid>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnBrowserMenuRefreshTapped" />
+                            </Border.GestureRecognizers>
+                        </Border>
+
+                        <Border Stroke="{DynamicResource Stroke}"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 14"
+                                BackgroundColor="{DynamicResource BgInput}"
+                                Padding="12,10">
+                            <Grid ColumnDefinitions="24,*,Auto"
+                                  ColumnSpacing="10">
+                                <Label Text="&#xE88A;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="18"
+                                       TextColor="{DynamicResource TextMuted}"
+                                       VerticalOptions="Center" />
+                                <Label Grid.Column="1"
+                                       Text="Home"
+                                       FontSize="13"
+                                       FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}"
+                                       VerticalOptions="Center" />
+                                <Label Grid.Column="2"
+                                       Text="&#xE5CC;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="18"
+                                       TextColor="{DynamicResource TextMuted}"
+                                       VerticalOptions="Center" />
+                            </Grid>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnBrowserMenuHomeTapped" />
+                            </Border.GestureRecognizers>
+                        </Border>
+
+                        <Border Stroke="{DynamicResource Stroke}"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 14"
+                                BackgroundColor="{DynamicResource BgInput}"
+                                Padding="12,10">
+                            <Grid ColumnDefinitions="24,*,Auto"
+                                  ColumnSpacing="10">
+                                <Label Text="&#xE89E;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="18"
+                                       TextColor="{DynamicResource TextMuted}"
+                                       VerticalOptions="Center" />
+                                <Label Grid.Column="1"
+                                       Text="Open in browser"
+                                       FontSize="13"
+                                       FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}"
+                                       VerticalOptions="Center" />
+                                <Label Grid.Column="2"
+                                       Text="&#xE5CC;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="18"
+                                       TextColor="{DynamicResource TextMuted}"
+                                       VerticalOptions="Center" />
+                            </Grid>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnBrowserMenuOpenInBrowserTapped" />
+                            </Border.GestureRecognizers>
+                        </Border>
+                    </VerticalStackLayout>
+                </Border>
+            </Grid>
+
+            <!-- Recent links bottom sheet -->
+            <Grid x:Name="RecentLinksOverlay"
+                  IsVisible="False"
+                  BackgroundColor="#88000000">
+                <Grid.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnRecentLinksOverlayTapped" />
+                </Grid.GestureRecognizers>
+
+                <Border x:Name="RecentLinksSheet"
+                        Margin="12,0,12,18"
+                        Padding="14,14,14,10"
+                        VerticalOptions="End"
+                        Stroke="{DynamicResource Stroke}"
+                        StrokeThickness="1"
+                        StrokeShape="RoundRectangle 18"
+                        BackgroundColor="{DynamicResource BgCard}"
+                        TranslationY="30"
+                        Opacity="0">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnRecentLinksSheetTapped" />
+                    </Border.GestureRecognizers>
+                    <Grid RowDefinitions="Auto,*,Auto"
+                          RowSpacing="10">
+                        <Grid Grid.Row="0"
+                              ColumnDefinitions="*,Auto">
+                            <VerticalStackLayout Spacing="2">
+                                <Label Text="Recent Links"
+                                       FontSize="16"
+                                       FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}" />
+                                <Label x:Name="RecentLinksCountLabel"
+                                       Text="0 links"
+                                       FontSize="11"
+                                       TextColor="{DynamicResource TextMuted}" />
+                            </VerticalStackLayout>
+                            <Label Grid.Column="1"
+                                   Text="&#xE5CD;"
+                                   FontFamily="{DynamicResource IconFont}"
+                                   FontSize="20"
+                                   TextColor="{DynamicResource TextMuted}">
+                                <Label.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnRecentLinksCloseTapped" />
+                                </Label.GestureRecognizers>
+                            </Label>
+                        </Grid>
+
+                        <ScrollView Grid.Row="1"
+                                    HeightRequest="360">
+                            <VerticalStackLayout x:Name="RecentLinksList"
+                                                 Spacing="8" />
+                        </ScrollView>
+
+                        <HorizontalStackLayout Grid.Row="2"
+                                               HorizontalOptions="End"
+                                               Spacing="8">
+                            <Border BackgroundColor="{DynamicResource BgInput}"
+                                    Stroke="{DynamicResource Stroke}"
+                                    StrokeShape="RoundRectangle 14"
+                                    Padding="12,8">
+                                <Label Text="Clear History"
+                                       FontSize="11"
+                                       FontAttributes="Bold"
+                                       TextColor="{DynamicResource Warning}">
+                                    <Label.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnRecentLinksClearTapped" />
+                                    </Label.GestureRecognizers>
+                                </Label>
+                            </Border>
+                            <Border BackgroundColor="{DynamicResource BgInput}"
+                                    Stroke="{DynamicResource Stroke}"
+                                    StrokeShape="RoundRectangle 14"
+                                    Padding="14,8">
+                                <Label Text="Done"
+                                       FontSize="11"
+                                       FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextSecondary}">
+                                    <Label.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnRecentLinksCloseTapped" />
+                                    </Label.GestureRecognizers>
+                                </Label>
+                            </Border>
+                        </HorizontalStackLayout>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- Cloudflare translate options sheet -->
+            <Grid x:Name="CloudflareSheetOverlay"
+                  IsVisible="False"
+                  BackgroundColor="#88000000">
+                <Grid.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnCloudflareSheetOverlayTapped" />
+                </Grid.GestureRecognizers>
+
+                <Border x:Name="CloudflareSheet"
+                        Margin="12,0,12,18"
+                        Padding="14,14,14,10"
+                        VerticalOptions="End"
+                        Stroke="{DynamicResource Stroke}"
+                        StrokeThickness="1"
+                        StrokeShape="RoundRectangle 18"
+                        BackgroundColor="{DynamicResource BgCard}"
+                        TranslationY="30"
+                        Opacity="0">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnCloudflareSheetTapped" />
+                    </Border.GestureRecognizers>
+
+                    <VerticalStackLayout Spacing="8">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <VerticalStackLayout Spacing="2">
+                                <Label Text="Cloudflare Protected Site"
+                                       FontSize="16"
+                                       FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}" />
+                                <Label x:Name="CloudflareSheetSubtitle"
+                                       Text="Translate works better in external browser."
+                                       FontSize="11"
+                                       TextColor="{DynamicResource TextMuted}" />
+                            </VerticalStackLayout>
+                            <Label Grid.Column="1"
+                                   Text="&#xE5CD;"
+                                   FontFamily="{DynamicResource IconFont}"
+                                   FontSize="20"
+                                   TextColor="{DynamicResource TextMuted}">
+                                <Label.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnCloudflareSheetCancelTapped" />
+                                </Label.GestureRecognizers>
+                            </Label>
+                        </Grid>
+
+                        <Border Stroke="{DynamicResource Stroke}"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 14"
+                                BackgroundColor="{DynamicResource BgInput}"
+                                Padding="12,10">
+                            <Grid ColumnDefinitions="24,*,Auto" ColumnSpacing="10">
+                                <Label Text="&#xE8E2;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="18"
+                                       TextColor="{DynamicResource TextMuted}" />
+                                <Label Grid.Column="1"
+                                       Text="Google Translate (browser)"
+                                       FontSize="13"
+                                       FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}" />
+                                <Label Grid.Column="2"
+                                       Text="&#xE5CC;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="18"
+                                       TextColor="{DynamicResource TextMuted}" />
+                            </Grid>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnCloudflareTranslateBrowserTapped" />
+                            </Border.GestureRecognizers>
+                        </Border>
+
+                        <Border Stroke="{DynamicResource Stroke}"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 14"
+                                BackgroundColor="{DynamicResource BgInput}"
+                                Padding="12,10">
+                            <Grid ColumnDefinitions="24,*,Auto" ColumnSpacing="10">
+                                <Label Text="&#xE14D;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="18"
+                                       TextColor="{DynamicResource TextMuted}" />
+                                <Label Grid.Column="1"
+                                       Text="Copy URL"
+                                       FontSize="13"
+                                       FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}" />
+                                <Label Grid.Column="2"
+                                       Text="&#xE5CC;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="18"
+                                       TextColor="{DynamicResource TextMuted}" />
+                            </Grid>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnCloudflareCopyUrlTapped" />
+                            </Border.GestureRecognizers>
+                        </Border>
+
+                        <Border Stroke="{DynamicResource Stroke}"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 14"
+                                BackgroundColor="{DynamicResource BgInput}"
+                                Padding="12,10">
+                            <Grid ColumnDefinitions="24,*,Auto" ColumnSpacing="10">
+                                <Label Text="&#xE89E;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="18"
+                                       TextColor="{DynamicResource TextMuted}" />
+                                <Label Grid.Column="1"
+                                       Text="Open page (browser)"
+                                       FontSize="13"
+                                       FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}" />
+                                <Label Grid.Column="2"
+                                       Text="&#xE5CC;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="18"
+                                       TextColor="{DynamicResource TextMuted}" />
+                            </Grid>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnCloudflareOpenBrowserTapped" />
+                            </Border.GestureRecognizers>
+                        </Border>
+                    </VerticalStackLayout>
+                </Border>
+            </Grid>
 
         </Grid>
     </Grid>

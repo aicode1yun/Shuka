@@ -14,6 +14,22 @@ namespace Shuka.Android.Pages;
 /// </summary>
 public partial class WebBrowsePage : ContentPage
 {
+    private sealed class BrowserTab
+    {
+        public Guid Id { get; init; } = Guid.NewGuid();
+        public string Url { get; set; } = "";
+        public string Title { get; set; } = "";
+        public DateTime LastTouchedAt { get; set; } = DateTime.Now;
+    }
+
+    private sealed class WebVisitEntry
+    {
+        public string Url { get; init; } = "";
+        public string Source { get; init; } = "";
+        public string? Title { get; init; }
+        public DateTime VisitedAt { get; init; } = DateTime.Now;
+    }
+
     // Stricter per-site checks: is this URL a novel index page (not just the domain)?
     private static readonly Dictionary<string, Func<string, bool>> _novelPageChecks = new()
     {
@@ -62,6 +78,19 @@ public partial class WebBrowsePage : ContentPage
     /// </summary>
     private string _actualWebNavigationUrl = string.Empty;
     private bool   _fabMenuExpanded = false; // tracks FAB menu state
+    private readonly List<BrowserTab> _tabs = new();
+    private Guid _activeTabId;
+    private List<WebVisitEntry> _recentVisits = new();
+    private bool _isTabOverviewOpen;
+    private bool _isBrowserMenuOpen;
+    private bool _isRecentLinksOpen;
+    private bool _isCloudflareSheetOpen;
+    private TaskCompletionSource<string?>? _cloudflareChoiceTcs;
+    private static string WebHistoryFile =>
+        Path.Combine(FileSystem.AppDataDirectory, "web_recent_history.json");
+    private const string CloudflareChoiceTranslateBrowser = "translate_browser";
+    private const string CloudflareChoiceCopyUrl = "copy_url";
+    private const string CloudflareChoiceOpenBrowser = "open_browser";
 
     private bool IsTranslateActive => _translateMode != WebTranslateMode.None;
 
@@ -127,6 +156,8 @@ public partial class WebBrowsePage : ContentPage
             _currentUrl              = startUrl;
             _actualWebNavigationUrl  = startUrl;
             _homeUrl                 = startUrl;
+            _recentVisits            = LoadRecentVisits();
+            AddTab(startUrl, switchToTab: true);
             
             // Subscribe to WebView error events
             SiteWebView.Navigating += OnNavigating!;
@@ -329,6 +360,7 @@ public partial class WebBrowsePage : ContentPage
 
             _currentUrl             = url;
             _actualWebNavigationUrl = url;
+            UpdateActiveTab(url, null);
 
             // Update UI on main thread
             MainThread.BeginInvokeOnMainThread(() =>
@@ -338,6 +370,7 @@ public partial class WebBrowsePage : ContentPage
                     UrlBarLabel.Text = url;
                     SiteWebView.Source = new UrlWebViewSource { Url = url };
                     UpdateDownloadFab(url);
+                    UpdateTabCountBadge();
                 }
                 catch (Exception ex)
                 {
@@ -433,15 +466,28 @@ public partial class WebBrowsePage : ContentPage
         Navigate(_homeUrl);
     }
 
-    private async void OnAdBlockerToggleTapped(object sender, TappedEventArgs e)
+    private async void OnTabsTapped(object sender, TappedEventArgs e)
+    {
+        try
+        {
+            await ShowTabOverviewAsync();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] Tabs menu error: {ex.Message}");
+        }
+    }
+
+    private async void OnHistoryTapped(object sender, TappedEventArgs e)
+    {
+        await ShowRecentHistoryAsync();
+    }
+
+    private async void OnAdBlockerToggleTapped(object? sender = null, TappedEventArgs? e = null)
     {
         // Toggle the ad blocker
         AdBlockerService.Instance.IsEnabled = !AdBlockerService.Instance.IsEnabled;
         UpdateAdBlockerIcon();
-
-        // Animate the button
-        await AdBlockerButton.ScaleToAsync(0.8, 80, Easing.CubicOut);
-        await AdBlockerButton.ScaleToAsync(1.0, 80, Easing.SpringOut);
 
         // Show toast notification
         string message = AdBlockerService.Instance.IsEnabled 
@@ -468,18 +514,18 @@ public partial class WebBrowsePage : ContentPage
 
     private void UpdateAdBlockerIcon()
     {
-        bool enabled = AdBlockerService.Instance.IsEnabled;
-        // shield icon when on, shield-off when disabled
-        AdBlockerIcon.Text = enabled ? "\uE14B" : "\uE14B";
-        AdBlockerIcon.SetDynamicResource(Label.TextColorProperty,
-            enabled ? "AccentLight" : "TextMuted");
-        AdBlockerButton.Opacity = enabled ? 1.0 : 0.45;
+        // Top bar icon removed; state is now surfaced in the More menu.
     }
 
     private async void OnOpenInBrowserTapped(object sender, TappedEventArgs e)
     {
         try { await Launcher.Default.OpenAsync(new Uri(_currentUrl)); }
         catch { /* ignore */ }
+    }
+
+    private async void OnMoreTapped(object sender, TappedEventArgs e)
+    {
+        await ShowBrowserMenuAsync();
     }
 
     // Sites that use Cloudflare — Google Translate proxy can't load them in WebView.
@@ -528,16 +574,9 @@ public partial class WebBrowsePage : ContentPage
 
             if (isCf)
             {
-                string? choiceCf = await DisplayActionSheetAsync(
-                    $"{site} uses Cloudflare — Google Translate often fails inside this WebView. "
-                    + "Use your browser for translation, or copy / open the page.",
-                    "Cancel",
-                    null,
-                    "Google Translate (browser)",
-                    "Copy URL",
-                    "Open page (browser)");
+                string? choiceCf = await ShowCloudflareTranslateSheetAsync(site!);
 
-                if (choiceCf == "Google Translate (browser)")
+                if (choiceCf == CloudflareChoiceTranslateBrowser)
                 {
                     string encoded      = Uri.EscapeDataString(_currentUrl);
                     string translateUrl = $"https://translate.google.com/translate?sl=auto&tl=en&u={encoded}";
@@ -547,12 +586,12 @@ public partial class WebBrowsePage : ContentPage
                         await DisplayAlertAsync("Error", $"Could not open browser:\n{ex.Message}", "OK");
                     }
                 }
-                else if (choiceCf == "Copy URL")
+                else if (choiceCf == CloudflareChoiceCopyUrl)
                 {
                     await Clipboard.Default.SetTextAsync(_currentUrl);
                     await ShowQueuedToastAsync("URL copied to clipboard!");
                 }
-                else if (choiceCf == "Open page (browser)")
+                else if (choiceCf == CloudflareChoiceOpenBrowser)
                 {
                     try { await Launcher.Default.OpenAsync(new Uri(_currentUrl)); }
                     catch (Exception ex)
@@ -1164,6 +1203,7 @@ public partial class WebBrowsePage : ContentPage
             _actualWebNavigationUrl = e.Url ?? string.Empty;
             _currentUrl             = e.Url ?? string.Empty;
             UrlBarLabel.Text        = _currentUrl;
+            UpdateActiveTab(_currentUrl, null);
 
             UpdateDownloadFab(_currentUrl);
             UpdateNavigationButtons();
@@ -1176,7 +1216,7 @@ public partial class WebBrowsePage : ContentPage
         }
     }
 
-    private void OnNavigated(object sender, WebNavigatedEventArgs e)
+    private async void OnNavigated(object sender, WebNavigatedEventArgs e)
     {
         try
         {
@@ -1201,6 +1241,15 @@ public partial class WebBrowsePage : ContentPage
             _actualWebNavigationUrl = e.Url ?? string.Empty;
             _currentUrl             = e.Url ?? string.Empty;
             UrlBarLabel.Text        = _currentUrl;
+            string? title = null;
+            try
+            {
+                title = UnwrapJsResultJsonString(
+                    await SiteWebView.EvaluateJavaScriptAsync("document.title").ConfigureAwait(true));
+            }
+            catch { }
+            UpdateActiveTab(_currentUrl, title);
+            AddRecentVisit(_currentUrl, title);
 
             if (_translateMode == WebTranslateMode.GoogleProxy)
                 ScheduleTranslateEmbeddedOriginalSync();
@@ -1681,5 +1730,650 @@ public partial class WebBrowsePage : ContentPage
             FabBookmarkLabel.SetDynamicResource(Label.TextColorProperty, "TextSecondary");
             FabBookmarkLabel.Text = "BOOKMARK";
         }
+    }
+
+    private void AddTab(string initialUrl, bool switchToTab)
+    {
+        var tab = new BrowserTab
+        {
+            Url = initialUrl,
+            Title = GetReadableTabTitle(initialUrl),
+            LastTouchedAt = DateTime.Now
+        };
+        _tabs.Add(tab);
+        if (switchToTab)
+            _activeTabId = tab.Id;
+        UpdateTabCountBadge();
+    }
+
+    private void SwitchToTab(Guid tabId)
+    {
+        var tab = _tabs.FirstOrDefault(t => t.Id == tabId);
+        if (tab == null)
+            return;
+
+        _activeTabId = tabId;
+        tab.LastTouchedAt = DateTime.Now;
+        Navigate(tab.Url);
+        UpdateTabCountBadge();
+    }
+
+    private async Task CloseActiveTabAsync()
+    {
+        if (_tabs.Count <= 1)
+        {
+            await ShowQueuedToastAsync("At least one tab must stay open.");
+            return;
+        }
+
+        var current = _tabs.FirstOrDefault(t => t.Id == _activeTabId);
+        if (current != null)
+            _tabs.Remove(current);
+
+        var next = _tabs.OrderByDescending(t => t.LastTouchedAt).First();
+        _activeTabId = next.Id;
+        Navigate(next.Url);
+        UpdateTabCountBadge();
+    }
+
+    private void CloseOtherTabs()
+    {
+        var current = _tabs.FirstOrDefault(t => t.Id == _activeTabId);
+        if (current == null)
+            return;
+
+        _tabs.Clear();
+        _tabs.Add(current);
+        current.LastTouchedAt = DateTime.Now;
+        UpdateTabCountBadge();
+    }
+
+    private void UpdateActiveTab(string? url, string? title)
+    {
+        var active = _tabs.FirstOrDefault(t => t.Id == _activeTabId);
+        if (active == null)
+            return;
+
+        if (!string.IsNullOrWhiteSpace(url))
+            active.Url = url!;
+        if (!string.IsNullOrWhiteSpace(title))
+            active.Title = title!;
+        else if (string.IsNullOrWhiteSpace(active.Title))
+            active.Title = GetReadableTabTitle(active.Url);
+        active.LastTouchedAt = DateTime.Now;
+    }
+
+    private void UpdateTabCountBadge()
+    {
+        TabCountLabel.Text = Math.Max(1, _tabs.Count).ToString();
+        if (_isTabOverviewOpen)
+            RebuildTabOverviewList();
+    }
+
+    private static string BuildTabLabel(BrowserTab tab)
+    {
+        var title = string.IsNullOrWhiteSpace(tab.Title)
+            ? GetReadableTabTitle(tab.Url)
+            : tab.Title.Trim();
+        return title.Length > 32 ? title[..32] + "..." : title;
+    }
+
+    private static string GetReadableTabTitle(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+            return "New Tab";
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            return url;
+        return string.IsNullOrWhiteSpace(uri.Host) ? url : uri.Host;
+    }
+
+    private void AddRecentVisit(string? url, string? title)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+            return;
+
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            return;
+        if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+            return;
+
+        string source = DetectSite(url) ?? uri.Host;
+        var latest = _recentVisits.FirstOrDefault();
+        if (latest != null && latest.Url.Equals(url, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        _recentVisits.Insert(0, new WebVisitEntry
+        {
+            Url = url,
+            Source = source,
+            Title = string.IsNullOrWhiteSpace(title) ? GetReadableTabTitle(url) : title.Trim(),
+            VisitedAt = DateTime.Now
+        });
+
+        if (_recentVisits.Count > 120)
+            _recentVisits = _recentVisits.Take(120).ToList();
+        _ = SaveRecentVisitsAsync();
+    }
+
+    private async Task ShowRecentHistoryAsync()
+    {
+        await ShowRecentLinksSheetAsync();
+    }
+
+    private static List<WebVisitEntry> LoadRecentVisits()
+    {
+        try
+        {
+            if (!File.Exists(WebHistoryFile))
+                return new List<WebVisitEntry>();
+
+            var json = File.ReadAllText(WebHistoryFile);
+            var list = JsonSerializer.Deserialize<List<WebVisitEntry>>(json);
+            return list?.OrderByDescending(v => v.VisitedAt).Take(120).ToList()
+                ?? new List<WebVisitEntry>();
+        }
+        catch
+        {
+            return new List<WebVisitEntry>();
+        }
+    }
+
+    private async Task SaveRecentVisitsAsync()
+    {
+        try
+        {
+            var json = JsonSerializer.Serialize(_recentVisits.Take(120).ToList());
+            await File.WriteAllTextAsync(WebHistoryFile, json);
+        }
+        catch
+        {
+            // ignore write failures for non-critical history persistence
+        }
+    }
+
+    private async Task ShowTabOverviewAsync()
+    {
+        _isTabOverviewOpen = true;
+        RebuildTabOverviewList();
+        TabOverviewOverlay.Opacity = 0;
+        TabOverviewOverlay.IsVisible = true;
+        await TabOverviewOverlay.FadeToAsync(1, 180, Easing.CubicOut);
+    }
+
+    private async Task HideTabOverviewAsync()
+    {
+        if (!_isTabOverviewOpen)
+            return;
+        _isTabOverviewOpen = false;
+        await TabOverviewOverlay.FadeToAsync(0, 150, Easing.CubicIn);
+        TabOverviewOverlay.IsVisible = false;
+    }
+
+    private void RebuildTabOverviewList()
+    {
+        if (TabOverviewList == null)
+            return;
+
+        var orderedTabs = _tabs
+            .OrderByDescending(t => t.Id == _activeTabId)
+            .ThenByDescending(t => t.LastTouchedAt)
+            .ToList();
+
+        TabOverviewList.Children.Clear();
+        TabOverviewCountLabel.Text = _tabs.Count == 1 ? "1 tab" : $"{_tabs.Count} tabs";
+
+        foreach (var tab in orderedTabs)
+        {
+            bool isActive = tab.Id == _activeTabId;
+            var row = new Border
+            {
+                StrokeThickness = 1,
+                Padding = new Thickness(12, 10),
+                StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 14 }
+            };
+            row.SetDynamicResource(Border.BackgroundColorProperty, isActive ? "AccentContainer" : "BgInput");
+            row.SetDynamicResource(Border.StrokeProperty, isActive ? "AccentLight" : "Stroke");
+            row.GestureRecognizers.Add(new TapGestureRecognizer
+            {
+                Command = new Command(async () =>
+                {
+                    SwitchToTab(tab.Id);
+                    await HideTabOverviewAsync();
+                })
+            });
+
+            var layout = new Grid
+            {
+                ColumnDefinitions = new ColumnDefinitionCollection
+                {
+                    new ColumnDefinition(GridLength.Star),
+                    new ColumnDefinition(GridLength.Auto),
+                    new ColumnDefinition(GridLength.Auto)
+                },
+                ColumnSpacing = 8
+            };
+
+            var textWrap = new VerticalStackLayout { Spacing = 2 };
+            var titleLabel = new Label
+            {
+                Text = BuildTabLabel(tab),
+                FontSize = 13,
+                FontAttributes = FontAttributes.Bold
+            };
+            titleLabel.SetDynamicResource(Label.TextColorProperty, isActive ? "AccentLight" : "TextPrimary");
+
+            var urlLabel = new Label
+            {
+                Text = tab.Url,
+                FontSize = 10,
+                MaxLines = 1,
+                LineBreakMode = LineBreakMode.TailTruncation
+            };
+            urlLabel.SetDynamicResource(Label.TextColorProperty, isActive ? "AccentLight" : "TextMuted");
+
+            textWrap.Children.Add(titleLabel);
+            textWrap.Children.Add(urlLabel);
+            layout.Add(textWrap, 0, 0);
+
+            var openButton = new Button
+            {
+                Text = "OPEN",
+                FontSize = 10,
+                Padding = new Thickness(10, 6),
+                CornerRadius = 12,
+                ClassId = $"open:{tab.Id:D}",
+                BackgroundColor = Colors.Transparent
+            };
+            openButton.SetDynamicResource(Button.TextColorProperty, isActive ? "AccentLight" : "TextSecondary");
+            openButton.Clicked += OnTabCardActionClicked;
+            layout.Add(openButton, 1, 0);
+
+            var closeButton = new Button
+            {
+                Text = "\u2715",
+                FontSize = 10,
+                Padding = new Thickness(10, 6),
+                CornerRadius = 12,
+                ClassId = $"close:{tab.Id:D}",
+                BackgroundColor = Colors.Transparent,
+                IsVisible = _tabs.Count > 1
+            };
+            closeButton.SetDynamicResource(Button.TextColorProperty, isActive ? "AccentLight" : "TextMuted");
+            closeButton.Clicked += OnTabCardActionClicked;
+            layout.Add(closeButton, 2, 0);
+
+            row.Content = layout;
+            TabOverviewList.Children.Add(row);
+        }
+    }
+
+    private async void OnTabCardActionClicked(object? sender, EventArgs e)
+    {
+        if (sender is not Button btn || string.IsNullOrWhiteSpace(btn.ClassId))
+            return;
+
+        var parts = btn.ClassId.Split(':', 2);
+        if (parts.Length != 2 || !Guid.TryParse(parts[1], out var tabId))
+            return;
+
+        if (parts[0] == "open")
+        {
+            SwitchToTab(tabId);
+            await HideTabOverviewAsync();
+            return;
+        }
+
+        if (parts[0] == "close")
+        {
+            if (_tabs.Count <= 1)
+                return;
+
+            var target = _tabs.FirstOrDefault(t => t.Id == tabId);
+            if (target == null)
+                return;
+
+            bool wasActive = target.Id == _activeTabId;
+            _tabs.Remove(target);
+
+            if (wasActive)
+            {
+                var fallback = _tabs.OrderByDescending(t => t.LastTouchedAt).First();
+                _activeTabId = fallback.Id;
+                Navigate(fallback.Url);
+            }
+
+            UpdateTabCountBadge();
+        }
+    }
+
+    private async void OnTabOverviewNewTabTapped(object sender, TappedEventArgs e)
+    {
+        AddTab(_homeUrl, switchToTab: true);
+        Navigate(_homeUrl);
+        await HideTabOverviewAsync();
+    }
+
+    private void OnTabOverviewCloseOthersTapped(object sender, TappedEventArgs e)
+    {
+        CloseOtherTabs();
+        RebuildTabOverviewList();
+    }
+
+    private async void OnTabOverviewRecentTapped(object sender, TappedEventArgs e)
+    {
+        await ShowRecentHistoryAsync();
+        RebuildTabOverviewList();
+    }
+
+    private async void OnTabOverviewDoneTapped(object sender, TappedEventArgs e)
+    {
+        await HideTabOverviewAsync();
+    }
+
+    private void RefreshBrowserMenuState()
+    {
+        bool enabled = AdBlockerService.Instance.IsEnabled;
+        BrowserMenuAdBlockSubtitle.Text = enabled ? "Currently filtering ads on pages." : "Disabled for all pages.";
+        BrowserMenuAdBlockState.Text = enabled ? "ON" : "OFF";
+        BrowserMenuAdBlockRow.SetDynamicResource(
+            Border.BackgroundColorProperty, enabled ? "AccentContainer" : "BgInput");
+        BrowserMenuAdBlockRow.SetDynamicResource(
+            Border.StrokeProperty, enabled ? "AccentLight" : "Stroke");
+        BrowserMenuAdBlockIcon.SetDynamicResource(
+            Label.TextColorProperty, enabled ? "AccentLight" : "TextMuted");
+        BrowserMenuAdBlockState.SetDynamicResource(
+            Label.TextColorProperty, enabled ? "AccentLight" : "TextMuted");
+    }
+
+    private async Task ShowBrowserMenuAsync()
+    {
+        if (_isBrowserMenuOpen)
+            return;
+
+        _isBrowserMenuOpen = true;
+        RefreshBrowserMenuState();
+        BrowserMenuOverlay.IsVisible = true;
+        BrowserMenuOverlay.Opacity = 0;
+        BrowserMenuSheet.Opacity = 0;
+        BrowserMenuSheet.TranslationY = 30;
+
+        await Task.WhenAll(
+            BrowserMenuOverlay.FadeToAsync(1, 160, Easing.CubicOut),
+            BrowserMenuSheet.FadeToAsync(1, 180, Easing.CubicOut),
+            BrowserMenuSheet.TranslateToAsync(0, 0, 180, Easing.CubicOut));
+    }
+
+    private async Task HideBrowserMenuAsync()
+    {
+        if (!_isBrowserMenuOpen)
+            return;
+
+        _isBrowserMenuOpen = false;
+        await Task.WhenAll(
+            BrowserMenuSheet.FadeToAsync(0, 140, Easing.CubicIn),
+            BrowserMenuSheet.TranslateToAsync(0, 24, 140, Easing.CubicIn),
+            BrowserMenuOverlay.FadeToAsync(0, 140, Easing.CubicIn));
+        BrowserMenuOverlay.IsVisible = false;
+    }
+
+    private async void OnBrowserMenuOverlayTapped(object sender, TappedEventArgs e)
+    {
+        await HideBrowserMenuAsync();
+    }
+
+    private void OnBrowserMenuSheetTapped(object sender, TappedEventArgs e)
+    {
+        // Prevent taps inside the sheet from dismissing via overlay tap handler.
+    }
+
+    private async void OnBrowserMenuCloseTapped(object sender, TappedEventArgs e)
+    {
+        await HideBrowserMenuAsync();
+    }
+
+    private async void OnBrowserMenuRecentTapped(object sender, TappedEventArgs e)
+    {
+        await HideBrowserMenuAsync();
+        await ShowRecentHistoryAsync();
+    }
+
+    private async void OnBrowserMenuAdBlockTapped(object sender, TappedEventArgs e)
+    {
+        OnAdBlockerToggleTapped();
+        RefreshBrowserMenuState();
+        await HideBrowserMenuAsync();
+    }
+
+    private async void OnBrowserMenuRefreshTapped(object sender, TappedEventArgs e)
+    {
+        SiteWebView.Reload();
+        await HideBrowserMenuAsync();
+    }
+
+    private async void OnBrowserMenuHomeTapped(object sender, TappedEventArgs e)
+    {
+        if (IsTranslateActive)
+        {
+            _translateMode = WebTranslateMode.None;
+            _originalUrl = string.Empty;
+            UpdateTranslateFabAppearance();
+        }
+        Navigate(_homeUrl);
+        await HideBrowserMenuAsync();
+    }
+
+    private async void OnBrowserMenuOpenInBrowserTapped(object sender, TappedEventArgs e)
+    {
+        try { await Launcher.Default.OpenAsync(new Uri(_currentUrl)); }
+        catch { }
+        await HideBrowserMenuAsync();
+    }
+
+    private void RebuildRecentLinksList()
+    {
+        RecentLinksList.Children.Clear();
+        var top = _recentVisits.Take(30).ToList();
+        RecentLinksCountLabel.Text = top.Count == 1 ? "1 link" : $"{top.Count} links";
+
+        if (top.Count == 0)
+        {
+            var empty = new Label
+            {
+                Text = "No recent links yet.",
+                FontSize = 12,
+                HorizontalOptions = LayoutOptions.Center,
+                Margin = new Thickness(0, 12)
+            };
+            empty.SetDynamicResource(Label.TextColorProperty, "TextMuted");
+            RecentLinksList.Children.Add(empty);
+            return;
+        }
+
+        foreach (var visit in top)
+        {
+            var row = new Border
+            {
+                StrokeThickness = 1,
+                Padding = new Thickness(12, 10),
+                StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 14 }
+            };
+            row.SetDynamicResource(Border.BackgroundColorProperty, "BgInput");
+            row.SetDynamicResource(Border.StrokeProperty, "Stroke");
+            row.GestureRecognizers.Add(new TapGestureRecognizer
+            {
+                Command = new Command(async () =>
+                {
+                    AddTab(visit.Url, switchToTab: true);
+                    Navigate(visit.Url);
+                    await HideRecentLinksSheetAsync();
+                })
+            });
+
+            var grid = new Grid
+            {
+                RowDefinitions = new RowDefinitionCollection
+                {
+                    new RowDefinition(GridLength.Auto),
+                    new RowDefinition(GridLength.Auto)
+                },
+                ColumnDefinitions = new ColumnDefinitionCollection
+                {
+                    new ColumnDefinition(GridLength.Star),
+                    new ColumnDefinition(GridLength.Auto)
+                }
+            };
+
+            var title = new Label
+            {
+                Text = string.IsNullOrWhiteSpace(visit.Title) ? GetReadableTabTitle(visit.Url) : visit.Title!,
+                FontSize = 12,
+                FontAttributes = FontAttributes.Bold,
+                MaxLines = 1,
+                LineBreakMode = LineBreakMode.TailTruncation
+            };
+            title.SetDynamicResource(Label.TextColorProperty, "TextPrimary");
+            grid.Add(title, 0, 0);
+
+            var source = new Label
+            {
+                Text = visit.Source,
+                FontSize = 10
+            };
+            source.SetDynamicResource(Label.TextColorProperty, "AccentLight");
+            grid.Add(source, 1, 0);
+
+            var url = new Label
+            {
+                Text = visit.Url,
+                FontSize = 10,
+                MaxLines = 1,
+                LineBreakMode = LineBreakMode.TailTruncation
+            };
+            url.SetDynamicResource(Label.TextColorProperty, "TextMuted");
+            grid.Add(url, 0, 1);
+            Grid.SetColumnSpan(url, 2);
+
+            row.Content = grid;
+            RecentLinksList.Children.Add(row);
+        }
+    }
+
+    private async Task ShowRecentLinksSheetAsync()
+    {
+        if (_isRecentLinksOpen)
+            return;
+        _isRecentLinksOpen = true;
+        RebuildRecentLinksList();
+        RecentLinksOverlay.IsVisible = true;
+        RecentLinksOverlay.Opacity = 0;
+        RecentLinksSheet.Opacity = 0;
+        RecentLinksSheet.TranslationY = 30;
+
+        await Task.WhenAll(
+            RecentLinksOverlay.FadeToAsync(1, 160, Easing.CubicOut),
+            RecentLinksSheet.FadeToAsync(1, 180, Easing.CubicOut),
+            RecentLinksSheet.TranslateToAsync(0, 0, 180, Easing.CubicOut));
+    }
+
+    private async Task HideRecentLinksSheetAsync()
+    {
+        if (!_isRecentLinksOpen)
+            return;
+        _isRecentLinksOpen = false;
+        await Task.WhenAll(
+            RecentLinksSheet.FadeToAsync(0, 140, Easing.CubicIn),
+            RecentLinksSheet.TranslateToAsync(0, 24, 140, Easing.CubicIn),
+            RecentLinksOverlay.FadeToAsync(0, 140, Easing.CubicIn));
+        RecentLinksOverlay.IsVisible = false;
+    }
+
+    private async void OnRecentLinksOverlayTapped(object sender, TappedEventArgs e)
+    {
+        await HideRecentLinksSheetAsync();
+    }
+
+    private void OnRecentLinksSheetTapped(object sender, TappedEventArgs e)
+    {
+        // Swallow tap so overlay handler does not close it.
+    }
+
+    private async void OnRecentLinksCloseTapped(object sender, TappedEventArgs e)
+    {
+        await HideRecentLinksSheetAsync();
+    }
+
+    private async void OnRecentLinksClearTapped(object sender, TappedEventArgs e)
+    {
+        _recentVisits.Clear();
+        await SaveRecentVisitsAsync();
+        RebuildRecentLinksList();
+        await ShowQueuedToastAsync("Recent links cleared.");
+    }
+
+    private async Task<string?> ShowCloudflareTranslateSheetAsync(string site)
+    {
+        if (_isCloudflareSheetOpen)
+            return null;
+
+        _isCloudflareSheetOpen = true;
+        CloudflareSheetSubtitle.Text = $"{site} is Cloudflare protected. Use browser actions below.";
+        _cloudflareChoiceTcs = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        CloudflareSheetOverlay.IsVisible = true;
+        CloudflareSheetOverlay.Opacity = 0;
+        CloudflareSheet.Opacity = 0;
+        CloudflareSheet.TranslationY = 30;
+
+        await Task.WhenAll(
+            CloudflareSheetOverlay.FadeToAsync(1, 160, Easing.CubicOut),
+            CloudflareSheet.FadeToAsync(1, 180, Easing.CubicOut),
+            CloudflareSheet.TranslateToAsync(0, 0, 180, Easing.CubicOut));
+
+        return await _cloudflareChoiceTcs.Task;
+    }
+
+    private async Task HideCloudflareTranslateSheetAsync(string? result = null)
+    {
+        if (!_isCloudflareSheetOpen)
+            return;
+
+        _isCloudflareSheetOpen = false;
+        await Task.WhenAll(
+            CloudflareSheet.FadeToAsync(0, 140, Easing.CubicIn),
+            CloudflareSheet.TranslateToAsync(0, 24, 140, Easing.CubicIn),
+            CloudflareSheetOverlay.FadeToAsync(0, 140, Easing.CubicIn));
+        CloudflareSheetOverlay.IsVisible = false;
+        _cloudflareChoiceTcs?.TrySetResult(result);
+        _cloudflareChoiceTcs = null;
+    }
+
+    private async void OnCloudflareSheetOverlayTapped(object sender, TappedEventArgs e)
+    {
+        await HideCloudflareTranslateSheetAsync();
+    }
+
+    private void OnCloudflareSheetTapped(object sender, TappedEventArgs e)
+    {
+        // Swallow tap so overlay handler does not close it.
+    }
+
+    private async void OnCloudflareSheetCancelTapped(object sender, TappedEventArgs e)
+    {
+        await HideCloudflareTranslateSheetAsync();
+    }
+
+    private async void OnCloudflareTranslateBrowserTapped(object sender, TappedEventArgs e)
+    {
+        await HideCloudflareTranslateSheetAsync(CloudflareChoiceTranslateBrowser);
+    }
+
+    private async void OnCloudflareCopyUrlTapped(object sender, TappedEventArgs e)
+    {
+        await HideCloudflareTranslateSheetAsync(CloudflareChoiceCopyUrl);
+    }
+
+    private async void OnCloudflareOpenBrowserTapped(object sender, TappedEventArgs e)
+    {
+        await HideCloudflareTranslateSheetAsync(CloudflareChoiceOpenBrowser);
     }
 }
