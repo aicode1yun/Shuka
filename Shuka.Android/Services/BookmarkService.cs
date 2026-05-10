@@ -28,12 +28,15 @@ public class BookmarkService
     /// <summary>
     /// Adds a bookmark for a novel.
     /// </summary>
-    public void AddBookmark(string url, string title, string author, string siteName, int chapterCount = 0)
+    public void AddBookmark(string url, string title, string author, string siteName, int chapterCount = 0, string? coverUrl = null)
     {
+        string normalizedUrl = NormalizeUrlKey(url);
+
         // Check if already bookmarked
-        var existing = Bookmarks.FirstOrDefault(b => 
-            string.Equals(b.Url, url, StringComparison.OrdinalIgnoreCase));
-        
+        var existing = Bookmarks.FirstOrDefault(b =>
+            string.Equals(NormalizeUrlKey(b.Url), normalizedUrl, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(b.SiteName, siteName, StringComparison.OrdinalIgnoreCase));
+
         if (existing != null)
             return; // Already bookmarked
 
@@ -44,6 +47,7 @@ public class BookmarkService
             Author = author,
             SiteName = siteName,
             ChapterCount = chapterCount,
+            CoverUrl = coverUrl,
             BookmarkedAt = DateTime.Now,
             Tags = new List<string>()
         };
@@ -54,13 +58,29 @@ public class BookmarkService
     }
 
     /// <summary>
+    /// Updates the chapter count for an existing bookmark.
+    /// No-op when the URL is not bookmarked or <paramref name="chapterCount"/> is not positive.
+    /// </summary>
+    public void UpdateBookmarkChapterCount(string url, int chapterCount)
+    {
+        if (chapterCount <= 0) return;
+        string normalized = NormalizeUrlKey(url);
+        var bookmark = Bookmarks.FirstOrDefault(b =>
+            string.Equals(NormalizeUrlKey(b.Url), normalized, StringComparison.OrdinalIgnoreCase));
+        if (bookmark == null) return;
+        bookmark.ChapterCount = chapterCount;
+        SaveBookmarks();
+    }
+
+    /// <summary>
     /// Updates an existing bookmark's tags.
     /// </summary>
     public void UpdateBookmarkTags(string url, List<string> tags)
     {
-        var bookmark = Bookmarks.FirstOrDefault(b => 
-            string.Equals(b.Url, url, StringComparison.OrdinalIgnoreCase));
-        
+        string normalizedUrl = NormalizeUrlKey(url);
+        var bookmark = Bookmarks.FirstOrDefault(b =>
+            string.Equals(NormalizeUrlKey(b.Url), normalizedUrl, StringComparison.OrdinalIgnoreCase));
+
         if (bookmark != null)
         {
             bookmark.Tags = tags;
@@ -74,9 +94,10 @@ public class BookmarkService
     /// </summary>
     public void AddTag(string url, string tag)
     {
-        var bookmark = Bookmarks.FirstOrDefault(b => 
-            string.Equals(b.Url, url, StringComparison.OrdinalIgnoreCase));
-        
+        string normalizedUrl = NormalizeUrlKey(url);
+        var bookmark = Bookmarks.FirstOrDefault(b =>
+            string.Equals(NormalizeUrlKey(b.Url), normalizedUrl, StringComparison.OrdinalIgnoreCase));
+
         if (bookmark != null && !bookmark.Tags.Contains(tag, StringComparer.OrdinalIgnoreCase))
         {
             bookmark.Tags.Add(tag);
@@ -90,9 +111,10 @@ public class BookmarkService
     /// </summary>
     public void RemoveTag(string url, string tag)
     {
-        var bookmark = Bookmarks.FirstOrDefault(b => 
-            string.Equals(b.Url, url, StringComparison.OrdinalIgnoreCase));
-        
+        string normalizedUrl = NormalizeUrlKey(url);
+        var bookmark = Bookmarks.FirstOrDefault(b =>
+            string.Equals(NormalizeUrlKey(b.Url), normalizedUrl, StringComparison.OrdinalIgnoreCase));
+
         if (bookmark != null)
         {
             bookmark.Tags.RemoveAll(t => string.Equals(t, tag, StringComparison.OrdinalIgnoreCase));
@@ -106,9 +128,10 @@ public class BookmarkService
     /// </summary>
     public void RemoveBookmark(string url)
     {
-        var bookmark = Bookmarks.FirstOrDefault(b => 
-            string.Equals(b.Url, url, StringComparison.OrdinalIgnoreCase));
-        
+        string normalizedUrl = NormalizeUrlKey(url);
+        var bookmark = Bookmarks.FirstOrDefault(b =>
+            string.Equals(NormalizeUrlKey(b.Url), normalizedUrl, StringComparison.OrdinalIgnoreCase));
+
         if (bookmark != null)
         {
             MainThread.BeginInvokeOnMainThread(() => Bookmarks.Remove(bookmark));
@@ -120,10 +143,13 @@ public class BookmarkService
     /// <summary>
     /// Checks if a URL is bookmarked.
     /// </summary>
-    public bool IsBookmarked(string url)
+    public bool IsBookmarked(string url, string? siteName = null)
     {
-        return Bookmarks.Any(b => 
-            string.Equals(b.Url, url, StringComparison.OrdinalIgnoreCase));
+        string normalizedUrl = NormalizeUrlKey(url);
+        return Bookmarks.Any(b =>
+            string.Equals(NormalizeUrlKey(b.Url), normalizedUrl, StringComparison.OrdinalIgnoreCase) &&
+            (string.IsNullOrWhiteSpace(siteName) ||
+             string.Equals(b.SiteName, siteName, StringComparison.OrdinalIgnoreCase)));
     }
 
     /// <summary>
@@ -142,7 +168,7 @@ public class BookmarkService
     /// </summary>
     public int GetBookmarkCountForSite(string siteName)
     {
-        return Bookmarks.Count(b => 
+        return Bookmarks.Count(b =>
             string.Equals(b.SiteName, siteName, StringComparison.OrdinalIgnoreCase));
     }
 
@@ -189,6 +215,20 @@ public class BookmarkService
             System.Diagnostics.Debug.WriteLine($"[BookmarkService] Error saving bookmarks: {ex.Message}");
         }
     }
+
+    private static string NormalizeUrlKey(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+            return "";
+
+        string trimmed = url.Trim();
+        if (!Uri.TryCreate(trimmed, UriKind.Absolute, out var uri))
+            return trimmed.TrimEnd('/').ToLowerInvariant();
+
+        string host = uri.Host.ToLowerInvariant();
+        string path = Uri.UnescapeDataString(uri.AbsolutePath).TrimEnd('/').ToLowerInvariant();
+        return $"{host}{path}";
+    }
 }
 
 /// <summary>
@@ -203,4 +243,5 @@ public class BookmarkItem
     public DateTime BookmarkedAt { get; set; }
     public int ChapterCount { get; set; } = 0;
     public List<string> Tags { get; set; } = new();
+    public string? CoverUrl { get; set; }
 }

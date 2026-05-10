@@ -1,3 +1,5 @@
+using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace Shuka.Core.Adapters;
@@ -15,10 +17,10 @@ namespace Shuka.Core.Adapters;
 /// </summary>
 public class DmxsBrowse : IBrowsableAdapter
 {
-    public string SiteName         => "dmxs.org";
-    public string Description      => "BL danmei · boys love novels";
-    public string IconGlyph        => "\uE894"; // language (globe)
-    public bool   RequiresCfBypass => false;
+    public string SiteName => "dmxs.org";
+    public string Description => "BL danmei · boys love novels";
+    public string IconGlyph => "\uE894"; // language (globe)
+    public bool RequiresCfBypass => false;
 
     public string GetRecentUrl(int page = 1) =>
         page == 1
@@ -30,12 +32,24 @@ public class DmxsBrowse : IBrowsableAdapter
         "https://www.dmxs.org/";
 
     public string GetSearchUrl(string query, int page = 1) =>
-        $"https://www.dmxs.org/e/search/index.php?searchword={Uri.EscapeDataString(query)}&page={page}";
+        "https://www.dmxs.org/e/search/indexsearch.php";
+
+    public (string postBody, string charset)? GetSearchPostBody(string query, int page = 1)
+    {
+        // dmxs.org uses ECMS which requires a GBK-encoded POST to its search endpoint.
+        var gbk = Encoding.GetEncoding("gbk");
+        var bytes = gbk.GetBytes(query);
+        // Percent-encode each byte that is non-ASCII; leave ASCII chars as-is
+        var encodedQuery = string.Concat(bytes.Select(b =>
+            b < 128 ? ((char)b).ToString() : $"%{b:X2}"));
+        string body = $"keyboard={encodedQuery}&show=title&classid=0";
+        return (body, "gb2312");
+    }
 
     public ListingPage ParseListing(string html, string pageUrl)
     {
         var novels = new List<NovelEntry>();
-        var seen   = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         // dmxs book URLs: /{category}/{numericId}.html
         // e.g. /book/23204.html  /cycs/23202.html  /gdjk/23200.html
@@ -49,9 +63,9 @@ public class DmxsBrowse : IBrowsableAdapter
 
         foreach (Match m in blockPattern.Matches(html))
         {
-            string href   = m.Groups[1].Value;
+            string href = m.Groups[1].Value;
             string bookId = m.Groups[2].Value;
-            string inner  = m.Groups[3].Value;
+            string inner = m.Groups[3].Value;
 
             // Skip navigation/category links (no numeric ID)
             if (string.IsNullOrEmpty(bookId)) continue;
@@ -75,7 +89,7 @@ public class DmxsBrowse : IBrowsableAdapter
             if (authInTitle.Success)
             {
                 author = authInTitle.Groups[1].Value.Trim();
-                title  = title[..authInTitle.Index].Trim();
+                title = title[..authInTitle.Index].Trim();
             }
 
             // Strip trailing date/size noise like "[05-08]" or "2026-05-08"
@@ -83,7 +97,20 @@ public class DmxsBrowse : IBrowsableAdapter
 
             if (title.Length < 2) continue;
 
-            novels.Add(new NovelEntry(title, author, url, null, null, null));
+            // Fallback: try author/chapter meta from nearby text in the source html.
+            int winStart = Math.Max(0, m.Index - 400);
+            int winLen = Math.Min(html.Length - winStart, 900);
+            string window = html.Substring(winStart, winLen);
+
+            if (string.IsNullOrWhiteSpace(author))
+            {
+                var authNearby = Regex.Match(window, @"作者[：:]\s*([^\s<,，\n]{1,30})", RegexOptions.IgnoreCase);
+                if (authNearby.Success) author = authNearby.Groups[1].Value.Trim();
+            }
+
+            var chapterMeta = ExtractChapterMeta(window);
+
+            novels.Add(new NovelEntry(title, author, url, null, null, null, chapterMeta.count, chapterMeta.text));
         }
 
         // Fallback: scan for any /{category}/{id}.html links with adjacent text
@@ -111,5 +138,17 @@ public class DmxsBrowse : IBrowsableAdapter
         if (pageM.Success) int.TryParse(pageM.Groups[1].Value, out currentPage);
 
         return new ListingPage(novels, hasNext && novels.Count > 0, currentPage);
+    }
+
+    private static (int? count, string? text) ExtractChapterMeta(string sample)
+    {
+        if (string.IsNullOrWhiteSpace(sample))
+            return (null, null);
+
+        var cn = Regex.Match(sample, @"(?:共|总)?\s*([0-9]{1,5})\s*章");
+        if (cn.Success && int.TryParse(cn.Groups[1].Value, out int cnCount))
+            return (cnCount, $"{cnCount} chapters");
+
+        return (null, null);
     }
 }

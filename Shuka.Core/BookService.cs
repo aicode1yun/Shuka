@@ -10,10 +10,10 @@ namespace Shuka.Core;
 public class BookService
 {
     private readonly HttpFetcher _fetcher;
-    private readonly HttpClient  _gtClient;
-    private readonly Translator  _translator;
+    private readonly HttpClient _gtClient;
+    private readonly Translator _translator;
 
-    private static readonly ISiteAdapter[] Adapters =
+    internal static readonly ISiteAdapter[] Adapters =
         [new ShukuAdapter(), new CzBooksAdapter(), new DmxsAdapter(), new ShubaAdapter(), new QuanbenAdapter()];
 
     /// <summary>
@@ -72,7 +72,7 @@ public class BookService
 
         // Apply from/to range
         // chapterFrom is 1-based (1 = first chapter); 0 means start from beginning
-        int from  = chapterFrom > 0 ? chapterFrom - 1 : 0; // convert to 0-based index
+        int from = chapterFrom > 0 ? chapterFrom - 1 : 0; // convert to 0-based index
         var rangedUrls = chapterLimit > 0
             ? info.ChapterUrls.Skip(from).Take(chapterLimit).ToList()
             : info.ChapterUrls.Skip(from).ToList();
@@ -96,13 +96,13 @@ public class BookService
         log?.Invoke("Translating title/author...");
 
         // Run title/author translation and cover download in parallel
-        var titleTask  = _translator.Translate(book.Title,  log, ct);
+        var titleTask = _translator.Translate(book.Title, log, ct);
         var authorTask = _translator.Translate(book.Author, log, ct);
-        var coverTask  = DownloadCover(book.CoverUrl, log);
+        var coverTask = DownloadCover(book.CoverUrl, log);
 
         await Task.WhenAll(titleTask, authorTask, coverTask);
 
-        book.TitleEn  = titleTask.Result;
+        book.TitleEn = titleTask.Result;
         book.AuthorEn = authorTask.Result;
         var (coverBytes, coverMime) = coverTask.Result;
 
@@ -161,7 +161,7 @@ public class BookService
                 progress?.Report(new ProgressEventArgs
                 {
                     Current = i + 1,
-                    Total   = total,
+                    Total = total,
                     Message = $"Translated chapter {i + 1} of {total}..."
                 });
                 continue;
@@ -237,7 +237,7 @@ public class BookService
             progress?.Report(new ProgressEventArgs
             {
                 Current = i + 1,
-                Total   = total,
+                Total = total,
                 Message = $"Translated chapter {i + 1} of {total}..."
             });
         }

@@ -376,7 +376,7 @@
             <!-- ══ DISCOVER PANEL ══════════════════════════════ -->
             <Grid x:Name="DiscoverPanel" IsVisible="False" RowDefinitions="Auto,*">
 
-                <!-- Source filter search bar -->
+                <!-- Global search bar -->
                 <Border Grid.Row="0"
                         BackgroundColor="{DynamicResource BgPage}"
                         StrokeThickness="0"
@@ -396,11 +396,11 @@
                                    Margin="0,0,8,0" />
                             <Entry Grid.Column="1"
                                    x:Name="GlobalSearchEntry"
-                                   Placeholder="Filter sources..."
+                                   Placeholder="Search all sources..."
                                    Keyboard="Text"
                                    HeightRequest="44"
                                    ReturnType="Search"
-                                   TextChanged="OnSourceFilterChanged" />
+                                   Completed="OnGlobalSearchCompleted" />
                             <Label Grid.Column="2"
                                    x:Name="GlobalSearchClearBtn"
                                    Text="&#xE5CD;"
@@ -422,6 +422,64 @@
                     <VerticalStackLayout Padding="16,4,16,40" Spacing="12"
                                          x:Name="DiscoverSourceList" />
                 </ScrollView>
+
+                <!-- Global search results -->
+                <Grid Grid.Row="1" x:Name="SearchResultsView" IsVisible="False" RowDefinitions="Auto,*">
+                    <Label Grid.Row="0"
+                           x:Name="SearchResultsLabel"
+                           FontSize="13"
+                           FontAttributes="Bold"
+                           TextColor="{DynamicResource TextMuted}"
+                           Margin="20,12,20,4" />
+                    <ScrollView Grid.Row="1">
+                        <VerticalStackLayout Padding="16,4,16,40" Spacing="16"
+                                             x:Name="SearchResultsList" />
+                    </ScrollView>
+                </Grid>
+
+                <!-- Loading state for global search -->
+                <VerticalStackLayout Grid.Row="1"
+                                     x:Name="SearchLoadingState"
+                                     IsVisible="False"
+                                     HorizontalOptions="Center"
+                                     VerticalOptions="Center"
+                                     Spacing="12">
+                    <ActivityIndicator IsRunning="True"
+                                       Color="{DynamicResource AccentLight}"
+                                       WidthRequest="40" HeightRequest="40" />
+                    <Label Text="Searching all sources..."
+                           FontSize="13"
+                           TextColor="{DynamicResource TextMuted}"
+                           HorizontalOptions="Center" />
+                </VerticalStackLayout>
+
+                <!-- Bookmark toast banner for Discover -->
+                <Border Grid.Row="1"
+                        x:Name="DiscoverBookmarkBanner"
+                        IsVisible="False"
+                        Opacity="0"
+                        Margin="16,0,16,10"
+                        VerticalOptions="End"
+                        BackgroundColor="{DynamicResource AccentContainer}"
+                        Stroke="{DynamicResource AccentLight}"
+                        StrokeThickness="1"
+                        StrokeShape="RoundRectangle 12"
+                        Padding="12,10">
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                        <Label Grid.Column="0"
+                               Text="&#xE866;"
+                               FontFamily="{DynamicResource IconFont}"
+                               FontSize="16"
+                               TextColor="{DynamicResource AccentLight}"
+                               VerticalOptions="Center" />
+                        <Label Grid.Column="1"
+                               x:Name="DiscoverBookmarkBannerLabel"
+                               FontSize="12"
+                               FontAttributes="Bold"
+                               TextColor="{DynamicResource AccentLight}"
+                               VerticalOptions="Center" />
+                    </Grid>
+                </Border>
 
             </Grid>
 

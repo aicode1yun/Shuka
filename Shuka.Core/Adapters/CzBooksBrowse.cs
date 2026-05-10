@@ -16,99 +16,106 @@ namespace Shuka.Core.Adapters;
 /// </summary>
 public class CzBooksBrowse : IBrowsableAdapter
 {
-    public string SiteName         => "czbooks.net";
-    public string Description      => "Chinese novels · Cloudflare protected";
-    public string IconGlyph        => "\uE894"; // language (globe)
-    public bool   RequiresCfBypass => true;
+    public string SiteName => "czbooks.net";
+    public string Description => "Chinese novels · Cloudflare protected";
+    public string IconGlyph => "\uE894"; // language (globe)
+    public bool RequiresCfBypass => true;
 
-    public string GetRecentUrl(int page = 1)  => "https://czbooks.net/";
+    public string GetRecentUrl(int page = 1) => "https://czbooks.net/";
     public string GetPopularUrl(int page = 1) => "https://czbooks.net/hot/1";
     public string GetSearchUrl(string query, int page = 1) =>
-        $"https://czbooks.net/search?q={Uri.EscapeDataString(query)}&page={page}";
+        $"https://czbooks.net/s/{Uri.EscapeDataString(query)}/{page}";
 
     public ListingPage ParseListing(string html, string pageUrl)
     {
         var novels = new List<NovelEntry>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        // czbooks listing cards: <div class="novel-item"> or <li class="book-item">
-        // Try multiple patterns since the site may vary
-        var cardPattern = new Regex(
-            @"<(?:div|li)[^>]+class=""[^""]*(?:novel-item|book-item|item)[^""]*""[^>]*>([\s\S]*?)</(?:div|li)>",
+        // czbooks book links: /n/{bookId}  (no sub-path)
+        // Chapter links look like /n/{bookId}/{chapterId} and won't match because
+        // the regex requires a quote character directly after the alphanumeric bookId.
+        var linkPattern = new Regex(
+            @"href=[""'](?:https?://czbooks\.net)?/n/([a-zA-Z0-9]+)[""']",
             RegexOptions.IgnoreCase);
 
-        foreach (Match card in cardPattern.Matches(html))
+        foreach (Match m in linkPattern.Matches(html))
         {
-            string block = card.Groups[1].Value;
+            string bookId = m.Groups[1].Value;
+            if (bookId.Length < 3) continue; // skip noise
+            if (!seen.Add(bookId)) continue;
 
-            // Extract URL
-            var urlM = Regex.Match(block,
-                @"href=[""'](https?://czbooks\.net/n/[^""']+)[""']",
-                RegexOptions.IgnoreCase);
-            if (!urlM.Success)
-                urlM = Regex.Match(block,
-                    @"href=[""'](/n/[^""']+)[""']",
-                    RegexOptions.IgnoreCase);
-            if (!urlM.Success) continue;
+            // Look forward from the link position for card content (title, author, etc.)
+            int fwdEnd = Math.Min(html.Length, m.Index + 700);
+            string fwd = html.Substring(m.Index, fwdEnd - m.Index);
 
-            string url = urlM.Groups[1].Value.StartsWith("http")
-                ? urlM.Groups[1].Value
-                : "https://czbooks.net" + urlM.Groups[1].Value;
+            // Also grab a small backward window for cover images that precede the link
+            int bwdStart = Math.Max(0, m.Index - 150);
+            string ctx = html.Substring(bwdStart, fwdEnd - bwdStart);
 
-            // Extract title
+            // ── Title ─────────────────────────────────────────────────────────────
             string title = "";
-            var titleM = Regex.Match(block,
-                @"<(?:h[1-6]|span|div)[^>]*class=""[^""]*title[^""]*""[^>]*>([^<]+)",
-                RegexOptions.IgnoreCase);
-            if (titleM.Success) title = System.Net.WebUtility.HtmlDecode(titleM.Groups[1].Value.Trim());
+            var titleM = Regex.Match(fwd,
+                @"novel-item-title[^>]*>\s*([^<]{2,80})", RegexOptions.IgnoreCase);
+            if (titleM.Success)
+                title = System.Net.WebUtility.HtmlDecode(titleM.Groups[1].Value.Trim());
+
             if (string.IsNullOrWhiteSpace(title))
             {
-                var aM = Regex.Match(block, @"<a[^>]*>([^<]{2,60})</a>", RegexOptions.IgnoreCase);
-                if (aM.Success) title = System.Net.WebUtility.HtmlDecode(aM.Groups[1].Value.Trim());
+                var hM = Regex.Match(fwd,
+                    @"<h[1-6][^>]*>\s*([^<]{2,80})\s*</h[1-6]>", RegexOptions.IgnoreCase);
+                if (hM.Success) title = System.Net.WebUtility.HtmlDecode(hM.Groups[1].Value.Trim());
             }
             if (string.IsNullOrWhiteSpace(title)) continue;
 
-            // Extract cover
-            string? cover = null;
-            var imgM = Regex.Match(block,
-                @"<img[^>]+src=[""'](https?://[^""']+)[""']",
+            // ── Author ────────────────────────────────────────────────────────────
+            string? author = null;
+            var authM = Regex.Match(fwd,
+                @"novel-item-author[^>]*>[\s\S]{0,60}?<a[^>]*>([^<]+)</a>",
                 RegexOptions.IgnoreCase);
+            if (authM.Success)
+                author = System.Net.WebUtility.HtmlDecode(authM.Groups[1].Value.Trim());
+            if (string.IsNullOrWhiteSpace(author))
+            {
+                authM = Regex.Match(ctx, @"作者[：:\s]*([^\s<,，]{1,30})");
+                if (authM.Success) author = authM.Groups[1].Value.Trim();
+            }
+
+            // ── Cover ─────────────────────────────────────────────────────────────
+            string? cover = null;
+            var imgM = Regex.Match(ctx,
+                @"<img[^>]+src=[""'](https?://[^""']+)[""']", RegexOptions.IgnoreCase);
             if (imgM.Success) cover = imgM.Groups[1].Value;
 
-            // Extract author
-            string? author = null;
-            var authM = Regex.Match(block,
-                @"作者[：:]\s*([^\s<,，]{1,30})",
-                RegexOptions.IgnoreCase);
-            if (authM.Success) author = authM.Groups[1].Value.Trim();
-
-            novels.Add(new NovelEntry(title, author, url, cover, null, null));
+            var chapterMeta = ExtractChapterMeta(ctx);
+            novels.Add(new NovelEntry(
+                title, author,
+                $"https://czbooks.net/n/{bookId}",
+                cover, null, null,
+                chapterMeta.count, chapterMeta.text));
         }
 
-        // Fallback: parse any /n/{id} links if card parsing found nothing
-        if (novels.Count == 0)
-        {
-            var linkPattern = new Regex(
-                @"href=[""'](?:https?://czbooks\.net)?(/n/([^""'/]+))[""'][^>]*>([^<]{2,80})</a>",
-                RegexOptions.IgnoreCase);
-            var seen = new HashSet<string>();
-            foreach (Match m in linkPattern.Matches(html))
-            {
-                string bookId = m.Groups[2].Value;
-                if (!seen.Add(bookId)) continue;
-                string url = "https://czbooks.net" + m.Groups[1].Value;
-                string title = System.Net.WebUtility.HtmlDecode(m.Groups[3].Value.Trim());
-                if (title.Length < 2) continue;
-                novels.Add(new NovelEntry(title, null, url, null, null, null));
-            }
-        }
-
-        bool hasNext = html.Contains("下一页") || html.Contains("next") ||
-                       Regex.IsMatch(html, @"page=\d+", RegexOptions.IgnoreCase);
-
+        bool hasNext = html.Contains("下一頁") || html.Contains("下一页") ||
+                       Regex.IsMatch(html, @"/s/[^/]+/\d+", RegexOptions.IgnoreCase);
         int currentPage = 1;
         var pageM = Regex.Match(pageUrl, @"/(\d+)$");
         if (pageM.Success) int.TryParse(pageM.Groups[1].Value, out currentPage);
 
         return new ListingPage(novels, hasNext && novels.Count > 0, currentPage);
+    }
+
+    private static (int? count, string? text) ExtractChapterMeta(string sample)
+    {
+        if (string.IsNullOrWhiteSpace(sample))
+            return (null, null);
+
+        var cn = Regex.Match(sample, @"(?:共|总)?\s*([0-9]{1,5})\s*章");
+        if (cn.Success && int.TryParse(cn.Groups[1].Value, out int cnCount))
+            return (cnCount, $"{cnCount} chapters");
+
+        var en = Regex.Match(sample, @"\b([0-9]{1,5})\s*chapters?\b", RegexOptions.IgnoreCase);
+        if (en.Success && int.TryParse(en.Groups[1].Value, out int enCount))
+            return (enCount, $"{enCount} chapters");
+
+        return (null, null);
     }
 }

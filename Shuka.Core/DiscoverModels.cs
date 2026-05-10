@@ -9,7 +9,9 @@ public record NovelEntry(
     string Url,
     string? CoverUrl,
     string? Description,
-    string? Tags
+    string? Tags,
+    int? ChapterCount = null,
+    string? ChapterText = null
 );
 
 /// <summary>
@@ -49,4 +51,21 @@ public interface IBrowsableAdapter
 
     /// <summary>Parse a listing/search HTML page into novel entries.</summary>
     ListingPage ParseListing(string html, string pageUrl);
+
+    /// <summary>
+    /// If non-null, the search should be performed via HTTP POST instead of GET.
+    /// Returns (postBody, charset) where postBody is already URL-form-encoded and
+    /// charset is the encoding name for the Content-Type header (e.g. "gb2312").
+    /// </summary>
+    (string postBody, string charset)? GetSearchPostBody(string query, int page = 1) => null;
 }
+
+/// <summary>
+/// A per-source global search result including status information.
+/// </summary>
+public record SourceSearchResult(
+    IBrowsableAdapter Source,
+    ListingPage Results,
+    bool IsSuccess,
+    string? ErrorMessage
+);

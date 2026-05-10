@@ -131,12 +131,12 @@ public class HttpFetcher : IDisposable
                     charset = charset.ToLowerInvariant() switch
                     {
                         "gb2312" or "gb_2312" or "csgb2312" or "x-gbk" or "chinese" => "gbk",
-                        "big5"   or "csbig5"  or "x-x-big5"                         => "big5",
-                        _                                                             => charset
+                        "big5" or "csbig5" or "x-x-big5" => "big5",
+                        _ => charset
                     };
 
                     Encoding enc;
-                    try   { enc = Encoding.GetEncoding(charset); }
+                    try { enc = Encoding.GetEncoding(charset); }
                     catch { enc = Encoding.UTF8; }
                     return enc.GetString(rawBytes);
                 }
@@ -152,6 +152,75 @@ public class HttpFetcher : IDisposable
         }
 
         throw new Exception($"Fetch failed: {url} — {last?.Message}");
+    }
+
+    /// <summary>
+    /// Sends an HTTP POST with a pre-encoded form body and returns the response HTML
+    /// (following any redirects). Uses the same charset auto-detection as <see cref="Fetch"/>.
+    /// </summary>
+    public async Task<string> FetchPost(string url, string formBody, string bodyCharset = "utf-8",
+        int retries = 3, Action<string>? log = null, CancellationToken ct = default)
+    {
+        int delay = 500;
+        Exception? last = null;
+
+        for (int i = 0; i <= retries; i++)
+        {
+            ct.ThrowIfCancellationRequested();
+            try
+            {
+                using var req = new HttpRequestMessage(HttpMethod.Post, url);
+                var uri = new Uri(url);
+                req.Headers.Add("Referer", $"{uri.Scheme}://{uri.Host}/");
+
+                // Encode the pre-built form body using ASCII (it's already %-encoded)
+                var bodyBytes = Encoding.ASCII.GetBytes(formBody);
+                req.Content = new ByteArrayContent(bodyBytes);
+                req.Content.Headers.ContentType =
+                    new System.Net.Http.Headers.MediaTypeHeaderValue("application/x-www-form-urlencoded")
+                    { CharSet = bodyCharset };
+
+                using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                linked.CancelAfter(TimeSpan.FromSeconds(15));
+                var resp = await _site.SendAsync(req, linked.Token);
+
+                if (resp.IsSuccessStatusCode)
+                {
+                    byte[] rawBytes = await resp.Content.ReadAsByteArrayAsync(ct);
+                    string latin1 = Encoding.Latin1.GetString(rawBytes);
+
+                    string charset = "utf-8";
+                    string? ctHeader = resp.Content.Headers.ContentType?.CharSet;
+                    if (!string.IsNullOrWhiteSpace(ctHeader))
+                        charset = ctHeader.Trim().Trim('"');
+                    else
+                    {
+                        string head = latin1[..Math.Min(latin1.Length, 4096)];
+                        var cm = Regex.Match(head, @"charset\s*=\s*[""']?\s*([\w-]+)", RegexOptions.IgnoreCase);
+                        if (cm.Success) charset = cm.Groups[1].Value.Trim();
+                    }
+
+                    charset = charset.ToLowerInvariant() switch
+                    {
+                        "gb2312" or "gb_2312" or "csgb2312" or "x-gbk" or "chinese" => "gbk",
+                        "big5" or "csbig5" or "x-x-big5" => "big5",
+                        _ => charset
+                    };
+
+                    Encoding enc;
+                    try { enc = Encoding.GetEncoding(charset); }
+                    catch { enc = Encoding.UTF8; }
+                    return enc.GetString(rawBytes);
+                }
+
+                resp.EnsureSuccessStatusCode();
+                return "";
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+            catch (Exception ex) { last = ex; await Task.Delay(delay, ct); delay = Math.Min(delay * 2, 8000); }
+        }
+
+        throw new Exception($"FetchPost failed: {url} — {last?.Message}");
     }
 
     public void Dispose() => _site.Dispose();

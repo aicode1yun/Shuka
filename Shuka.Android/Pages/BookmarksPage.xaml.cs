@@ -18,6 +18,8 @@ public partial class BookmarksPage : ContentPage
     private string _sortFilter = "latest"; // latest, chapters
     private bool _isTagSheetOpen;
     private BookmarkItem? _tagSheetBookmark;
+    private bool _isRebuildingList = false;
+    private readonly object _rebuildLock = new();
     private bool _isRemoveBookmarkSheetOpen;
     private BookmarkItem? _removeBookmarkTarget;
 
@@ -67,7 +69,7 @@ public partial class BookmarksPage : ContentPage
     private void OnSelectModeTapped(object sender, TappedEventArgs e)
     {
         System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Select mode tapped. Current: {_selectMode}");
-        
+
         if (_selectMode)
         {
             ExitSelectMode();
@@ -82,19 +84,19 @@ public partial class BookmarksPage : ContentPage
     {
         _selectMode = true;
         _selectedUrls.Clear();
-        
+
         System.Diagnostics.Debug.WriteLine("[BookmarksPage] Entering select mode");
-        
+
         SelectModeIcon.Text = "\uE5CD"; // close icon
         SelectModeIcon.SetDynamicResource(Label.TextColorProperty, "AccentLight");
-        
+
         // Change title to show we're in select mode
         TitleLabel.Text = "Select Bookmarks";
-        
+
         ActionButton.IsVisible = false;
         // Action bar visibility will be updated by UpdateSelectionCount
         SelectionActionBar.SetDynamicResource(Border.StrokeProperty, "Stroke");
-        
+
         BuildBookmarksList();
     }
 
@@ -102,12 +104,12 @@ public partial class BookmarksPage : ContentPage
     {
         _selectMode = false;
         _selectedUrls.Clear();
-        
+
         System.Diagnostics.Debug.WriteLine("[BookmarksPage] Exiting select mode");
-        
+
         SelectModeIcon.Text = "\uE8B3"; // check_box icon
         SelectModeIcon.SetDynamicResource(Label.TextColorProperty, "TextMuted");
-        
+
         // Restore original title
         if (!string.IsNullOrEmpty(_filterSiteName))
         {
@@ -117,9 +119,9 @@ public partial class BookmarksPage : ContentPage
         {
             TitleLabel.Text = "Bookmarks";
         }
-        
+
         SelectionActionBar.IsVisible = false;
-        
+
         BuildBookmarksList();
     }
 
@@ -224,7 +226,7 @@ public partial class BookmarksPage : ContentPage
             {
                 await chip.ScaleToAsync(0.92, 70, Easing.CubicOut);
                 await chip.ScaleToAsync(1.0, 70, Easing.SpringOut);
-                
+
                 _sortFilter = filterValue;
                 BuildFilterChips();
                 BuildBookmarksList();
@@ -238,9 +240,23 @@ public partial class BookmarksPage : ContentPage
 
     private void BuildBookmarksList()
     {
-        ContentStack.Clear();
+        lock (_rebuildLock)
+        {
+            if (_isRebuildingList)
+            {
+                System.Diagnostics.Debug.WriteLine("[BookmarksPage] BuildBookmarksList already in progress, skipping");
+                return;
+            }
+            _isRebuildingList = true;
+        }
 
-        var allBookmarks = BookmarkService.Instance.Bookmarks.ToList();
+        try
+        {
+            ContentStack.Clear();
+
+            System.Diagnostics.Debug.WriteLine($"[BookmarksPage] BuildBookmarksList called. Current selected: {_selectedUrls.Count}");
+
+            var allBookmarks = BookmarkService.Instance.Bookmarks.ToList();
 
         // Filter by site if specified
         if (!string.IsNullOrEmpty(_filterSiteName))
@@ -254,7 +270,7 @@ public partial class BookmarksPage : ContentPage
         if (!string.IsNullOrEmpty(_searchQuery))
         {
             allBookmarks = allBookmarks
-                .Where(b => 
+                .Where(b =>
                     b.Title.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase) ||
                     b.Author.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase) ||
                     b.Tags.Any(t => t.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase)))
@@ -273,7 +289,7 @@ public partial class BookmarksPage : ContentPage
         {
             EmptyState.IsVisible = true;
             ActionButton.IsVisible = false;
-            
+
             if (!string.IsNullOrEmpty(_searchQuery))
             {
                 EmptyStateTitle.Text = "No results found";
@@ -315,35 +331,70 @@ public partial class BookmarksPage : ContentPage
         }
 
         UpdateSelectionCount();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Error in BuildBookmarksList: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Stack trace: {ex.StackTrace}");
+        }
+        finally
+        {
+            lock (_rebuildLock)
+            {
+                _isRebuildingList = false;
+            }
+        }
     }
 
     private View BuildBookmarkCard(BookmarkItem bookmark)
     {
         bool isSelected = _selectedUrls.Contains(bookmark.Url);
 
-        System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Building card for {bookmark.Title}, Selected: {isSelected}, SelectMode: {_selectMode}");
+        System.Diagnostics.Debug.WriteLine($"[BookmarksPage] BuildBookmarkCard: Title='{bookmark.Title}', URL='{bookmark.Url}', Selected={isSelected}, URLInSet={_selectedUrls.Contains(bookmark.Url)}, TotalSelected={_selectedUrls.Count}");
 
         // ── Main content ─────────────────────────────────────────────────────
-        var iconLabel = new Label
+        // Cover thumbnail: show remote cover when available, otherwise lily placeholder
+        View coverThumbnail;
+        if (!string.IsNullOrWhiteSpace(bookmark.CoverUrl) &&
+            Uri.TryCreate(bookmark.CoverUrl, UriKind.Absolute, out var bmCoverUri))
         {
-            Text = "\uE866",
-            FontFamily = "MaterialSymbols",
-            FontSize = 20,
-            HorizontalOptions = LayoutOptions.Center,
-            VerticalOptions = LayoutOptions.Center,
-        };
-        iconLabel.SetDynamicResource(Label.TextColorProperty, "AccentLight");
-
-        var iconBadge = new Border
+            coverThumbnail = new Border
+            {
+                StrokeThickness = 0,
+                StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 10 },
+                WidthRequest = 52,
+                HeightRequest = 74,
+                VerticalOptions = LayoutOptions.Start,
+                Content = new Image
+                {
+                    Source = ImageSource.FromUri(bmCoverUri),
+                    Aspect = Aspect.AspectFill,
+                },
+            };
+            ((Border)coverThumbnail).SetDynamicResource(Border.BackgroundColorProperty, "BgInput");
+        }
+        else
         {
-            StrokeThickness = 0,
-            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 12 },
-            WidthRequest = 44,
-            HeightRequest = 44,
-            VerticalOptions = LayoutOptions.Start,
-            Content = iconLabel,
-        };
-        iconBadge.SetDynamicResource(Border.BackgroundColorProperty, "AccentContainer");
+            coverThumbnail = new Border
+            {
+                StrokeThickness = 0,
+                StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 10 },
+                WidthRequest = 52,
+                HeightRequest = 74,
+                VerticalOptions = LayoutOptions.Start,
+                Content = new Image
+                {
+                    Source = ImageSource.FromFile("lily.png"),
+                    Aspect = Aspect.AspectFit,
+                    WidthRequest = 28,
+                    HeightRequest = 28,
+                    HorizontalOptions = LayoutOptions.Center,
+                    VerticalOptions = LayoutOptions.Center,
+                    Opacity = 0.45,
+                },
+            };
+            ((Border)coverThumbnail).SetDynamicResource(Border.BackgroundColorProperty, "AccentContainer");
+        }
 
         var titleLabel = new Label
         {
@@ -357,7 +408,9 @@ public partial class BookmarksPage : ContentPage
 
         var infoLabel = new Label
         {
-            Text = $"{bookmark.Author} • {bookmark.ChapterCount} chapters",
+            Text = bookmark.ChapterCount > 0
+                ? $"{bookmark.Author} • {bookmark.ChapterCount} chapters"
+                : bookmark.Author,
             FontSize = 11,
             LineBreakMode = LineBreakMode.TailTruncation,
         };
@@ -408,7 +461,7 @@ public partial class BookmarksPage : ContentPage
             },
             ColumnSpacing = 12,
         };
-        mainContent.Add(iconBadge, 0, 0);
+        mainContent.Add(coverThumbnail, 0, 0);
         mainContent.Add(textStack, 1, 0);
 
         // ── Action buttons (only in normal mode) ────────────────────────────
@@ -482,10 +535,10 @@ public partial class BookmarksPage : ContentPage
             Padding = new Thickness(14),
             Content = cardContent,
         };
-        
+
         // Set border color (no background tint)
         card.SetDynamicResource(Border.BackgroundColorProperty, "BgCard");
-        
+
         if (isSelected && _selectMode)
         {
             card.SetDynamicResource(Border.StrokeProperty, "AccentLight");
@@ -495,116 +548,183 @@ public partial class BookmarksPage : ContentPage
             card.SetDynamicResource(Border.StrokeProperty, "Stroke");
         }
 
-        // Card tap behavior
-        var tapGesture = new TapGestureRecognizer
+        // ── Unified gesture handling (tap and long-press) ───────────────────
+        // Use only PointerGestureRecognizer to avoid conflicts between TapGestureRecognizer and PointerGestureRecognizer
+        CancellationTokenSource? lpCts = null;
+        bool longPressTriggered = false;
+        var pointerGesture = new PointerGestureRecognizer();
+        
+        pointerGesture.PointerPressed += async (s, e) =>
         {
-            Command = new Command(async () =>
+            try
             {
-                System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Card tapped. Select mode: {_selectMode}, URL: {bookmark.Url}");
+                lpCts?.Cancel();
+                lpCts?.Dispose();
+                longPressTriggered = false;
+                var cts = new CancellationTokenSource();
+                lpCts = cts;
                 
-                if (_selectMode)
-                {
-                    // In select mode: toggle selection
-                    if (isSelected)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Deselecting: {bookmark.Url}");
-                        _selectedUrls.Remove(bookmark.Url);
-                    }
-                    else
-                    {
-                        System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Selecting: {bookmark.Url}");
-                        _selectedUrls.Add(bookmark.Url);
-                    }
-                    
-                    System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Total selected: {_selectedUrls.Count}");
-                    BuildBookmarksList();
-                }
-                else
-                {
-                    // Normal mode: open in WebView
-                    System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Opening in WebView: {bookmark.Url}");
-                    await card.ScaleToAsync(0.97, 80, Easing.CubicOut);
-                    await card.ScaleToAsync(1.0, 80, Easing.SpringOut);
-                    await Shell.Current.Navigation.PushAsync(new WebBrowsePage(bookmark.Url));
-                }
-            })
-        };
-        card.GestureRecognizers.Add(tapGesture);
-
-        // Long press to enter select mode and select this item
-        var longPressGesture = new PointerGestureRecognizer();
-        longPressGesture.PointerPressed += async (s, e) =>
-        {
-            // Start tracking long press
-            var pressStart = DateTime.Now;
-            
-            // Wait for 500ms (half second is better UX than 3 seconds)
-            await Task.Delay(500);
-            
-            // Check if still pressed (simple time-based check)
-            if ((DateTime.Now - pressStart).TotalMilliseconds >= 500)
-            {
-                // Haptic feedback
                 try
                 {
+                    await Task.Delay(500, cts.Token); // cancelled for normal taps
+
+                    // Pointer was held for 500 ms — this is a genuine long press
+                    longPressTriggered = true;
+                    System.Diagnostics.Debug.WriteLine($"[BookmarksPage] LONG PRESS detected on: {bookmark.Url}");
+
+                    // Haptic feedback
+                    try
+                    {
 #if ANDROID
 #pragma warning disable CA1416 // Version checks are in place
-                    if (global::Android.OS.Build.VERSION.SdkInt >= global::Android.OS.BuildVersionCodes.S)
-                    {
-                        // Android 12+ (API 31+)
-                        var vibratorManager = global::Android.App.Application.Context.GetSystemService(global::Android.Content.Context.VibratorManagerService) as global::Android.OS.VibratorManager;
-                        var vibrator = vibratorManager?.DefaultVibrator;
-                        if (vibrator != null && vibrator.HasVibrator)
+                        if (global::Android.OS.Build.VERSION.SdkInt >= global::Android.OS.BuildVersionCodes.S)
                         {
-                            var effect = global::Android.OS.VibrationEffect.CreateOneShot(50, global::Android.OS.VibrationEffect.DefaultAmplitude);
-                            vibrator.Vibrate(effect);
+                            var vibratorManager = global::Android.App.Application.Context.GetSystemService(global::Android.Content.Context.VibratorManagerService) as global::Android.OS.VibratorManager;
+                            var vibrator = vibratorManager?.DefaultVibrator;
+                            if (vibrator != null && vibrator.HasVibrator)
+                            {
+                                var effect = global::Android.OS.VibrationEffect.CreateOneShot(50, global::Android.OS.VibrationEffect.DefaultAmplitude);
+                                vibrator.Vibrate(effect);
+                            }
                         }
-                    }
-                    else if (global::Android.OS.Build.VERSION.SdkInt >= global::Android.OS.BuildVersionCodes.O)
-                    {
-                        // Android 8+ (API 26+)
+                        else if (global::Android.OS.Build.VERSION.SdkInt >= global::Android.OS.BuildVersionCodes.O)
+                        {
 #pragma warning disable CA1422
-                        var vibrator = global::Android.App.Application.Context.GetSystemService(global::Android.Content.Context.VibratorService) as global::Android.OS.Vibrator;
+                            var vibrator = global::Android.App.Application.Context.GetSystemService(global::Android.Content.Context.VibratorService) as global::Android.OS.Vibrator;
 #pragma warning restore CA1422
-                        if (vibrator != null && vibrator.HasVibrator)
-                        {
-                            var effect = global::Android.OS.VibrationEffect.CreateOneShot(50, global::Android.OS.VibrationEffect.DefaultAmplitude);
-                            vibrator.Vibrate(effect);
+                            if (vibrator != null && vibrator.HasVibrator)
+                            {
+                                var effect = global::Android.OS.VibrationEffect.CreateOneShot(50, global::Android.OS.VibrationEffect.DefaultAmplitude);
+                                vibrator.Vibrate(effect);
+                            }
                         }
+                        else
+                        {
+#pragma warning disable CA1422
+                            var vibrator = global::Android.App.Application.Context.GetSystemService(global::Android.Content.Context.VibratorService) as global::Android.OS.Vibrator;
+                            if (vibrator != null && vibrator.HasVibrator)
+                            {
+                                vibrator.Vibrate(50);
+                            }
+#pragma warning restore CA1422
+                        }
+#pragma warning restore CA1416
+#endif
+                    }
+                    catch { }
+
+                    // Enter select mode if not already in it
+                    if (!_selectMode)
+                    {
+                        EnterSelectMode();
+                    }
+
+                    // Select this item
+                    if (!_selectedUrls.Contains(bookmark.Url))
+                    {
+                        _selectedUrls.Add(bookmark.Url);
+                        MainThread.BeginInvokeOnMainThread(async () =>
+                        {
+                            try
+                            {
+                                // Wait for gesture to fully complete before rebuilding
+                                await Task.Delay(100);
+                                BuildBookmarksList();
+                            }
+                            catch (Exception ex)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Error in BuildBookmarksList (long press deferred): {ex.Message}");
+                            }
+                        });
+                    }
+                }
+                catch (OperationCanceledException) { /* normal tap — do nothing */ }
+                catch (ObjectDisposedException) { }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Error in PointerPressed: {ex.Message}");
+            }
+        };
+        
+        pointerGesture.PointerReleased += async (s, e) =>
+        {
+            try
+            {
+                // Cancel long-press if pointer was released early (normal tap)
+                if (lpCts != null && !lpCts.Token.IsCancellationRequested)
+                {
+                    lpCts.Cancel();
+                    
+                    // If a long press already triggered, do not also handle this as a tap.
+                    if (longPressTriggered)
+                    {
+                        longPressTriggered = false;
+                        return;
+                    }
+                    
+                    // This is a normal tap (pointer released < 500ms)
+                    System.Diagnostics.Debug.WriteLine($"[BookmarksPage] TAP detected on: {bookmark.Url}, SelectMode: {_selectMode}");
+
+                    if (_selectMode)
+                    {
+                        // In select mode: toggle selection by checking current state
+                        bool currentlySelected = _selectedUrls.Contains(bookmark.Url);
+                        System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Toggle - Before: IsInSet={currentlySelected}, Count={_selectedUrls.Count}");
+
+                        if (currentlySelected)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[BookmarksPage] TAP: Removing {bookmark.Url}");
+                            _selectedUrls.Remove(bookmark.Url);
+                        }
+                        else
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[BookmarksPage] TAP: Adding {bookmark.Url}");
+                            _selectedUrls.Add(bookmark.Url);
+                        }
+
+                        System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Toggle - After: IsInSet={_selectedUrls.Contains(bookmark.Url)}, Count={_selectedUrls.Count}");
+                        
+                        // Defer UI update significantly to avoid issues with card being removed from tree
+                        // while gesture handler is still executing
+                        MainThread.BeginInvokeOnMainThread(async () =>
+                        {
+                            try
+                            {
+                                // Wait for gesture to fully complete before rebuilding
+                                await Task.Delay(100);
+                                BuildBookmarksList();
+                            }
+                            catch (Exception ex)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Error in BuildBookmarksList (tap deferred): {ex.Message}");
+                            }
+                        });
                     }
                     else
                     {
-                        // Android 7 and below (API 25-)
-#pragma warning disable CA1422
-                        var vibrator = global::Android.App.Application.Context.GetSystemService(global::Android.Content.Context.VibratorService) as global::Android.OS.Vibrator;
-                        if (vibrator != null && vibrator.HasVibrator)
+                        // Normal mode: open in WebView
+                        System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Opening in WebView: {bookmark.Url}");
+                        try
                         {
-                            vibrator.Vibrate(50);
+                            await card.ScaleToAsync(0.97, 80, Easing.CubicOut);
+                            await card.ScaleToAsync(1.0, 80, Easing.SpringOut);
+                            await Shell.Current.Navigation.PushAsync(new WebBrowsePage(bookmark.Url));
                         }
-#pragma warning restore CA1422
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Error opening WebView: {ex.Message}");
+                        }
                     }
-#pragma warning restore CA1416
-#endif
-                }
-                catch { }
-                
-                System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Long press detected on: {bookmark.Url}");
-                
-                // Enter select mode if not already in it
-                if (!_selectMode)
-                {
-                    EnterSelectMode();
-                }
-                
-                // Select this item
-                if (!_selectedUrls.Contains(bookmark.Url))
-                {
-                    _selectedUrls.Add(bookmark.Url);
-                    BuildBookmarksList();
                 }
             }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Error in PointerReleased: {ex.Message}");
+            }
         };
-        card.GestureRecognizers.Add(longPressGesture);
+        
+        card.GestureRecognizers.Add(pointerGesture);
 
         return card;
     }
@@ -660,9 +780,16 @@ public partial class BookmarksPage : ContentPage
         {
             Command = new Command(async () =>
             {
-                await button.ScaleToAsync(0.85, 70, Easing.CubicOut);
-                await button.ScaleToAsync(1.0, 70, Easing.SpringOut);
-                await action();
+                try
+                {
+                    await button.ScaleToAsync(0.85, 70, Easing.CubicOut);
+                    await button.ScaleToAsync(1.0, 70, Easing.SpringOut);
+                    await action();
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Error in action button: {ex.Message}");
+                }
             })
         });
 
@@ -746,77 +873,104 @@ public partial class BookmarksPage : ContentPage
     private void UpdateSelectionCount()
     {
         SelectionCountLabel.Text = $"{_selectedUrls.Count} selected";
-        
+
         // Show action bar only when items are selected
         SelectionActionBar.IsVisible = _selectMode && _selectedUrls.Count > 0;
-        
+
         System.Diagnostics.Debug.WriteLine($"[BookmarksPage] UpdateSelectionCount: {_selectedUrls.Count}, ActionBar visible: {SelectionActionBar.IsVisible}");
     }
 
     private async void OnDownloadSelectedTapped(object sender, TappedEventArgs e)
     {
-        if (_selectedUrls.Count == 0)
+        try
         {
-            await DisplayAlertAsync("No Selection", "Please select bookmarks to download.", "OK");
-            return;
-        }
-
-        var selectedBookmarks = BookmarkService.Instance.Bookmarks
-            .Where(b => _selectedUrls.Contains(b.Url))
-            .ToList();
-
-        string message;
-        if (selectedBookmarks.Count == 1)
-        {
-            message = $"Download \"{selectedBookmarks[0].Title}\"?";
-        }
-        else
-        {
-            message = $"Download {selectedBookmarks.Count} novels?\n\nNote: 2 novels will download simultaneously. Others will be queued.";
-        }
-
-        bool confirm = await DisplayAlertAsync("Download Selected",
-            message,
-            "Download", "Cancel");
-
-        if (confirm)
-        {
-            foreach (var bookmark in selectedBookmarks)
+            if (_selectedUrls.Count == 0)
             {
-                DownloadManager.Instance.Enqueue(bookmark.Url, 0, null);
+                await DisplayAlertAsync("No Selection", "Please select bookmarks to download.", "OK");
+                return;
             }
 
-            string resultMessage = selectedBookmarks.Count == 1
-                ? $"\"{selectedBookmarks[0].Title}\" queued for download!"
-                : $"{selectedBookmarks.Count} novel(s) queued for download!\n\n2 will start immediately, others are queued.";
+            var selectedBookmarks = BookmarkService.Instance.Bookmarks
+                .Where(b => _selectedUrls.Contains(b.Url))
+                .ToList();
 
-            await DisplayAlertAsync("Queued", resultMessage, "OK");
+            string message;
+            if (selectedBookmarks.Count == 1)
+            {
+                message = $"Download \"{selectedBookmarks[0].Title}\"?";
+            }
+            else
+            {
+                message = $"Download {selectedBookmarks.Count} novels?\n\nNote: 2 novels will download simultaneously. Others will be queued.";
+            }
 
-            ExitSelectMode();
+            bool confirm = await DisplayAlertAsync("Download Selected",
+                message,
+                "Download", "Cancel");
+
+            if (confirm)
+            {
+                foreach (var bookmark in selectedBookmarks)
+                {
+                    DownloadManager.Instance.Enqueue(bookmark.Url, 0, null);
+                }
+
+                string resultMessage = selectedBookmarks.Count == 1
+                    ? $"\"{selectedBookmarks[0].Title}\" queued for download!"
+                    : $"{selectedBookmarks.Count} novel(s) queued for download!\n\n2 will start immediately, others are queued.";
+
+                await DisplayAlertAsync("Queued", resultMessage, "OK");
+
+                ExitSelectMode();
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Error in OnDownloadSelectedTapped: {ex.Message}");
+            await DisplayAlertAsync("Error", "An error occurred while downloading selected items.", "OK");
         }
     }
 
     private async void OnDeleteSelectedTapped(object sender, TappedEventArgs e)
     {
-        if (_selectedUrls.Count == 0)
+        try
         {
-            await DisplayAlertAsync("No Selection", "Please select bookmarks to delete.", "OK");
-            return;
-        }
-
-        bool confirm = await DisplayAlertAsync("Delete Selected",
-            $"Delete {_selectedUrls.Count} bookmark(s)? This cannot be undone.",
-            "Delete", "Cancel");
-
-        if (confirm)
-        {
-            foreach (var url in _selectedUrls.ToList())
+            if (_selectedUrls.Count == 0)
             {
-                BookmarkService.Instance.RemoveBookmark(url);
+                await DisplayAlertAsync("No Selection", "Please select bookmarks to delete.", "OK");
+                return;
             }
 
-            ExitSelectMode();
-            BuildBookmarksList();
+            bool confirm = await DisplayAlertAsync("Delete Selected",
+                $"Delete {_selectedUrls.Count} bookmark(s)? This cannot be undone.",
+                "Delete", "Cancel");
+
+            if (confirm)
+            {
+                foreach (var url in _selectedUrls.ToList())
+                {
+                    BookmarkService.Instance.RemoveBookmark(url);
+                }
+
+                ExitSelectMode();
+                MainThread.BeginInvokeOnMainThread(async () =>
+                {
+                    try
+                    {
+                        await Task.Delay(100);
+                        BuildBookmarksList();
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Error in BuildBookmarksList (DeleteSelected): {ex.Message}");
+                    }
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Error in OnDeleteSelectedTapped: {ex.Message}");
+            await DisplayAlertAsync("Error", "An error occurred while deleting selected items.", "OK");
         }
     }
 
@@ -878,7 +1032,7 @@ public partial class BookmarksPage : ContentPage
             return $"{(int)diff.TotalDays}d ago";
         if (diff.TotalDays < 30)
             return $"{(int)(diff.TotalDays / 7)}w ago";
-        
+
         return date.ToString("MMM d, yyyy");
     }
 
@@ -948,7 +1102,17 @@ public partial class BookmarksPage : ContentPage
             row.Content = grid;
             row.GestureRecognizers.Add(new TapGestureRecognizer
             {
-                Command = new Command(() => ToggleTag(tag))
+                Command = new Command(() =>
+                {
+                    try
+                    {
+                        ToggleTag(tag);
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Error in tag toggle: {ex.Message}");
+                    }
+                })
             });
 
             TagSheetOptionsList.Add(row);
@@ -969,7 +1133,18 @@ public partial class BookmarksPage : ContentPage
         _tagSheetBookmark = BookmarkService.Instance.Bookmarks
             .FirstOrDefault(b => b.Url == _tagSheetBookmark.Url) ?? _tagSheetBookmark;
         BuildTagSheetOptions();
-        BuildBookmarksList();
+        MainThread.BeginInvokeOnMainThread(async () =>
+        {
+            try
+            {
+                await Task.Delay(100);
+                BuildBookmarksList();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Error in BuildBookmarksList (ToggleTag): {ex.Message}");
+            }
+        });
     }
 
     private async Task ShowTagSheetAsync()
@@ -1028,7 +1203,18 @@ public partial class BookmarksPage : ContentPage
         _tagSheetBookmark = BookmarkService.Instance.Bookmarks
             .FirstOrDefault(b => b.Url == _tagSheetBookmark.Url) ?? _tagSheetBookmark;
         BuildTagSheetOptions();
-        BuildBookmarksList();
+        MainThread.BeginInvokeOnMainThread(async () =>
+        {
+            try
+            {
+                await Task.Delay(100);
+                BuildBookmarksList();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Error in BuildBookmarksList (ClearAll): {ex.Message}");
+            }
+        });
     }
 
     private async void OnTagSheetAddCustomTapped(object sender, TappedEventArgs e)
@@ -1048,7 +1234,18 @@ public partial class BookmarksPage : ContentPage
         _tagSheetBookmark = BookmarkService.Instance.Bookmarks
             .FirstOrDefault(b => b.Url == _tagSheetBookmark.Url) ?? _tagSheetBookmark;
         BuildTagSheetOptions();
-        BuildBookmarksList();
+        MainThread.BeginInvokeOnMainThread(async () =>
+        {
+            try
+            {
+                await Task.Delay(100);
+                BuildBookmarksList();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Error in BuildBookmarksList (AddCustom): {ex.Message}");
+            }
+        });
     }
 
     private async Task ShowRemoveBookmarkSheetAsync(BookmarkItem bookmark)
@@ -1105,7 +1302,18 @@ public partial class BookmarksPage : ContentPage
         if (_removeBookmarkTarget != null)
         {
             BookmarkService.Instance.RemoveBookmark(_removeBookmarkTarget.Url);
-            BuildBookmarksList();
+            MainThread.BeginInvokeOnMainThread(async () =>
+            {
+                try
+                {
+                    await Task.Delay(100);
+                    BuildBookmarksList();
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Error in BuildBookmarksList (RemoveBookmark): {ex.Message}");
+                }
+            });
         }
         await HideRemoveBookmarkSheetAsync();
     }

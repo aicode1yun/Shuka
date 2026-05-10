@@ -34,7 +34,7 @@ public partial class WebBrowsePage : ContentPage
     private static readonly Dictionary<string, Func<string, bool>> _novelPageChecks = new()
     {
         // quanben.io: /n/{bookId}/  or  /n/{bookId}/list.html
-        ["quanben.io"]  = url => System.Text.RegularExpressions.Regex.IsMatch(
+        ["quanben.io"] = url => System.Text.RegularExpressions.Regex.IsMatch(
             url, @"quanben\.io/n/[^/?#]+", System.Text.RegularExpressions.RegexOptions.IgnoreCase),
 
         // czbooks.net: /n/{bookId}  (not /new/, /hot/, /search, etc.)
@@ -46,7 +46,7 @@ public partial class WebBrowsePage : ContentPage
             url, @"69shuba\.com/book/\d+\.htm", System.Text.RegularExpressions.RegexOptions.IgnoreCase),
 
         // dmxs.org: /{category}/{numericId}.html  (not /news_last/, /tags, etc.)
-        ["dmxs.org"]    = url => System.Text.RegularExpressions.Regex.IsMatch(
+        ["dmxs.org"] = url => System.Text.RegularExpressions.Regex.IsMatch(
             url, @"dmxs\.org/[a-zA-Z]+/\d+\.html", System.Text.RegularExpressions.RegexOptions.IgnoreCase),
 
         // 52shuku.net: /{category}/{folder}/bk{id}.html
@@ -66,18 +66,18 @@ public partial class WebBrowsePage : ContentPage
 
     private string _currentUrl;
     private readonly string _homeUrl;
-    private bool   _isLoading;
+    private bool _isLoading;
     /// <summary>Google proxy loads translate.google.com; <see cref="_originalUrl"/> tracks the embedded site URL for re-translate.</summary>
     private WebTranslateMode _translateMode;
     /// <summary>Real page URL behind the Google Translate wrapper (updated when you follow links while translated).</summary>
     private string _originalUrl = string.Empty;
-    private int    _translateEmbeddedSyncGeneration;
+    private int _translateEmbeddedSyncGeneration;
     /// <summary>
     /// Always the last real <c>e.Url</c> from WebView Navigating/Navigated (never a “hoped for” target during leave-translate).
     /// Used with the address bar to detect if we are still on Google Translate.
     /// </summary>
     private string _actualWebNavigationUrl = string.Empty;
-    private bool   _fabMenuExpanded = false; // tracks FAB menu state
+    private bool _fabMenuExpanded = false; // tracks FAB menu state
     private readonly List<BrowserTab> _tabs = new();
     private Guid _activeTabId;
     private List<WebVisitEntry> _recentVisits = new();
@@ -108,7 +108,7 @@ public partial class WebBrowsePage : ContentPage
             // Assign unique instance ID
             _instanceId = System.Threading.Interlocked.Increment(ref _instanceCounter);
             System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] Creating instance #{_instanceId}");
-            
+
             // Try to clear any existing NameScope first
             try
             {
@@ -120,11 +120,11 @@ public partial class WebBrowsePage : ContentPage
                 }
             }
             catch { /* ignore */ }
-            
+
             // Create a completely new NameScope for this instance
             var nameScope = new Microsoft.Maui.Controls.Internals.NameScope();
             Microsoft.Maui.Controls.Internals.NameScope.SetNameScope(this, nameScope);
-            
+
             try
             {
                 InitializeComponent();
@@ -133,46 +133,46 @@ public partial class WebBrowsePage : ContentPage
             {
                 // MAUI bug: NameScope conflict. Try to recover by forcing a new NameScope
                 System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] NameScope conflict detected, attempting recovery");
-                
+
                 // Force clear and retry
                 Microsoft.Maui.Controls.Internals.NameScope.SetNameScope(this, null);
                 System.GC.Collect();
                 System.GC.WaitForPendingFinalizers();
-                
+
                 var newScope = new Microsoft.Maui.Controls.Internals.NameScope();
                 Microsoft.Maui.Controls.Internals.NameScope.SetNameScope(this, newScope);
-                
+
                 // Retry InitializeComponent
                 InitializeComponent();
             }
-            
+
             // Validate startUrl before proceeding
             if (string.IsNullOrWhiteSpace(startUrl))
             {
                 startUrl = "https://www.google.com";
                 System.Diagnostics.Debug.WriteLine("[WebBrowsePage] Warning: Empty startUrl, using fallback");
             }
-            
-            _currentUrl              = startUrl;
-            _actualWebNavigationUrl  = startUrl;
-            _homeUrl                 = startUrl;
-            _recentVisits            = LoadRecentVisits();
+
+            _currentUrl = startUrl;
+            _actualWebNavigationUrl = startUrl;
+            _homeUrl = startUrl;
+            _recentVisits = LoadRecentVisits();
             AddTab(startUrl, switchToTab: true);
-            
+
             // Subscribe to WebView error events
             SiteWebView.Navigating += OnNavigating!;
             SiteWebView.Navigated += OnNavigated!;
 
             // Initialize ad blocker icon state
             UpdateAdBlockerIcon();
-            
+
             Navigate(startUrl);
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] Constructor error: {ex.Message}");
             System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] Stack trace: {ex.StackTrace}");
-            
+
             // Log to crash file
             try
             {
@@ -181,7 +181,7 @@ public partial class WebBrowsePage : ContentPage
                 File.AppendAllText(logPath, logEntry);
             }
             catch { /* ignore logging errors */ }
-            
+
             throw; // Re-throw to show error to user
         }
     }
@@ -198,13 +198,13 @@ public partial class WebBrowsePage : ContentPage
     {
         base.OnDisappearing();
         System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] Instance #{_instanceId} disappearing");
-        
+
         // Restore the tab bar when leaving
         MainActivity.Instance?.SetTabBarVisible(true);
-        
+
         // Clean up WebView to prevent memory leaks
         CleanupWebView();
-        
+
         // Clear the NameScope to prevent "element already exists" errors on next navigation
         try
         {
@@ -215,7 +215,7 @@ public partial class WebBrowsePage : ContentPage
                 // Clear all registered names
                 System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] Clearing NameScope for instance #{_instanceId}");
             }
-            
+
             // Set a new empty NameScope
             Microsoft.Maui.Controls.Internals.NameScope.SetNameScope(this, new Microsoft.Maui.Controls.Internals.NameScope());
         }
@@ -238,7 +238,7 @@ public partial class WebBrowsePage : ContentPage
     protected override void OnNavigatedFrom(NavigatedFromEventArgs args)
     {
         base.OnNavigatedFrom(args);
-        
+
         // If we're being popped (not just hidden), do a full cleanup
         if (Shell.Current.Navigation.NavigationStack.Contains(this) == false)
         {
@@ -279,14 +279,14 @@ public partial class WebBrowsePage : ContentPage
                     {
                         // Stop loading any content
                         androidWebView.StopLoading();
-                        
+
                         // Clear cache and history
                         androidWebView.ClearCache(true);
                         androidWebView.ClearHistory();
-                        
+
                         // Remove all views to break circular references
                         androidWebView.RemoveAllViews();
-                        
+
                         // Destroy the WebView
                         androidWebView.Destroy();
                     }
@@ -297,7 +297,7 @@ public partial class WebBrowsePage : ContentPage
                 }
 #endif
             }
-            
+
             // Clear the handler to help with cleanup
             try
             {
@@ -316,11 +316,11 @@ public partial class WebBrowsePage : ContentPage
             System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] Error during WebView cleanup: {ex.Message}");
         }
     }
-    
+
     protected override void OnHandlerChanged()
     {
         base.OnHandlerChanged();
-        
+
         // If handler is being removed, clean up
         if (Handler == null)
         {
@@ -365,7 +365,7 @@ public partial class WebBrowsePage : ContentPage
                 return;
             }
 
-            _currentUrl             = url;
+            _currentUrl = url;
             _actualWebNavigationUrl = url;
             UpdateActiveTab(url, null);
 
@@ -467,7 +467,7 @@ public partial class WebBrowsePage : ContentPage
         if (IsTranslateActive)
         {
             _translateMode = WebTranslateMode.None;
-            _originalUrl   = string.Empty;
+            _originalUrl = string.Empty;
             UpdateTranslateFabAppearance();
         }
         Navigate(_homeUrl);
@@ -497,8 +497,8 @@ public partial class WebBrowsePage : ContentPage
         UpdateAdBlockerIcon();
 
         // Show toast notification
-        string message = AdBlockerService.Instance.IsEnabled 
-            ? "Ad Blocker: ON" 
+        string message = AdBlockerService.Instance.IsEnabled
+            ? "Ad Blocker: ON"
             : "Ad Blocker: OFF";
         await ShowQueuedToastAsync(message);
 
@@ -547,7 +547,7 @@ public partial class WebBrowsePage : ContentPage
         try
         {
             await FabTranslate.ScaleToAsync(0.92, 70, Easing.CubicOut);
-            await FabTranslate.ScaleToAsync(1.0,  70, Easing.SpringOut);
+            await FabTranslate.ScaleToAsync(1.0, 70, Easing.SpringOut);
 
             if (IsTranslateActive)
             {
@@ -557,7 +557,7 @@ public partial class WebBrowsePage : ContentPage
                     string? leaveUrl = SanitizeLeaveTranslateTarget(await PickBestLeaveTranslateUrlAsync().ConfigureAwait(true));
 
                     _translateMode = WebTranslateMode.None;
-                    _originalUrl   = string.Empty;
+                    _originalUrl = string.Empty;
                     UpdateTranslateFabAppearance();
                     TranslateEmbeddedFrameTracker.Clear();
 
@@ -577,7 +577,7 @@ public partial class WebBrowsePage : ContentPage
             }
 
             string? site = DetectSite(_currentUrl);
-            bool isCf    = site != null && _cfSites.Contains(site);
+            bool isCf = site != null && _cfSites.Contains(site);
 
             if (isCf)
             {
@@ -585,7 +585,7 @@ public partial class WebBrowsePage : ContentPage
 
                 if (choiceCf == CloudflareChoiceTranslateBrowser)
                 {
-                    string encoded      = Uri.EscapeDataString(_currentUrl);
+                    string encoded = Uri.EscapeDataString(_currentUrl);
                     string translateUrl = $"https://translate.google.com/translate?sl=auto&tl=en&u={encoded}";
                     try { await Launcher.Default.OpenAsync(new Uri(translateUrl)); }
                     catch (Exception ex)
@@ -717,10 +717,10 @@ public partial class WebBrowsePage : ContentPage
         if (string.IsNullOrWhiteSpace(targetUrl))
             return;
 
-        string encoded      = Uri.EscapeDataString(targetUrl);
+        string encoded = Uri.EscapeDataString(targetUrl);
         string translateUrl = $"https://translate.google.com/translate?sl=auto&tl=en&u={encoded}";
 
-        _originalUrl   = targetUrl;
+        _originalUrl = targetUrl;
         _translateMode = WebTranslateMode.GoogleProxy;
         UpdateTranslateFabAppearance();
         Navigate(translateUrl);
@@ -950,9 +950,9 @@ public partial class WebBrowsePage : ContentPage
 
     private void HideLeaveTranslateOverlay()
     {
-        LeaveOriginalSpinner.IsRunning  = false;
+        LeaveOriginalSpinner.IsRunning = false;
         LeaveOriginalOverlay.IsVisible = false;
-        LeaveOriginalSubtitle.Text       = "";
+        LeaveOriginalSubtitle.Text = "";
     }
 
     /// <summary>Loads the sanitized reader URL in the WebView only (no external browser).</summary>
@@ -970,7 +970,7 @@ public partial class WebBrowsePage : ContentPage
             try
             {
                 LoadingBar.IsVisible = true;
-                LoadingBar.Progress  = 0;
+                LoadingBar.Progress = 0;
                 _ = AnimateLoadingBarAsync();
 
 #if ANDROID
@@ -987,10 +987,10 @@ public partial class WebBrowsePage : ContentPage
                     }
                 }
 #endif
-                SiteWebView.Source             = new UrlWebViewSource { Url = url };
-                _currentUrl                    = url;
-                _actualWebNavigationUrl        = url;
-                UrlBarLabel.Text               = url;
+                SiteWebView.Source = new UrlWebViewSource { Url = url };
+                _currentUrl = url;
+                _actualWebNavigationUrl = url;
+                UrlBarLabel.Text = url;
                 UpdateDownloadFab(url);
                 UpdateNavigationButtons();
             }
@@ -1204,12 +1204,12 @@ public partial class WebBrowsePage : ContentPage
 
             _isLoading = true;
             LoadingBar.IsVisible = true;
-            LoadingBar.Progress  = 0;
+            LoadingBar.Progress = 0;
             _ = AnimateLoadingBarAsync();
 
             _actualWebNavigationUrl = e.Url ?? string.Empty;
-            _currentUrl             = e.Url ?? string.Empty;
-            UrlBarLabel.Text        = _currentUrl;
+            _currentUrl = e.Url ?? string.Empty;
+            UrlBarLabel.Text = _currentUrl;
             UpdateActiveTab(_currentUrl, null);
 
             UpdateDownloadFab(_currentUrl);
@@ -1229,25 +1229,25 @@ public partial class WebBrowsePage : ContentPage
         {
             _isLoading = false;
             LoadingBar.IsVisible = false;
-            LoadingBar.Progress  = 0;
+            LoadingBar.Progress = 0;
 
             // Check navigation result
             if (e.Result == WebNavigationResult.Failure)
             {
-                ShowNavigationError("Page Load Failed", 
+                ShowNavigationError("Page Load Failed",
                     "The page could not be loaded. Please check your internet connection and try again.");
                 return;
             }
             else if (e.Result == WebNavigationResult.Timeout)
             {
-                ShowNavigationError("Connection Timeout", 
+                ShowNavigationError("Connection Timeout",
                     "The page took too long to load. Please try again.");
                 return;
             }
 
             _actualWebNavigationUrl = e.Url ?? string.Empty;
-            _currentUrl             = e.Url ?? string.Empty;
-            UrlBarLabel.Text        = _currentUrl;
+            _currentUrl = e.Url ?? string.Empty;
+            UrlBarLabel.Text = _currentUrl;
             string? title = null;
             try
             {
@@ -1286,7 +1286,7 @@ public partial class WebBrowsePage : ContentPage
         try
         {
             System.Diagnostics.Debug.WriteLine("[WebBrowsePage] ===== AD BLOCKER INJECTION START =====");
-            
+
             var js = AdBlockerService.Instance.GetCosmeticFilterScript();
             if (string.IsNullOrEmpty(js))
             {
@@ -1330,13 +1330,13 @@ public partial class WebBrowsePage : ContentPage
             await Task.Delay(1500);
             await SiteWebView.EvaluateJavaScriptAsync(js);
             System.Diagnostics.Debug.WriteLine("[WebBrowsePage] ✓ Ad blocker pass 4 complete");
-            
+
             // Fifth pass — final cleanup (5s)
             await Task.Delay(2000);
             await SiteWebView.EvaluateJavaScriptAsync(js);
             result = await SiteWebView.EvaluateJavaScriptAsync(inspectJs);
             System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] After pass 5: {result}");
-            
+
             System.Diagnostics.Debug.WriteLine("[WebBrowsePage] ===== AD BLOCKER INJECTION COMPLETE =====");
         }
         catch (Exception ex)
@@ -1357,7 +1357,7 @@ public partial class WebBrowsePage : ContentPage
             {
                 // Back button is always enabled (either goes back in WebView or pops the page)
                 BackButton.Opacity = 1.0;
-                
+
                 // Forward button is only enabled if WebView can go forward
                 ForwardButton.Opacity = SiteWebView.CanGoForward ? 1.0 : 0.4;
             });
@@ -1382,13 +1382,13 @@ public partial class WebBrowsePage : ContentPage
     // Example novel URLs per site — shown in the invalid-URL banner
     private static readonly Dictionary<string, string> _exampleUrls = new()
     {
-        ["quanben.io"]  = "e.g. https://www.quanben.io/n/aoshidanshen/list.html",
+        ["quanben.io"] = "e.g. https://www.quanben.io/n/aoshidanshen/list.html",
         ["czbooks.net"] = "e.g. https://czbooks.net/n/cp11cgi",
         ["69shuba.com"] = "e.g. https://www.69shuba.com/book/48273.htm",
-        ["dmxs.org"]    = "e.g. https://www.dmxs.org/book/23204.html",
+        ["dmxs.org"] = "e.g. https://www.dmxs.org/book/23204.html",
         ["52shuku.net"] = "e.g. https://www.52shuku.net/xiandaidushi/08_b/bkdKE.html",
     };
-    
+
     // Static counter to ensure unique instances
     private static int _instanceCounter = 0;
     private readonly int _instanceId;
@@ -1419,7 +1419,7 @@ public partial class WebBrowsePage : ContentPage
             MainThread.BeginInvokeOnMainThread(() =>
             {
                 FabDownload.IsVisible = false;
-                FabFetch.IsVisible    = false;
+                FabFetch.IsVisible = false;
                 FabBookmark.IsVisible = false;
             });
             return;
@@ -1428,11 +1428,11 @@ public partial class WebBrowsePage : ContentPage
         // Check if we're on a known source site
         bool onKnownSite = DetectSite(url) != null;
         bool onNovelPage = IsNovelPage(url);
-        
+
         MainThread.BeginInvokeOnMainThread(() =>
         {
             FabDownload.IsVisible = onKnownSite;
-            FabFetch.IsVisible    = onKnownSite;
+            FabFetch.IsVisible = onKnownSite;
             FabBookmark.IsVisible = onNovelPage; // Only show on actual novel pages
 
             // Update bookmark icon state
@@ -1446,7 +1446,7 @@ public partial class WebBrowsePage : ContentPage
     private async void OnFetchFabTapped(object sender, TappedEventArgs e)
     {
         await FabFetch.ScaleToAsync(0.92, 70, Easing.CubicOut);
-        await FabFetch.ScaleToAsync(1.0,  70, Easing.SpringOut);
+        await FabFetch.ScaleToAsync(1.0, 70, Easing.SpringOut);
 
         // Collapse menu after action
         if (_fabMenuExpanded)
@@ -1459,7 +1459,7 @@ public partial class WebBrowsePage : ContentPage
             FabMenuItems.IsVisible = false;
         }
 
-        string url  = _currentUrl;
+        string url = _currentUrl;
         string site = DetectSite(url) ?? "";
 
         // Validate: must be a novel index page
@@ -1482,7 +1482,7 @@ public partial class WebBrowsePage : ContentPage
     private async void OnDownloadFabTapped(object sender, TappedEventArgs e)
     {
         await FabDownload.ScaleToAsync(0.92, 70, Easing.CubicOut);
-        await FabDownload.ScaleToAsync(1.0,  70, Easing.SpringOut);
+        await FabDownload.ScaleToAsync(1.0, 70, Easing.SpringOut);
 
         // Collapse menu after action
         if (_fabMenuExpanded)
@@ -1495,7 +1495,7 @@ public partial class WebBrowsePage : ContentPage
             FabMenuItems.IsVisible = false;
         }
 
-        string url  = _currentUrl;
+        string url = _currentUrl;
         string site = DetectSite(url) ?? "";
 
         // Validate: must be a novel index page, not just the site homepage/listing
@@ -1540,10 +1540,10 @@ public partial class WebBrowsePage : ContentPage
 
     private async Task ShowInvalidUrlBannerAsync(string hint)
     {
-        InvalidUrlHintLabel.Text     = hint;
-        InvalidUrlBanner.Opacity     = 0;
+        InvalidUrlHintLabel.Text = hint;
+        InvalidUrlBanner.Opacity = 0;
         InvalidUrlBanner.TranslationY = 30;
-        InvalidUrlBanner.IsVisible   = true;
+        InvalidUrlBanner.IsVisible = true;
 
         await Task.WhenAll(
             InvalidUrlBanner.FadeToAsync(1.0, 250, Easing.CubicOut),
@@ -1561,9 +1561,9 @@ public partial class WebBrowsePage : ContentPage
     private async Task ShowQueuedToastAsync(string message = "Queued for download!")
     {
         QueuedToastLabel.Text = message;
-        QueuedToast.Opacity      = 0;
+        QueuedToast.Opacity = 0;
         QueuedToast.TranslationY = 20;
-        QueuedToast.IsVisible    = true;
+        QueuedToast.IsVisible = true;
 
         await Task.WhenAll(
             QueuedToast.FadeToAsync(1.0, 250, Easing.CubicOut),
@@ -1591,7 +1591,7 @@ public partial class WebBrowsePage : ContentPage
         {
             // Expand menu
             FabMenuItems.IsVisible = true;
-            
+
             // Animate icon rotation (arrow pointing down)
             await Task.WhenAll(
                 FabToggleIcon.RotateToAsync(180, 250, Easing.CubicOut),
@@ -1607,7 +1607,7 @@ public partial class WebBrowsePage : ContentPage
                 FabMenuItems.FadeToAsync(0, 200, Easing.CubicIn),
                 FabMenuItems.TranslateToAsync(0, 20, 200, Easing.CubicIn)
             );
-            
+
             FabMenuItems.IsVisible = false;
         }
     }
@@ -1619,14 +1619,14 @@ public partial class WebBrowsePage : ContentPage
         try
         {
             await FabBookmark.ScaleToAsync(0.92, 70, Easing.CubicOut);
-            await FabBookmark.ScaleToAsync(1.0,  70, Easing.SpringOut);
+            await FabBookmark.ScaleToAsync(1.0, 70, Easing.SpringOut);
 
             string url = _currentUrl;
-            
+
             // Validate: must be a novel page
             if (!IsNovelPage(url))
             {
-                await DisplayAlertAsync("Cannot Bookmark", 
+                await DisplayAlertAsync("Cannot Bookmark",
                     "Navigate to a specific novel's index page first.", "OK");
                 return;
             }
@@ -1634,7 +1634,7 @@ public partial class WebBrowsePage : ContentPage
             string? site = DetectSite(url);
             if (site == null)
             {
-                await DisplayAlertAsync("Cannot Bookmark", 
+                await DisplayAlertAsync("Cannot Bookmark",
                     "This site is not supported for bookmarks.", "OK");
                 return;
             }
@@ -1658,7 +1658,7 @@ public partial class WebBrowsePage : ContentPage
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] Bookmark error: {ex.Message}");
-            await DisplayAlertAsync("Bookmark Error", 
+            await DisplayAlertAsync("Bookmark Error",
                 $"An error occurred:\n{ex.Message}", "OK");
         }
     }
@@ -1677,21 +1677,22 @@ public partial class WebBrowsePage : ContentPage
             // Fetch book info (title and author in Chinese) using BookService
             var bookService = new BookService();
             var bookInfo = await bookService.GatherBookInfo(url, 0, null);
-            
+
             if (bookInfo == null || string.IsNullOrWhiteSpace(bookInfo.Title))
             {
-                await DisplayAlertAsync("Error", 
+                await DisplayAlertAsync("Error",
                     "Could not fetch novel information. Please try again.", "OK");
                 return;
             }
 
             // Add to bookmarks with Chinese title and author
             BookmarkService.Instance.AddBookmark(
-                url, 
-                bookInfo.Title, 
-                bookInfo.Author ?? "Unknown", 
+                url,
+                bookInfo.Title,
+                bookInfo.Author ?? "Unknown",
                 siteName,
-                bookInfo.Total);
+                bookInfo.Total,
+                bookInfo.CoverUrl);
 
             UpdateBookmarkFabAppearance();
             await ShowQueuedToastAsync($"Bookmarked: {bookInfo.Title}");
@@ -1699,7 +1700,7 @@ public partial class WebBrowsePage : ContentPage
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] AddBookmark error: {ex.Message}");
-            await DisplayAlertAsync("Error", 
+            await DisplayAlertAsync("Error",
                 $"Could not add bookmark:\n{ex.Message}", "OK");
         }
         finally
@@ -1716,7 +1717,7 @@ public partial class WebBrowsePage : ContentPage
     private void UpdateBookmarkFabAppearance()
     {
         bool isBookmarked = BookmarkService.Instance.IsBookmarked(_currentUrl);
-        
+
         if (isBookmarked)
         {
             // Bookmarked state: filled icon, accent color

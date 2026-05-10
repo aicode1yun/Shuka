@@ -16,10 +16,10 @@ namespace Shuka.Core.Adapters;
 /// </summary>
 public class QuanbenBrowse : IBrowsableAdapter
 {
-    public string SiteName         => "quanben.io";
-    public string Description      => "Chinese full novels · fantasy & romance";
-    public string IconGlyph        => "\uE894"; // language (globe)
-    public bool   RequiresCfBypass => false;
+    public string SiteName => "quanben.io";
+    public string Description => "Chinese full novels · fantasy & romance";
+    public string IconGlyph => "\uE894"; // language (globe)
+    public bool RequiresCfBypass => false;
 
     // Browse the 玄幻 (xuanhuan/fantasy) category as the default "popular" listing
     public string GetRecentUrl(int page = 1) =>
@@ -33,12 +33,12 @@ public class QuanbenBrowse : IBrowsableAdapter
             : $"https://www.quanben.io/c/dushi_{page}.html";
 
     public string GetSearchUrl(string query, int page = 1) =>
-        $"https://www.quanben.io/search/{Uri.EscapeDataString(query)}/{page}.html";
+        $"https://www.quanben.io/index.php?c=book&a=search&keywords={Uri.EscapeDataString(query)}";
 
     public ListingPage ParseListing(string html, string pageUrl)
     {
         var novels = new List<NovelEntry>();
-        var seen   = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         // Category page structure:
         //   <img src="...cover...">
@@ -54,7 +54,7 @@ public class QuanbenBrowse : IBrowsableAdapter
 
         // Simpler approach: find all /n/{bookId}/ links and grab surrounding context
         var linkPattern = new Regex(
-            @"href=[""'](?:https?://(?:www\.)?quanben\.io)?/n/([^""'/]+)/[""']",
+            @"href=[""'](?:https?://(?:www\.)?quanben\.io)?/n/([^""'/\.]+)(?:/|\.html)[""']",
             RegexOptions.IgnoreCase);
 
         // Walk through all /n/ links in document order
@@ -64,7 +64,7 @@ public class QuanbenBrowse : IBrowsableAdapter
             if (!seen.Add(bookId)) continue;
 
             // Grab a window of text around this link to extract title/author/cover
-            int start  = Math.Max(0, m.Index - 600);
+            int start = Math.Max(0, m.Index - 600);
             int length = Math.Min(html.Length - start, 1200);
             string window = html.Substring(start, length);
 
@@ -105,10 +105,14 @@ public class QuanbenBrowse : IBrowsableAdapter
             if (descM.Success)
                 desc = System.Net.WebUtility.HtmlDecode(descM.Groups[1].Value.Trim());
 
+            var chapterMeta = ExtractChapterMeta(window, desc);
+
             novels.Add(new NovelEntry(
                 title, author,
                 $"https://www.quanben.io/n/{bookId}/list.html",
-                cover, desc, null));
+                cover, desc, null,
+                chapterMeta.count,
+                chapterMeta.text));
         }
 
         // Pagination: category pages use /c/{cat}_{page}.html or search uses /{page}.html
@@ -119,5 +123,24 @@ public class QuanbenBrowse : IBrowsableAdapter
         if (pageM.Success) int.TryParse(pageM.Groups[1].Value, out currentPage);
 
         return new ListingPage(novels, hasNext && novels.Count > 0, currentPage);
+    }
+
+    private static (int? count, string? text) ExtractChapterMeta(params string?[] samples)
+    {
+        foreach (var sample in samples)
+        {
+            if (string.IsNullOrWhiteSpace(sample))
+                continue;
+
+            var cn = Regex.Match(sample, @"(?:共|总)?\s*([0-9]{1,5})\s*章");
+            if (cn.Success && int.TryParse(cn.Groups[1].Value, out int cnCount))
+                return (cnCount, $"{cnCount} chapters");
+
+            var en = Regex.Match(sample, @"\b([0-9]{1,5})\s*chapters?\b", RegexOptions.IgnoreCase);
+            if (en.Success && int.TryParse(en.Groups[1].Value, out int enCount))
+                return (enCount, $"{enCount} chapters");
+        }
+
+        return (null, null);
     }
 }
