@@ -490,7 +490,17 @@ public partial class BookmarksPage : ContentPage
 
             actionsStack.Add(CreateActionButton("\uE89E", "Open", async () =>
             {
-                await Shell.Current.Navigation.PushAsync(new WebBrowsePage(bookmark.Url));
+                // Create WebView page on background thread to avoid UI blocking
+                WebBrowsePage? webPage = null;
+                await Task.Run(() =>
+                {
+                    webPage = new WebBrowsePage(bookmark.Url);
+                });
+                
+                if (webPage != null)
+                {
+                    await Shell.Current.Navigation.PushAsync(webPage);
+                }
             }));
 
             actionsStack.Add(CreateActionButton("\uE2C4", "Fetch", async () =>
@@ -707,9 +717,24 @@ public partial class BookmarksPage : ContentPage
                         System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Opening in WebView: {bookmark.Url}");
                         try
                         {
-                            await card.ScaleToAsync(0.97, 80, Easing.CubicOut);
-                            await card.ScaleToAsync(1.0, 80, Easing.SpringOut);
-                            await Shell.Current.Navigation.PushAsync(new WebBrowsePage(bookmark.Url));
+                            // Immediate visual feedback - faster animation
+                            var scaleTask = card.ScaleToAsync(0.95, 50, Easing.CubicOut);
+                            
+                            // Create the WebView page on background thread to avoid UI blocking
+                            WebBrowsePage? webPage = null;
+                            await Task.Run(() =>
+                            {
+                                webPage = new WebBrowsePage(bookmark.Url);
+                            });
+                            
+                            // Wait for animation and navigate
+                            await scaleTask;
+                            await card.ScaleToAsync(1.0, 100, Easing.SpringOut);
+                            
+                            if (webPage != null)
+                            {
+                                await Shell.Current.Navigation.PushAsync(webPage);
+                            }
                         }
                         catch (Exception ex)
                         {

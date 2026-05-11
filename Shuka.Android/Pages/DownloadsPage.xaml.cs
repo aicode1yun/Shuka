@@ -25,8 +25,18 @@ public partial class DownloadsPage : ContentPage
     {
         base.OnAppearing();
         TabTransition.Prepare(myTabIndex: 1);
-        await TabTransition.SlideInAsync(BodyGrid);
-        RefreshSummary();
+        
+        // Run animation and data loading concurrently for better performance
+        var animationTask = TabTransition.SlideInAsync(BodyGrid);
+        var loadTask = Task.Run(() =>
+        {
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                RefreshSummary();
+            });
+        });
+        
+        await Task.WhenAll(animationTask, loadTask);
     }
 
     private async Task AnimateIn()

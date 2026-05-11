@@ -18,9 +18,6 @@ public partial class SettingsPage : ContentPage
     {
         InitializeComponent();
         FooterVersionLabel.Text = $"Shuka v{UpdateService.InstalledVersion}  ·  Seizue";
-        RefreshRadios(App.CurrentTheme);
-        RefreshDownloadPath();
-        RefreshUpdateSection();
         
         // Initialize ad blocker switch state
         AdBlockerSwitch.IsToggled = AdBlockerService.Instance.IsEnabled;
@@ -30,10 +27,20 @@ public partial class SettingsPage : ContentPage
     {
         base.OnAppearing();
         TabTransition.Prepare(myTabIndex: 3);
-        await TabTransition.SlideInAsync(BodyScrollView);
-        RefreshRadios(App.CurrentTheme);
-        RefreshDownloadPath();
-        RefreshUpdateSection();
+        
+        // Run animation and data loading concurrently for better performance
+        var animationTask = TabTransition.SlideInAsync(BodyScrollView);
+        var loadTask = Task.Run(() =>
+        {
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                RefreshRadios(App.CurrentTheme);
+                RefreshDownloadPath();
+                RefreshUpdateSection();
+            });
+        });
+        
+        await Task.WhenAll(animationTask, loadTask);
     }
 
     private async Task AnimateIn()

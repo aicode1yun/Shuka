@@ -17,7 +17,7 @@ namespace Shuka.Android.Behaviors;
 /// </summary>
 public static class TabTransition
 {
-    private const int    DurationMs    = 480;
+    private const int    DurationMs    = 320;
     private const double SlideDistance = 14;
 
     private static bool _goingRight    = true;

@@ -168,6 +168,21 @@ public partial class WebBrowsePage : ContentPage
             UpdateAdBlockerIcon();
 
             Navigate(startUrl);
+
+            // Safety timeout: hide initial loading overlay after 15 seconds if still visible
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(15000);
+                await MainThread.InvokeOnMainThreadAsync(() =>
+                {
+                    if (InitialLoadingOverlay?.IsVisible == true)
+                    {
+                        InitialLoadingOverlay.IsVisible = false;
+                        InitialLoadingSpinner.IsRunning = false;
+                        System.Diagnostics.Debug.WriteLine("[WebBrowsePage] Initial loading overlay hidden by safety timeout");
+                    }
+                });
+            });
         }
         catch (Exception ex)
         {
@@ -1232,6 +1247,13 @@ public partial class WebBrowsePage : ContentPage
             LoadingBar.IsVisible = false;
             LoadingBar.Progress = 0;
 
+            // Hide the initial loading overlay as soon as the page loads
+            if (InitialLoadingOverlay.IsVisible)
+            {
+                InitialLoadingOverlay.IsVisible = false;
+                InitialLoadingSpinner.IsRunning = false;
+            }
+
             // Check navigation result
             if (e.Result == WebNavigationResult.Failure)
             {
@@ -1274,6 +1296,10 @@ public partial class WebBrowsePage : ContentPage
             System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] OnNavigated error: {ex.Message}");
             _isLoading = false;
             LoadingBar.IsVisible = false;
+
+            // Hide initial loading overlay on error
+            InitialLoadingOverlay.IsVisible = false;
+            InitialLoadingSpinner.IsRunning = false;
         }
     }
 

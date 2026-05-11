@@ -151,6 +151,26 @@
                          HeightRequest="3"
                          IsVisible="False" />
 
+            <!-- Initial loading overlay - shown immediately when page opens -->
+            <Grid x:Name="InitialLoadingOverlay"
+                  IsVisible="True"
+                  BackgroundColor="{DynamicResource BgPage}">
+                <VerticalStackLayout VerticalOptions="Center"
+                                     HorizontalOptions="Center"
+                                     Spacing="16">
+                    <ActivityIndicator x:Name="InitialLoadingSpinner"
+                                       IsRunning="True"
+                                       Color="{DynamicResource AccentLight}"
+                                       HorizontalOptions="Center"
+                                       WidthRequest="48"
+                                       HeightRequest="48" />
+                    <Label Text="Loading page..."
+                           TextColor="{DynamicResource TextSecondary}"
+                           FontSize="14"
+                           HorizontalTextAlignment="Center" />
+                </VerticalStackLayout>
+            </Grid>
+
             <!-- Full-page spinner while escaping Google Translate (no about:blank dead time) -->
             <Grid x:Name="LeaveOriginalOverlay"
                   IsVisible="False"
