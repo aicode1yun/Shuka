@@ -477,13 +477,15 @@ public partial class MainPage : ContentPage
             {
                 try
                 {
-                    await card.ScaleToAsync(0.97, 80, Easing.CubicOut);
-                    await card.ScaleToAsync(1.0, 80, Easing.SpringOut);
+                    // Immediate visual feedback - faster animation
+                    var scaleTask = card.ScaleToAsync(0.95, 50, Easing.CubicOut);
 
                     // Get the URL and validate it
                     string url = source.GetRecentUrl(1);
                     if (string.IsNullOrWhiteSpace(url))
                     {
+                        await scaleTask;
+                        await card.ScaleToAsync(1.0, 100, Easing.SpringOut);
                         await DisplayAlertAsync("Error",
                             $"Could not get browse URL for {source.SiteName}", "OK");
                         return;
@@ -492,13 +494,23 @@ public partial class MainPage : ContentPage
                     // Register the fetch callback before opening the WebView
                     WebBrowsePage.OnUrlFetched = FillUrlFromWebView;
 
-                    // Create a new instance each time to avoid NameScope conflicts
-                    var webPage = new WebBrowsePage(url);
+                    // Create WebBrowsePage on background thread to avoid UI blocking
+                    WebBrowsePage? webPage = null;
+                    await Task.Run(() =>
+                    {
+                        webPage = new WebBrowsePage(url);
+                    });
 
-                    // Ensure the page is not cached by Shell
-                    Shell.SetPresentationMode(webPage, PresentationMode.NotAnimated);
+                    // Wait for animation and navigate
+                    await scaleTask;
+                    await card.ScaleToAsync(1.0, 100, Easing.SpringOut);
 
-                    await Shell.Current.Navigation.PushAsync(webPage, true);
+                    if (webPage != null)
+                    {
+                        // Ensure the page is not cached by Shell
+                        Shell.SetPresentationMode(webPage, PresentationMode.NotAnimated);
+                        await Shell.Current.Navigation.PushAsync(webPage, true);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -542,7 +554,10 @@ public partial class MainPage : ContentPage
 
         try
         {
-            var sourceResults = await _discoverService.SearchAllWithStatusAsync(query);
+            // Debug logging for CF sources
+            Action<string> log = msg => System.Diagnostics.Debug.WriteLine(msg);
+
+            var sourceResults = await _discoverService.SearchAllWithStatusAsync(query, log);
 
             SearchLoadingState.IsVisible = false;
 
@@ -1014,9 +1029,25 @@ public partial class MainPage : ContentPage
             {
                 if (suppressCardTap)
                     return;
-                await card.ScaleToAsync(0.97, 80, Easing.CubicOut);
-                await card.ScaleToAsync(1.0, 80, Easing.SpringOut);
-                await Shell.Current.Navigation.PushAsync(new WebBrowsePage(novel.Url));
+                
+                // Immediate visual feedback - faster animation
+                var scaleTask = card.ScaleToAsync(0.95, 50, Easing.CubicOut);
+                
+                // Create WebBrowsePage on background thread to avoid UI blocking
+                WebBrowsePage? webPage = null;
+                await Task.Run(() =>
+                {
+                    webPage = new WebBrowsePage(novel.Url);
+                });
+                
+                // Wait for animation and navigate
+                await scaleTask;
+                await card.ScaleToAsync(1.0, 100, Easing.SpringOut);
+                
+                if (webPage != null)
+                {
+                    await Shell.Current.Navigation.PushAsync(webPage);
+                }
             })
         });
         return card;

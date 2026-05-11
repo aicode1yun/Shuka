@@ -70,29 +70,99 @@ public class DiscoverService
     }
 
     /// <summary>
-    /// Searches all sources in parallel and includes per-source failure status.
+    /// Searches all sources and includes per-source failure status.
+    /// Non-CF sources are searched in parallel; CF-protected sources are searched
+    /// sequentially to avoid WebView contention and improve success rate.
     /// </summary>
     public async Task<List<SourceSearchResult>> SearchAllWithStatusAsync(
         string query, Action<string>? log = null, CancellationToken ct = default)
     {
-        var tasks = Sources.Select(async source =>
-        {
-            try
-            {
-                var page = await SearchAsync(source, query, 1, log, ct);
-                return new SourceSearchResult(source, page, true, null);
-            }
-            catch (Exception ex)
-            {
-                return new SourceSearchResult(
-                    source,
-                    new ListingPage(new List<NovelEntry>(), false, 1),
-                    false,
-                    ex.Message);
-            }
-        });
+        // Separate CF and non-CF sources to optimize search strategy
+        var cfSources = Sources.Where(s => s.RequiresCfBypass).ToList();
+        var normalSources = Sources.Where(s => !s.RequiresCfBypass).ToList();
 
-        return (await Task.WhenAll(tasks)).ToList();
+        var results = new List<SourceSearchResult>();
+
+        // Search non-CF sources in parallel (fast)
+        if (normalSources.Count > 0)
+        {
+            var normalTasks = normalSources.Select(async source =>
+            {
+                try
+                {
+                    var page = await SearchAsync(source, query, 1, log, ct);
+                    return new SourceSearchResult(source, page, true, null);
+                }
+                catch (Exception ex)
+                {
+                    return new SourceSearchResult(
+                        source,
+                        new ListingPage(new List<NovelEntry>(), false, 1),
+                        false,
+                        ex.Message);
+                }
+            });
+
+            results.AddRange(await Task.WhenAll(normalTasks));
+        }
+
+        // Search CF sources sequentially to avoid WebView contention
+        // This dramatically improves success rate for Cloudflare-protected sites
+        foreach (var source in cfSources)
+        {
+            SourceSearchResult? result = null;
+
+            // Try up to 2 times for CF sources (they can be flaky)
+            for (int attempt = 1; attempt <= 2; attempt++)
+            {
+                try
+                {
+                    if (attempt > 1)
+                    {
+                        log?.Invoke($"[Discover] Retrying CF source: {source.SiteName} (attempt {attempt})");
+                        await Task.Delay(1000, ct); // Brief delay before retry
+                    }
+                    else
+                    {
+                        log?.Invoke($"[Discover] Searching CF source: {source.SiteName}");
+                    }
+
+                    var page = await SearchAsync(source, query, 1, log, ct);
+                    result = new SourceSearchResult(source, page, true, null);
+                    log?.Invoke($"[Discover] CF source succeeded: {source.SiteName} ({page.Novels.Count} results)");
+                    break; // Success, exit retry loop
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    if (attempt == 2) // Last attempt failed
+                    {
+                        log?.Invoke($"[Discover] CF source failed after retries: {source.SiteName} - {ex.Message}");
+                        result = new SourceSearchResult(
+                            source,
+                            new ListingPage(new List<NovelEntry>(), false, 1),
+                            false,
+                            ex.Message);
+                    }
+                    else
+                    {
+                        log?.Invoke($"[Discover] CF source attempt {attempt} failed: {source.SiteName} - {ex.Message}");
+                    }
+                }
+            }
+
+            if (result != null)
+                results.Add(result);
+
+            // Small delay between CF sources to let WebView cleanup and avoid rate limiting
+            if (cfSources.IndexOf(source) < cfSources.Count - 1)
+                await Task.Delay(500, ct);
+        }
+
+        return results;
     }
 
     /// <summary>
