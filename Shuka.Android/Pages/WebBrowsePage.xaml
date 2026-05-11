@@ -48,8 +48,9 @@
                 </Grid.GestureRecognizers>
             </Grid>
 
-            <!-- URL pill -->
+            <!-- URL pill with loading indicator -->
             <Border Grid.Column="2"
+                    x:Name="UrlBarBorder"
                     Stroke="{DynamicResource Stroke}"
                     StrokeThickness="1"
                     StrokeShape="RoundRectangle 8"
@@ -57,13 +58,26 @@
                     HeightRequest="34"
                     Padding="10,0"
                     VerticalOptions="Center">
-                <Label x:Name="UrlBarLabel"
-                       FontSize="11"
-                       TextColor="{DynamicResource TextMuted}"
-                       VerticalOptions="Center"
-                       VerticalTextAlignment="Center"
-                       LineBreakMode="TailTruncation"
-                       MaxLines="1" />
+                <Grid ColumnDefinitions="*,Auto">
+                    <Label x:Name="UrlBarLabel"
+                           Grid.Column="0"
+                           FontSize="11"
+                           TextColor="{DynamicResource TextMuted}"
+                           VerticalOptions="Center"
+                           VerticalTextAlignment="Center"
+                           LineBreakMode="TailTruncation"
+                           MaxLines="1" />
+                    <!-- URL bar loading indicator - shows immediately during navigation -->
+                    <ActivityIndicator x:Name="UrlLoadingIndicator"
+                                     Grid.Column="1"
+                                     IsRunning="False"
+                                     IsVisible="False"
+                                     Color="{DynamicResource AccentLight}"
+                                     WidthRequest="14"
+                                     HeightRequest="14"
+                                     VerticalOptions="Center"
+                                     Margin="4,0,0,0" />
+                </Grid>
             </Border>
 
             <!-- Tabs -->

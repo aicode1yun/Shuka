@@ -93,6 +93,19 @@ public partial class WebBrowsePage : ContentPage
     private const string CloudflareChoiceCopyUrl = "copy_url";
     private const string CloudflareChoiceOpenBrowser = "open_browser";
 
+    // ── Navigation Bar Optimization ───────────────────────────────────────────
+    // Throttling to prevent rapid-fire UI updates during navigation
+    private DateTime _lastNavBarUpdate = DateTime.MinValue;
+    private const int NavBarUpdateThrottleMs = 100;
+    private string? _pendingNavBarUpdateUrl;
+    private bool _isNavBarUpdateScheduled;
+    private readonly object _navBarUpdateLock = new();
+    
+    // Cache for site detection results to avoid redundant regex operations
+    private string? _cachedSiteDetectionUrl;
+    private string? _cachedSiteDetectionResult;
+    private bool? _cachedNovelPageResult;
+
     private bool IsTranslateActive => _translateMode != WebTranslateMode.None;
 
     /// <summary>
@@ -157,6 +170,11 @@ public partial class WebBrowsePage : ContentPage
             _currentUrl = startUrl;
             _actualWebNavigationUrl = startUrl;
             _homeUrl = startUrl;
+            
+            // Set URL immediately so navigation bar shows it instantly
+            // This makes the nav bar appear fully loaded before WebView starts
+            UrlBarLabel.Text = startUrl;
+            
             _recentVisits = LoadRecentVisits();
             AddTab(startUrl, switchToTab: true);
 
@@ -167,9 +185,18 @@ public partial class WebBrowsePage : ContentPage
             // Initialize ad blocker icon state
             UpdateAdBlockerIcon();
 
-            Navigate(startUrl);
+            // Defer WebView navigation slightly to let UI render first
+            // This makes the navigation bar appear instantly responsive
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(50); // Small delay to let UI render
+                await MainThread.InvokeOnMainThreadAsync(() =>
+                {
+                    Navigate(startUrl);
+                });
+            });
 
-            // Safety timeout: hide initial loading overlay after 15 seconds if still visible
+            // Safety timeout: hide loading indicators after 15 seconds if still visible
             _ = Task.Run(async () =>
             {
                 await Task.Delay(15000);
@@ -180,6 +207,13 @@ public partial class WebBrowsePage : ContentPage
                         InitialLoadingOverlay.IsVisible = false;
                         InitialLoadingSpinner.IsRunning = false;
                         System.Diagnostics.Debug.WriteLine("[WebBrowsePage] Initial loading overlay hidden by safety timeout");
+                    }
+                    // Also hide URL bar loading indicator if stuck
+                    if (UrlLoadingIndicator?.IsVisible == true)
+                    {
+                        UrlLoadingIndicator.IsVisible = false;
+                        UrlLoadingIndicator.IsRunning = false;
+                        System.Diagnostics.Debug.WriteLine("[WebBrowsePage] URL loading indicator hidden by safety timeout");
                     }
                 });
             });
@@ -385,15 +419,12 @@ public partial class WebBrowsePage : ContentPage
             _actualWebNavigationUrl = url;
             UpdateActiveTab(url, null);
 
-            // Update UI on main thread
+            // Update UI - use batched navigation bar update for better performance
             MainThread.BeginInvokeOnMainThread(() =>
             {
                 try
                 {
-                    UrlBarLabel.Text = url;
                     SiteWebView.Source = new UrlWebViewSource { Url = url };
-                    UpdateDownloadFab(url);
-                    UpdateTabCountBadge();
                 }
                 catch (Exception ex)
                 {
@@ -401,6 +432,9 @@ public partial class WebBrowsePage : ContentPage
                     ShowNavigationError("Navigation Error", "Failed to load the page.");
                 }
             });
+            
+            // Batched navigation bar update (throttled, background-threaded)
+            UpdateNavigationBar(url);
         }
         catch (Exception ex)
         {
@@ -1006,9 +1040,9 @@ public partial class WebBrowsePage : ContentPage
                 SiteWebView.Source = new UrlWebViewSource { Url = url };
                 _currentUrl = url;
                 _actualWebNavigationUrl = url;
-                UrlBarLabel.Text = url;
-                UpdateDownloadFab(url);
-                UpdateNavigationButtons();
+                
+                // Batched navigation bar update (throttled, background-threaded)
+                UpdateNavigationBar(url);
             }
             catch (Exception ex)
             {
@@ -1222,14 +1256,17 @@ public partial class WebBrowsePage : ContentPage
             LoadingBar.IsVisible = true;
             LoadingBar.Progress = 0;
             _ = AnimateLoadingBarAsync();
+            
+            // Show URL bar loading indicator immediately for responsive feel
+            UrlLoadingIndicator.IsVisible = true;
+            UrlLoadingIndicator.IsRunning = true;
 
             _actualWebNavigationUrl = e.Url ?? string.Empty;
             _currentUrl = e.Url ?? string.Empty;
-            UrlBarLabel.Text = _currentUrl;
             UpdateActiveTab(_currentUrl, null);
 
-            UpdateDownloadFab(_currentUrl);
-            UpdateNavigationButtons();
+            // Batched navigation bar update (throttled, background-threaded)
+            UpdateNavigationBar(_currentUrl);
         }
         catch (Exception ex)
         {
@@ -1246,6 +1283,10 @@ public partial class WebBrowsePage : ContentPage
             _isLoading = false;
             LoadingBar.IsVisible = false;
             LoadingBar.Progress = 0;
+            
+            // Hide URL bar loading indicator
+            UrlLoadingIndicator.IsVisible = false;
+            UrlLoadingIndicator.IsRunning = false;
 
             // Hide the initial loading overlay as soon as the page loads
             if (InitialLoadingOverlay.IsVisible)
@@ -1270,7 +1311,6 @@ public partial class WebBrowsePage : ContentPage
 
             _actualWebNavigationUrl = e.Url ?? string.Empty;
             _currentUrl = e.Url ?? string.Empty;
-            UrlBarLabel.Text = _currentUrl;
             string? title = null;
             try
             {
@@ -1284,8 +1324,8 @@ public partial class WebBrowsePage : ContentPage
             if (_translateMode == WebTranslateMode.GoogleProxy)
                 ScheduleTranslateEmbeddedOriginalSync();
 
-            UpdateDownloadFab(_currentUrl);
-            UpdateNavigationButtons();
+            // Batched navigation bar update (throttled, background-threaded)
+            UpdateNavigationBar(_currentUrl);
 
             // Inject ad blocker cosmetic filter from MAUI layer as well,
             // since OnPageFinished in the native handler may fire before ad scripts run.
@@ -1296,6 +1336,10 @@ public partial class WebBrowsePage : ContentPage
             System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] OnNavigated error: {ex.Message}");
             _isLoading = false;
             LoadingBar.IsVisible = false;
+            
+            // Hide URL bar loading indicator on error
+            UrlLoadingIndicator.IsVisible = false;
+            UrlLoadingIndicator.IsRunning = false;
 
             // Hide initial loading overlay on error
             InitialLoadingOverlay.IsVisible = false;
@@ -1393,6 +1437,129 @@ public partial class WebBrowsePage : ContentPage
         {
             System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] UpdateNavigationButtons error: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Batched, throttled update for the entire navigation bar.
+    /// Combines URL bar, navigation buttons, FAB visibility, and tab count into a single UI update.
+    /// Uses throttling to prevent rapid-fire updates during navigation.
+    /// </summary>
+    private void UpdateNavigationBar(string url)
+    {
+        lock (_navBarUpdateLock)
+        {
+            _pendingNavBarUpdateUrl = url;
+            
+            // Check if we should throttle
+            var timeSinceLastUpdate = DateTime.Now - _lastNavBarUpdate;
+            if (timeSinceLastUpdate.TotalMilliseconds < NavBarUpdateThrottleMs && !_isNavBarUpdateScheduled)
+            {
+                // Schedule an update after the throttle period
+                _isNavBarUpdateScheduled = true;
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(NavBarUpdateThrottleMs - (int)timeSinceLastUpdate.TotalMilliseconds);
+                    
+                    lock (_navBarUpdateLock)
+                    {
+                        _isNavBarUpdateScheduled = false;
+                        if (_pendingNavBarUpdateUrl != null)
+                        {
+                            var pendingUrl = _pendingNavBarUpdateUrl;
+                            _pendingNavBarUpdateUrl = null;
+                            ExecuteNavigationBarUpdate(pendingUrl);
+                        }
+                    }
+                });
+                return;
+            }
+            
+            // Execute immediately if not throttling
+            if (!_isNavBarUpdateScheduled)
+            {
+                _pendingNavBarUpdateUrl = null;
+                ExecuteNavigationBarUpdate(url);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Executes the actual navigation bar UI update on the main thread.
+    /// Performs heavy operations (regex, site detection) on background thread first.
+    /// </summary>
+    private void ExecuteNavigationBarUpdate(string url)
+    {
+        _lastNavBarUpdate = DateTime.Now;
+        
+        // Run heavy detection operations on background thread
+        _ = Task.Run(() =>
+        {
+            // Use cached results if available for the same URL
+            bool onKnownSite;
+            bool onNovelPage;
+            
+            if (_cachedSiteDetectionUrl == url)
+            {
+                // Use cached results
+                onKnownSite = _cachedSiteDetectionResult != null;
+                onNovelPage = _cachedNovelPageResult ?? false;
+            }
+            else
+            {
+                // Perform detection and cache results
+                var siteResult = DetectSite(url);
+                onKnownSite = siteResult != null;
+                onNovelPage = IsNovelPage(url);
+                
+                _cachedSiteDetectionUrl = url;
+                _cachedSiteDetectionResult = siteResult;
+                _cachedNovelPageResult = onNovelPage;
+            }
+            
+            var isTranslateActive = IsTranslateActive;
+            var canGoForward = SiteWebView.CanGoForward;
+            var tabCount = Math.Max(1, _tabs.Count);
+            
+            // Batch all UI updates into a single main thread call
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                try
+                {
+                    // Update URL bar
+                    UrlBarLabel.Text = url;
+                    
+                    // Update navigation buttons
+                    BackButton.Opacity = 1.0;
+                    ForwardButton.Opacity = canGoForward ? 1.0 : 0.4;
+                    
+                    // Update tab count badge
+                    TabCountLabel.Text = tabCount.ToString();
+                    
+                    // Update FAB visibility (batched)
+                    if (isTranslateActive)
+                    {
+                        FabDownload.IsVisible = false;
+                        FabFetch.IsVisible = false;
+                        FabBookmark.IsVisible = false;
+                    }
+                    else
+                    {
+                        FabDownload.IsVisible = onKnownSite;
+                        FabFetch.IsVisible = onKnownSite;
+                        FabBookmark.IsVisible = onNovelPage;
+                        
+                        if (onNovelPage)
+                        {
+                            UpdateBookmarkFabAppearance();
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] Navigation bar update error: {ex.Message}");
+                }
+            });
+        });
     }
 
     private async Task AnimateLoadingBarAsync()
