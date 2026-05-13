@@ -263,6 +263,85 @@ public partial class MainPage : ContentPage
         return lbl;
     }
 
+    private View BuildShukaQuestCard()
+    {
+        // ── Left icon badge ──────────────────────────────────────────────────
+        var iconLabel = new Label
+        {
+            Text = "\uE8B6", // search icon
+            FontFamily = "MaterialSymbols",
+            FontSize = 22,
+            HorizontalOptions = LayoutOptions.Center,
+            VerticalOptions = LayoutOptions.Center,
+        };
+        iconLabel.SetDynamicResource(Label.TextColorProperty, "AccentLight");
+
+        var iconBadge = new Border
+        {
+            StrokeThickness = 0,
+            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 14 },
+            WidthRequest = 48,
+            HeightRequest = 48,
+            VerticalOptions = LayoutOptions.Center,
+            Content = iconLabel,
+        };
+        iconBadge.SetDynamicResource(Border.BackgroundColorProperty, "AccentContainer");
+
+        // ── Row layout (globe-only) ─────────────────────────────────────────
+        // Goal: replace the “Shuka Quest” card text with a globe icon container only.
+        // The outer card styling still matches the Source cards.
+        var row = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitionCollection
+            {
+                new ColumnDefinition { Width = GridLength.Auto }, // globe
+            },
+            Padding = new Thickness(14, 14),
+        };
+        row.Add(iconBadge, 0, 0);
+
+        var card = new Border
+        {
+            StrokeThickness = 1,
+            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 20 },
+            Padding = new Thickness(0),
+            Content = row,
+        };
+        card.SetDynamicResource(Border.BackgroundColorProperty, "BgCard");
+        card.SetDynamicResource(Border.StrokeProperty, "AccentLight"); // Accent border to make it stand out
+
+        card.GestureRecognizers.Add(new TapGestureRecognizer
+        {
+            Command = new Command(async () =>
+            {
+                try
+                {
+                    // Immediate visual feedback
+                    var scaleTask = card.ScaleToAsync(0.95, 50, Easing.CubicOut);
+
+                    // Create ShukaQuestPage with Google as default
+                    var questPage = new ShukaQuestPage("https://www.google.com");
+
+                    // Wait for animation and navigate
+                    await scaleTask;
+                    await card.ScaleToAsync(1.0, 100, Easing.SpringOut);
+
+                    // Ensure the page is not cached by Shell
+                    Shell.SetPresentationMode(questPage, PresentationMode.NotAnimated);
+                    await Shell.Current.Navigation.PushAsync(questPage, true);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[MainPage] Shuka Quest card tap error: {ex.Message}");
+                    await DisplayAlertAsync("Navigation Error",
+                        $"Could not open Shuka Quest:\n{ex.Message}", "OK");
+                }
+            })
+        });
+
+        return card;
+    }
+
     private View BuildSourceCard(IBrowsableAdapter source, bool pinned)
     {
         // ── Left icon badge ──────────────────────────────────────────────────
@@ -543,6 +622,20 @@ public partial class MainPage : ContentPage
         GlobalSearchClearBtn.IsVisible = false;
         ShowSourceList();
         await Task.CompletedTask;
+    }
+
+    private async void OnBrowserIconTapped(object sender, TappedEventArgs e)
+    {
+        try
+        {
+            // Open Shuka Quest browser
+            var questPage = new ShukaQuestPage("https://www.google.com");
+            await Shell.Current.Navigation.PushAsync(questPage);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[MainPage] Browser icon tap error: {ex.Message}");
+        }
     }
 
     private async Task RunGlobalSearchAsync(string query)

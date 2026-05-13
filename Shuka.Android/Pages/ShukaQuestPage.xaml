@@ -154,62 +154,64 @@
                 BackgroundColor="{DynamicResource BgCard}"
                 StrokeThickness="0"
                 Padding="16,8,16,8">
-            <Border Stroke="{DynamicResource Stroke}"
-                    StrokeThickness="1.5"
-                    StrokeShape="RoundRectangle 14"
-                    BackgroundColor="{DynamicResource BgInput}"
-                    Padding="12,0">
-                <Grid ColumnDefinitions="*,Auto,Auto">
-                    <Label Grid.Column="0"
-                           Text="&#xE8B6;"
-                           FontFamily="{DynamicResource IconFont}"
-                           FontSize="18"
-                           TextColor="{DynamicResource TextMuted}"
-                           VerticalOptions="Center"
-                           Margin="0,0,8,0" />
-                    <Entry Grid.Column="1"
-                           x:Name="SearchEntry"
-                           Placeholder="Search in page..."
-                           Keyboard="Text"
-                           HeightRequest="44"
-                           ReturnType="Search"
-                           Completed="OnSearchCompleted" />
-                    <Label Grid.Column="2"
-                           x:Name="SearchClearBtn"
-                           Text="&#xE5CD;"
-                           FontFamily="{DynamicResource IconFont}"
-                           FontSize="18"
-                           TextColor="{DynamicResource TextMuted}"
-                           VerticalOptions="Center"
-                           IsVisible="False"
-                           Margin="8,0,0,0">
-                        <Label.GestureRecognizers>
-                            <TapGestureRecognizer Tapped="OnSearchClearTapped" />
-                        </Label.GestureRecognizers>
-                    </Label>
-                    <Border Grid.Column="3"
-                        x:Name="GlobeIconBtn"
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                <!-- Search textbox -->
+                <Border Grid.Column="0"
                         Stroke="{DynamicResource Stroke}"
-                        StrokeThickness="1"
-                        StrokeShape="RoundRectangle 8"
+                        StrokeThickness="1.5"
+                        StrokeShape="RoundRectangle 14"
                         BackgroundColor="{DynamicResource BgInput}"
-                        HeightRequest="34"
-                        Padding="8,0"
+                        Padding="12,0">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                        <Label Grid.Column="0"
+                               Text="&#xE8B6;"
+                               FontFamily="{DynamicResource IconFont}"
+                               FontSize="18"
+                               TextColor="{DynamicResource TextMuted}"
+                               VerticalOptions="Center"
+                               Margin="0,0,8,0" />
+                        <Entry Grid.Column="1"
+                               x:Name="SearchEntry"
+                               Placeholder="Search in page..."
+                               Keyboard="Text"
+                               HeightRequest="44"
+                               ReturnType="Search"
+                               Completed="OnSearchCompleted" />
+                        <Label Grid.Column="2"
+                               x:Name="SearchClearBtn"
+                               Text="&#xE5CD;"
+                               FontFamily="{DynamicResource IconFont}"
+                               FontSize="18"
+                               TextColor="{DynamicResource TextMuted}"
+                               VerticalOptions="Center"
+                               IsVisible="False"
+                               Margin="8,0,0,0">
+                            <Label.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnSearchClearTapped" />
+                            </Label.GestureRecognizers>
+                        </Label>
+                    </Grid>
+                </Border>
+                <!-- Copy URL button — separate container, copies current page URL -->
+                <Border Grid.Column="1"
+                        x:Name="CopyUrlBtn"
+                        StrokeThickness="0"
+                        StrokeShape="RoundRectangle 12"
+                        BackgroundColor="{DynamicResource Accent}"
+                        WidthRequest="44"
+                        HeightRequest="44"
                         VerticalOptions="Center">
-                        <Grid>
-                            <Label Text="&#xE89E;"
-                                   FontFamily="{DynamicResource IconFont}"
-                                   FontSize="18"
-                                   TextColor="{DynamicResource TextPrimary}"
-                                   HorizontalOptions="Center"
-                                   VerticalOptions="Center" />
-                        </Grid>
-                        <Border.GestureRecognizers>
-                            <TapGestureRecognizer Tapped="OnCopyUrlTapped" />
-                        </Border.GestureRecognizers>
-                    </Border>
-                </Grid>
-            </Border>
+                    <Label Text="&#xE14D;"
+                           FontFamily="{DynamicResource IconFont}"
+                           FontSize="20"
+                           TextColor="{DynamicResource TextOnAccent}"
+                           HorizontalOptions="Center"
+                           VerticalOptions="Center" />
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnCopyUrlTapped" />
+                    </Border.GestureRecognizers>
+                </Border>
+            </Grid>
         </Border>
 
         <!-- ── WebView + FAB overlay ─────────────────────────── -->
@@ -692,6 +694,81 @@
                             <Border.GestureRecognizers>
                                 <TapGestureRecognizer Tapped="OnBrowserMenuRecentTapped" />
                             </Border.GestureRecognizers>
+                        </Border>
+
+                        <!-- Paste URL — quick navigation entry -->
+                        <Border Stroke="{DynamicResource Stroke}"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 14"
+                                BackgroundColor="{DynamicResource BgInput}"
+                                Padding="12,10">
+                            <VerticalStackLayout Spacing="8">
+                                <Grid ColumnDefinitions="24,*" ColumnSpacing="10">
+                                    <Label Text="&#xE157;"
+                                           FontFamily="{DynamicResource IconFont}"
+                                           FontSize="18"
+                                           TextColor="{DynamicResource TextMuted}"
+                                           VerticalOptions="Center" />
+                                    <Label Grid.Column="1"
+                                           Text="Paste URL"
+                                           FontSize="13"
+                                           FontAttributes="Bold"
+                                           TextColor="{DynamicResource TextPrimary}"
+                                           VerticalOptions="Center" />
+                                </Grid>
+                                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                                    <Border Grid.Column="0"
+                                            Stroke="{DynamicResource Stroke}"
+                                            StrokeThickness="1"
+                                            StrokeShape="RoundRectangle 10"
+                                            BackgroundColor="{DynamicResource BgPage}"
+                                            Padding="10,0">
+                                        <Entry x:Name="MenuPasteUrlEntry"
+                                               Placeholder="https://..."
+                                               Keyboard="Url"
+                                               ReturnType="Go"
+                                               HeightRequest="40"
+                                               Completed="OnMenuPasteUrlCompleted" />
+                                    </Border>
+                                    <Border Grid.Column="1"
+                                            x:Name="MenuPasteFromClipboardBtn"
+                                            Stroke="{DynamicResource Stroke}"
+                                            StrokeThickness="1"
+                                            StrokeShape="RoundRectangle 10"
+                                            BackgroundColor="{DynamicResource BgPage}"
+                                            WidthRequest="40"
+                                            HeightRequest="40"
+                                            VerticalOptions="Center">
+                                        <Label Text="&#xE22B;"
+                                               FontFamily="{DynamicResource IconFont}"
+                                               FontSize="18"
+                                               TextColor="{DynamicResource TextSecondary}"
+                                               HorizontalOptions="Center"
+                                               VerticalOptions="Center" />
+                                        <Border.GestureRecognizers>
+                                            <TapGestureRecognizer Tapped="OnMenuPasteFromClipboardTapped" />
+                                        </Border.GestureRecognizers>
+                                    </Border>
+                                    <Border Grid.Column="2"
+                                            x:Name="MenuPasteGoBtn"
+                                            StrokeThickness="0"
+                                            StrokeShape="RoundRectangle 10"
+                                            BackgroundColor="{DynamicResource Accent}"
+                                            HeightRequest="40"
+                                            Padding="14,0"
+                                            VerticalOptions="Center">
+                                        <Label Text="GO"
+                                               FontSize="12"
+                                               FontAttributes="Bold"
+                                               TextColor="{DynamicResource TextOnAccent}"
+                                               HorizontalOptions="Center"
+                                               VerticalOptions="Center" />
+                                        <Border.GestureRecognizers>
+                                            <TapGestureRecognizer Tapped="OnMenuPasteUrlGoTapped" />
+                                        </Border.GestureRecognizers>
+                                    </Border>
+                                </Grid>
+                            </VerticalStackLayout>
                         </Border>
 
                         <Border x:Name="BrowserMenuAdBlockRow"

@@ -2,4 +2,16 @@
 <paths>
     <!-- App-private cache directory — used for downloaded APK updates -->
     <cache-path name="apk_updates" path="." />
+
+    <!-- Public external storage — covers /storage/emulated/0 (e.g. Download/Shuka EPUBs) -->
+    <external-path name="external_files" path="." />
+
+    <!-- App-specific external storage (Android/data/<pkg>/files) -->
+    <external-files-path name="external_app_files" path="." />
+
+    <!-- App-specific external cache (Android/data/<pkg>/cache) -->
+    <external-cache-path name="external_app_cache" path="." />
+
+    <!-- App-private internal files (data/data/<pkg>/files) -->
+    <files-path name="internal_files" path="." />
 </paths>

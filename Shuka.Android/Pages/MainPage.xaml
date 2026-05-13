@@ -28,9 +28,6 @@
             </Border>
 
             <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
-                <Label Text="Shuka"
-                       FontSize="22" FontAttributes="Bold"
-                       TextColor="{DynamicResource TextPrimary}" />
                 <Label Text="Chinese → English EPUB"
                        FontSize="12"
                        TextColor="{DynamicResource TextMuted}" />
@@ -373,7 +370,7 @@
                 </VerticalStackLayout>
             </ScrollView>
 
-            <!-- ══ DISCOVER PANEL ══════════════════════════════ -->
+            <!-- ══ DISCOVER PANEL ════════════════════════════ -->
             <Grid x:Name="DiscoverPanel" IsVisible="False" RowDefinitions="Auto,*">
 
                 <!-- Global search bar -->
@@ -381,40 +378,56 @@
                         BackgroundColor="{DynamicResource BgPage}"
                         StrokeThickness="0"
                         Padding="16,12,16,8">
-                    <Border Stroke="{DynamicResource Stroke}"
-                            StrokeThickness="1.5"
-                            StrokeShape="RoundRectangle 14"
-                            BackgroundColor="{DynamicResource BgInput}"
-                            Padding="12,0">
-                        <Grid ColumnDefinitions="Auto,*,Auto">
-                            <Label Grid.Column="0"
-                                   Text="&#xE8B6;"
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                        <!-- Search textbox -->
+                        <Border Grid.Column="0"
+                                Stroke="{DynamicResource Stroke}"
+                                StrokeThickness="1.5"
+                                StrokeShape="RoundRectangle 14"
+                                BackgroundColor="{DynamicResource BgInput}"
+                                Padding="12,0">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <Entry Grid.Column="0"
+                                       x:Name="GlobalSearchEntry"
+                                       Placeholder="Search all sources..."
+                                       Keyboard="Text"
+                                       HeightRequest="44"
+                                       ReturnType="Search"
+                                       Completed="OnGlobalSearchCompleted" />
+                                <Label Grid.Column="1"
+                                       x:Name="GlobalSearchClearBtn"
+                                       Text="&#xE5CD;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="18"
+                                       TextColor="{DynamicResource TextMuted}"
+                                       VerticalOptions="Center"
+                                       IsVisible="False">
+                                    <Label.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnGlobalSearchClearTapped" />
+                                    </Label.GestureRecognizers>
+                                </Label>
+                            </Grid>
+                        </Border>
+                        <!-- Browser icon — separate container, opens Shuka Quest Mini Browser -->
+                        <Border Grid.Column="1"
+                                x:Name="BrowserIconBtn"
+                                StrokeThickness="0"
+                                StrokeShape="RoundRectangle 12"
+                                BackgroundColor="{DynamicResource Accent}"
+                                WidthRequest="44"
+                                HeightRequest="44"
+                                VerticalOptions="Center">
+                            <Label Text="&#xE80B;"
                                    FontFamily="{DynamicResource IconFont}"
-                                   FontSize="18"
-                                   TextColor="{DynamicResource TextMuted}"
-                                   VerticalOptions="Center"
-                                   Margin="0,0,8,0" />
-                            <Entry Grid.Column="1"
-                                   x:Name="GlobalSearchEntry"
-                                   Placeholder="Search all sources..."
-                                   Keyboard="Text"
-                                   HeightRequest="44"
-                                   ReturnType="Search"
-                                   Completed="OnGlobalSearchCompleted" />
-                            <Label Grid.Column="2"
-                                   x:Name="GlobalSearchClearBtn"
-                                   Text="&#xE5CD;"
-                                   FontFamily="{DynamicResource IconFont}"
-                                   FontSize="18"
-                                   TextColor="{DynamicResource TextMuted}"
-                                   VerticalOptions="Center"
-                                   IsVisible="False">
-                                <Label.GestureRecognizers>
-                                    <TapGestureRecognizer Tapped="OnGlobalSearchClearTapped" />
-                                </Label.GestureRecognizers>
-                            </Label>
-                        </Grid>
-                    </Border>
+                                   FontSize="20"
+                                   TextColor="{DynamicResource TextOnAccent}"
+                                   HorizontalOptions="Center"
+                                   VerticalOptions="Center" />
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnBrowserIconTapped" />
+                            </Border.GestureRecognizers>
+                        </Border>
+                    </Grid>
                 </Border>
 
                 <!-- Source list -->

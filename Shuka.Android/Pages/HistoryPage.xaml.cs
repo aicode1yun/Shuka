@@ -282,29 +282,107 @@ public partial class HistoryPage : ContentPage
 
     private async void OnOpenRequested(HistoryEntry entry)
     {
-        if (string.IsNullOrWhiteSpace(entry.EpubPath) ||
-            (!entry.EpubPath.StartsWith("content://", StringComparison.OrdinalIgnoreCase) &&
-             !File.Exists(entry.EpubPath)))
-        {
-            await DisplayAlertAsync("File Not Found",
-                "The EPUB file could not be found. It may have been moved or deleted.", "OK");
-            return;
-        }
         try
         {
-            await Launcher.Default.OpenAsync(new OpenFileRequest
+            // Validate entry
+            if (entry == null)
             {
-                Title = "Open EPUB",
-                File  = new ReadOnlyFile(entry.EpubPath, "application/epub+zip")
-            });
+                await DisplayAlertAsync("Error", "Invalid history entry.", "OK");
+                return;
+            }
+
+            // Check if EPUB path exists and is valid
+            if (string.IsNullOrWhiteSpace(entry.EpubPath))
+            {
+                await DisplayAlertAsync("File Not Found",
+                    "No EPUB file path available for this novel.", "OK");
+                return;
+            }
+
+            // Handle content:// URIs (Android SAF)
+            if (entry.EpubPath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    await Launcher.Default.OpenAsync(new OpenFileRequest
+                    {
+                        Title = "Open EPUB",
+                        File = new ReadOnlyFile(entry.EpubPath, "application/epub+zip")
+                    });
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[HistoryPage] Content URI open failed: {ex.Message}");
+                    // Fallback: share so the user can pick an EPUB reader.
+                    try
+                    {
+                        await Share.Default.RequestAsync(new ShareFileRequest
+                        {
+                            Title = "Open EPUB",
+                            File = new ShareFile(entry.EpubPath, "application/epub+zip")
+                        });
+                    }
+                    catch
+                    {
+                        await DisplayAlertAsync("Open Failed",
+                            "Could not open the EPUB file. Try sharing it instead.", "OK");
+                    }
+                }
+                return;
+            }
+
+            // Handle regular file paths
+            if (!File.Exists(entry.EpubPath))
+            {
+                await DisplayAlertAsync("File Not Found",
+                    "The EPUB file could not be found. It may have been moved or deleted.", "OK");
+                return;
+            }
+
+            // Try to open the file directly via FileProvider-backed Launcher.
+            try
+            {
+                await Launcher.Default.OpenAsync(new OpenFileRequest
+                {
+                    Title = "Open EPUB",
+                    File = new ReadOnlyFile(entry.EpubPath, "application/epub+zip")
+                });
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[HistoryPage] Launcher open failed, falling back to Share: {ex.Message}");
+                // Some EPUB readers only accept SEND intents — fall back to Share automatically.
+                await Share.Default.RequestAsync(new ShareFileRequest
+                {
+                    Title = "Open EPUB",
+                    File = new ShareFile(entry.EpubPath, "application/epub+zip")
+                });
+            }
         }
-        catch
+        catch (Exception ex)
         {
-            await Share.Default.RequestAsync(new ShareFileRequest
+            System.Diagnostics.Debug.WriteLine($"[HistoryPage] OnOpenRequested error: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"[HistoryPage] Stack trace: {ex.StackTrace}");
+            
+            // Fallback: try to share instead of opening
+            try
             {
-                Title = "Open EPUB",
-                File  = new ShareFile(entry.EpubPath, "application/epub+zip")
-            });
+                if (!string.IsNullOrWhiteSpace(entry?.EpubPath) && 
+                    !entry.EpubPath.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
+                {
+                    await Share.Default.RequestAsync(new ShareFileRequest
+                    {
+                        Title = "Share EPUB",
+                        File = new ShareFile(entry.EpubPath, "application/epub+zip")
+                    });
+                }
+            }
+            catch (Exception shareEx)
+            {
+                System.Diagnostics.Debug.WriteLine($"[HistoryPage] Share fallback failed: {shareEx.Message}");
+                await DisplayAlertAsync("Error", 
+                    "Could not open or share the EPUB file. The file may be corrupted.", "OK");
+            }
         }
     }
 
