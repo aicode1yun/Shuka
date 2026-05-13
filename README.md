@@ -7,7 +7,7 @@
 A tool for downloading Chinese web novels, translating them to English via Google Translate, and exporting them as `.epub` files ready for any e-reader. Available as a **PowerShell CLI on Windows** and an **Android app built using .NET MAUI.**
 
 ![GitHub all releases](https://img.shields.io/github/downloads/seizue/Shuka/total?logo=github) 
-![GitHub release](https://img.shields.io/github/v/release/seizue/Shuka)
+[![GitHub release](https://img.shields.io/github/v/release/seizue/Shuka)](https://github.com/seizue/Shuka/releases)
 
 ## Screenshot
 
