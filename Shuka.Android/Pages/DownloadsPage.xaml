@@ -5,7 +5,7 @@
              x:Class="Shuka.Android.Pages.DownloadsPage"
              BackgroundColor="{DynamicResource BgPage}">
 
-    <Grid RowDefinitions="Auto,*">
+    <Grid RowDefinitions="Auto,Auto,*">
 
         <!-- ── Top App Bar ──────────────────────────────────── -->
         <Grid Grid.Row="0"
@@ -132,42 +132,130 @@
             </Border>
         </Grid>
 
+        <!-- ── Sub-tabs: Ongoing | Completed ──────────────────── -->
+        <Grid Grid.Row="1"
+              ColumnDefinitions="*,*"
+              BackgroundColor="{DynamicResource BgCard}"
+              HeightRequest="48">
+
+            <!-- Ongoing tab -->
+            <Grid Grid.Column="0" x:Name="TabOngoingPill">
+                <Label x:Name="TabOngoingLabel"
+                       Text="ONGOING"
+                       FontSize="13" FontAttributes="Bold"
+                       HorizontalOptions="Center"
+                       VerticalOptions="Center"
+                       HorizontalTextAlignment="Center" />
+                <BoxView x:Name="TabOngoingBar"
+                         HeightRequest="2"
+                         VerticalOptions="End"
+                         HorizontalOptions="Fill"
+                         Margin="20,0" />
+                <Grid.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnTabOngoingTapped" />
+                </Grid.GestureRecognizers>
+            </Grid>
+
+            <!-- Completed tab -->
+            <Grid Grid.Column="1" x:Name="TabCompletedPill">
+                <Label x:Name="TabCompletedLabel"
+                       Text="COMPLETED"
+                       FontSize="13" FontAttributes="Bold"
+                       HorizontalOptions="Center"
+                       VerticalOptions="Center"
+                       HorizontalTextAlignment="Center" />
+                <BoxView x:Name="TabCompletedBar"
+                         HeightRequest="2"
+                         VerticalOptions="End"
+                         HorizontalOptions="Fill"
+                         Margin="20,0" />
+                <Grid.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnTabCompletedTapped" />
+                </Grid.GestureRecognizers>
+            </Grid>
+
+        </Grid>
+
         <!-- ── Body ─────────────────────────────────────────── -->
-        <Grid Grid.Row="1" x:Name="BodyGrid">
+        <Grid Grid.Row="2" x:Name="BodyGrid">
 
-            <!-- Empty state -->
-            <VerticalStackLayout x:Name="EmptyState"
-                                 Spacing="14"
-                                 HorizontalOptions="Center"
-                                 VerticalOptions="Center">
-                <Border BackgroundColor="{DynamicResource BgCard}"
-                        StrokeThickness="0"
-                        StrokeShape="RoundRectangle 32"
-                        WidthRequest="80" HeightRequest="80"
-                        HorizontalOptions="Center">
-                    <Label Text="&#xF090;"
-                           FontFamily="{DynamicResource IconFont}"
-                           FontSize="40"
+            <!-- ══ ONGOING PANEL ══════════════════════════════ -->
+            <Grid x:Name="OngoingPanel">
+
+                <!-- Empty state -->
+                <VerticalStackLayout x:Name="OngoingEmptyState"
+                                     Spacing="14"
+                                     HorizontalOptions="Center"
+                                     VerticalOptions="Center">
+                    <Border BackgroundColor="{DynamicResource BgCard}"
+                            StrokeThickness="0"
+                            StrokeShape="RoundRectangle 32"
+                            WidthRequest="80" HeightRequest="80"
+                            HorizontalOptions="Center">
+                        <Label Text="&#xE2C4;"
+                               FontFamily="{DynamicResource IconFont}"
+                               FontSize="40"
+                               TextColor="{DynamicResource TextMuted}"
+                               HorizontalOptions="Center"
+                               VerticalOptions="Center" />
+                    </Border>
+                    <Label Text="No active downloads"
+                           FontSize="16" FontAttributes="Bold"
+                           TextColor="{DynamicResource TextSecondary}"
+                           HorizontalOptions="Center" />
+                    <Label Text="Start a download from the Home tab"
+                           FontSize="13"
                            TextColor="{DynamicResource TextMuted}"
-                           HorizontalOptions="Center"
-                           VerticalOptions="Center" />
-                </Border>
-                <Label Text="No downloads yet"
-                       FontSize="16" FontAttributes="Bold"
-                       TextColor="{DynamicResource TextSecondary}"
-                       HorizontalOptions="Center" />
-                <Label Text="Start a download from the Home tab"
-                       FontSize="13"
-                       TextColor="{DynamicResource TextMuted}"
-                       HorizontalOptions="Center" />
-            </VerticalStackLayout>
+                           HorizontalOptions="Center" />
+                </VerticalStackLayout>
 
-            <!-- Scrollable list — cards injected from code-behind -->
-            <ScrollView x:Name="ListScroll" IsVisible="False">
-                <VerticalStackLayout x:Name="CardList"
-                                     Padding="16,20,16,112"
-                                     Spacing="12" />
-            </ScrollView>
+                <!-- Scrollable list — cards injected from code-behind -->
+                <ScrollView x:Name="OngoingListScroll" IsVisible="False">
+                    <VerticalStackLayout x:Name="OngoingCardList"
+                                         Padding="16,20,16,112"
+                                         Spacing="12" />
+                </ScrollView>
+
+            </Grid>
+
+            <!-- ══ COMPLETED PANEL ════════════════════════════ -->
+            <Grid x:Name="CompletedPanel" IsVisible="False">
+
+                <!-- Empty state -->
+                <VerticalStackLayout x:Name="CompletedEmptyState"
+                                     Spacing="14"
+                                     HorizontalOptions="Center"
+                                     VerticalOptions="Center">
+                    <Border BackgroundColor="{DynamicResource BgCard}"
+                            StrokeThickness="0"
+                            StrokeShape="RoundRectangle 32"
+                            WidthRequest="80" HeightRequest="80"
+                            HorizontalOptions="Center">
+                        <Label Text="&#xE876;"
+                               FontFamily="{DynamicResource IconFont}"
+                               FontSize="40"
+                               TextColor="{DynamicResource TextMuted}"
+                               HorizontalOptions="Center"
+                               VerticalOptions="Center" />
+                    </Border>
+                    <Label Text="No completed downloads"
+                           FontSize="16" FontAttributes="Bold"
+                           TextColor="{DynamicResource TextSecondary}"
+                           HorizontalOptions="Center" />
+                    <Label Text="Finished novels will appear here"
+                           FontSize="13"
+                           TextColor="{DynamicResource TextMuted}"
+                           HorizontalOptions="Center" />
+                </VerticalStackLayout>
+
+                <!-- Scrollable list — cards injected from code-behind -->
+                <ScrollView x:Name="CompletedListScroll" IsVisible="False">
+                    <VerticalStackLayout x:Name="CompletedCardList"
+                                         Padding="16,20,16,112"
+                                         Spacing="12" />
+                </ScrollView>
+
+            </Grid>
 
         </Grid>
 
