@@ -7,28 +7,22 @@
 # Shuka
 A cross-platform web novel downloader and translator that converts Chinese novels into English `.epub` for any e-reader. Available as a **PowerShell CLI for Windows** and an **Android app built with .NET MAUI.**
 
-<p align="center">
-     <a href="https://github.com/seizue/Shuka/releases">
-      <img src="https://img.shields.io/github/downloads/seizue/Shuka/total?logo=github" />
-     </a>
-     <a href="https://github.com/seizue/Shuka/releases">
-      <img src="https://img.shields.io/github/v/release/seizue/Shuka" />
-     </a>
-     <a href="https://github.com/seizue/Shuka/blob/main/LICENSE">
-      <img src="https://img.shields.io/github/license/seizue/Shuka" />
-     </a>
+<p align="center">   
+     
+[![GitHub Downloads](https://img.shields.io/github/downloads/seizue/Shuka/total?logo=github)](https://github.com/seizue/Shuka/releases)
+[![GitHub Release](https://img.shields.io/github/v/release/seizue/Shuka)](https://github.com/seizue/Shuka/releases)
+[![GitHub License](https://img.shields.io/github/license/seizue/Shuka)](https://github.com/seizue/Shuka/blob/main/LICENSE)
+
+</p>
 </div>
 
-## Screenshot
 
+## Screenshot
 <details>
  <summary>🔽 <strong>[ OPEN SCREENSHOT ]</strong></summary>
-
   <br>
-
   <img width="1366" alt="Shuka Screenshot"
        src="https://github.com/user-attachments/assets/c07f2852-306a-4c6d-aec6-7336507d673e" />
-
 </details>
 
 
