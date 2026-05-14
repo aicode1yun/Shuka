@@ -51,6 +51,16 @@ public partial class SourceBrowsePage : ContentPage
 
     // ── Navigation ────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Intercepts the hardware/gesture back button and pops the page so it
+    /// behaves the same as the in-app back button.
+    /// </summary>
+    protected override bool OnBackButtonPressed()
+    {
+        _ = Shell.Current.Navigation.PopAsync();
+        return true;
+    }
+
     private async void OnBackTapped(object sender, TappedEventArgs e)
         => await Shell.Current.Navigation.PopAsync();
 

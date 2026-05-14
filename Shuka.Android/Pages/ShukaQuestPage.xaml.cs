@@ -112,7 +112,24 @@ public partial class ShukaQuestPage : ContentPage
     // Guard to prevent attaching the long-click listener more than once per instance
     private bool _longClickListenerAttached;
 
+    // ── Back Navigation ───────────────────────────────────────────────────────
+    // Tracks whether the last navigation was a GoBack() call so blank history
+    // entries (about:blank, redirects) can be automatically skipped.
+    private bool _isNavigatingBack;
+    private int _backSkipCount;
+    private const int MaxBackSkipAttempts = 10;
+
     private bool IsTranslateActive => _translateMode != WebTranslateMode.None;
+
+    /// <summary>
+    /// Returns true when the URL represents an empty/blank browser page that should
+    /// never be shown to the user during back navigation.
+    /// </summary>
+    private static bool IsBlankUrl(string url) =>
+        string.IsNullOrWhiteSpace(url) ||
+        url.Equals("about:blank", StringComparison.OrdinalIgnoreCase) ||
+        url.StartsWith("about:", StringComparison.OrdinalIgnoreCase) ||
+        url.Equals("chrome-error://chromewebdata/", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Set this before pushing ShukaQuestPage. When the user taps Fetch,
@@ -253,6 +270,32 @@ public partial class ShukaQuestPage : ContentPage
 
             throw; // Re-throw to show error to user
         }
+    }
+
+    /// <summary>
+    /// Intercepts the hardware/gesture back button. When the WebView has history,
+    /// navigate back within the WebView instead of popping the page from the
+    /// MAUI navigation stack. This prevents MAUI from consuming the event and
+    /// closing the ShukaQuest page prematurely.
+    /// </summary>
+    protected override bool OnBackButtonPressed()
+    {
+        // If any overlay/bottom-sheet is open, let it close first via its own logic
+        if (_isBrowserMenuOpen || _isTabOverviewOpen || _isRecentLinksOpen ||
+            _isImageContextMenuOpen || _isCloudflareSheetOpen)
+        {
+            return base.OnBackButtonPressed();
+        }
+
+        if (SiteWebView.CanGoBack)
+        {
+            _isNavigatingBack = true;
+            _backSkipCount = 0;
+            SiteWebView.GoBack();
+            return true; // consumed — do not pop the page
+        }
+
+        return false; // let MAUI pop the page normally
     }
 
     protected override void OnAppearing()
@@ -500,6 +543,8 @@ public partial class ShukaQuestPage : ContentPage
         {
             if (SiteWebView.CanGoBack)
             {
+                _isNavigatingBack = true;
+                _backSkipCount = 0;
                 SiteWebView.GoBack();
             }
             else
@@ -1341,6 +1386,36 @@ public partial class ShukaQuestPage : ContentPage
 
             _actualWebNavigationUrl = e.Url ?? string.Empty;
             _currentUrl = e.Url ?? string.Empty;
+
+            // Auto-skip blank/empty history entries that occur during back navigation.
+            // Intermediate redirect pages and about:blank entries cause the white-screen
+            // bug when the user presses Back multiple times.
+            if (_isNavigatingBack && IsBlankUrl(_currentUrl))
+            {
+                if (_backSkipCount < MaxBackSkipAttempts && SiteWebView.CanGoBack)
+                {
+                    _backSkipCount++;
+                    System.Diagnostics.Debug.WriteLine(
+                        $"[ShukaQuestPage] Skipping blank back entry #{_backSkipCount}: '{_currentUrl}'");
+                    SiteWebView.GoBack();
+                    return;
+                }
+                else
+                {
+                    // Exhausted back history or skip limit — fall back to home URL
+                    System.Diagnostics.Debug.WriteLine(
+                        "[ShukaQuestPage] Back skip limit reached or no more history; navigating home.");
+                    _isNavigatingBack = false;
+                    _backSkipCount = 0;
+                    Navigate(_homeUrl);
+                    return;
+                }
+            }
+
+            // Real page loaded — reset back-navigation flags
+            _isNavigatingBack = false;
+            _backSkipCount = 0;
+
             string? title = null;
             try
             {
