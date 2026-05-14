@@ -1,6 +1,7 @@
 using System.Collections.Specialized;
 using System.ComponentModel;
 using Shuka.Android.Behaviors;
+using Shuka.Android.Platforms.Android;
 using Shuka.Android.Services;
 
 namespace Shuka.Android.Pages;
@@ -275,32 +276,33 @@ public partial class DownloadsPage : ContentPage
 
     private async void OnCardShareRequested(DownloadItem item)
     {
-        if (item.EpubPath == null || !File.Exists(item.EpubPath)) return;
-        await Share.Default.RequestAsync(new ShareFileRequest
+        if (item.EpubPath == null || !EpubOpener.IsAccessible(item.EpubPath)) return;
+        try
         {
-            Title = "Share EPUB",
-            File  = new ShareFile(item.EpubPath, "application/epub+zip")
-        });
+            EpubOpener.Share(item.EpubPath, item.Title);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[DownloadsPage] Share failed: {ex.Message}");
+        }
     }
 
     private async void OnCardOpenRequested(DownloadItem item)
     {
-        if (item.EpubPath == null || !File.Exists(item.EpubPath)) return;
+        if (item.EpubPath == null || !EpubOpener.IsAccessible(item.EpubPath)) return;
         try
         {
-            await Launcher.Default.OpenAsync(new OpenFileRequest
-            {
-                Title = "Open EPUB",
-                File  = new ReadOnlyFile(item.EpubPath, "application/epub+zip")
-            });
+            EpubOpener.Open(item.EpubPath);
         }
-        catch
+        catch (InvalidOperationException)
         {
-            await Share.Default.RequestAsync(new ShareFileRequest
+            // No EPUB reader installed — fall back to share sheet
+            try
             {
-                Title = "Open EPUB",
-                File  = new ShareFile(item.EpubPath, "application/epub+zip")
-            });
+                EpubOpener.Share(item.EpubPath, item.Title);
+            }
+            catch { }
         }
+        catch { }
     }
 }

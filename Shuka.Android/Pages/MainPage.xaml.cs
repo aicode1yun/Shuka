@@ -1,4 +1,5 @@
 using Shuka.Android.Behaviors;
+using Shuka.Android.Platforms.Android;
 using Shuka.Android.Services;
 using Shuka.Core;
 using System.Text.RegularExpressions;
@@ -1415,24 +1416,19 @@ public partial class MainPage : ContentPage
                     string? choice = await DisplayActionSheetAsync($"{title} was already downloaded", "Cancel", null,
                         "Download again (re-translate)", "Open existing EPUB", "Go to Downloads tab");
                     if (choice == "Download again (re-translate)") return true;
-                    if (choice == "Open existing EPUB" && existing.EpubPath != null && File.Exists(existing.EpubPath))
+                    if (choice == "Open existing EPUB" && existing.EpubPath != null && EpubOpener.IsAccessible(existing.EpubPath))
                     {
                         try
                         {
-                            await Launcher.Default.OpenAsync(new OpenFileRequest
-                            {
-                                Title = "Open EPUB",
-                                File = new ReadOnlyFile(existing.EpubPath, "application/epub+zip")
-                            });
+                            EpubOpener.Open(existing.EpubPath);
                         }
-                        catch
+                        catch (InvalidOperationException)
                         {
-                            await Share.Default.RequestAsync(new ShareFileRequest
-                            {
-                                Title = "Open EPUB",
-                                File = new ShareFile(existing.EpubPath, "application/epub+zip")
-                            });
+                            // No EPUB reader — fall back to share sheet
+                            try { EpubOpener.Share(existing.EpubPath, existing.Title); }
+                            catch { }
                         }
+                        catch { }
                         return false;
                     }
                     if (choice == "Go to Downloads tab") { await Shell.Current.GoToAsync("//DownloadsPage"); return false; }
