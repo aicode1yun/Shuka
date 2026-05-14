@@ -13,6 +13,7 @@ A cross-platform web novel downloader and translator that converts Chinese novel
 [![GitHub Release](https://img.shields.io/github/v/release/seizue/Shuka)](https://github.com/seizue/Shuka/releases)
 [![GitHub License](https://img.shields.io/github/license/seizue/Shuka)](https://github.com/seizue/Shuka/blob/main/LICENSE)
 
+<a href="https://www.buymeacoffee.com/venznusa" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-violet.png" alt="Buy Me a Coffee" style="height: 60px !important;width: 217px !important;" ></a>
 </p>
 </div>
 
