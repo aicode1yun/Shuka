@@ -86,6 +86,8 @@ public partial class ShukaQuestPage : ContentPage
     private bool _isTabOverviewOpen;
     private bool _isBrowserMenuOpen;
     private bool _isRecentLinksOpen;
+    private bool _isImageContextMenuOpen;
+    private string? _currentImageContextMenuUrl;
     private bool _isCloudflareSheetOpen;
     private TaskCompletionSource<string?>? _cloudflareChoiceTcs;
     private static string WebHistoryFile =>
@@ -106,6 +108,9 @@ public partial class ShukaQuestPage : ContentPage
     private string? _cachedSiteDetectionUrl;
     private string? _cachedSiteDetectionResult;
     private bool? _cachedNovelPageResult;
+
+    // Guard to prevent attaching the long-click listener more than once per instance
+    private bool _longClickListenerAttached;
 
     private bool IsTranslateActive => _translateMode != WebTranslateMode.None;
 
@@ -183,8 +188,9 @@ public partial class ShukaQuestPage : ContentPage
             SiteWebView.Navigating += OnNavigating!;
             SiteWebView.Navigated += OnNavigated!;
             
-            // Configure WebView for image handling
-            ConfigureWebViewForImageHandling();
+            // Defer image-handling setup until the WebView handler is ready
+            // (Handler?.PlatformView is null in the constructor — setup via HandlerChanged)
+            SiteWebView.HandlerChanged += OnWebViewHandlerChanged;
             
             // Configure WebView for Chinese site compatibility
             ConfigureWebViewForChineseSites();
@@ -322,6 +328,7 @@ public partial class ShukaQuestPage : ContentPage
                 // Unsubscribe from events to prevent memory leaks
                 SiteWebView.Navigating -= OnNavigating!;
                 SiteWebView.Navigated -= OnNavigated!;
+                SiteWebView.HandlerChanged -= OnWebViewHandlerChanged;
 
                 // Stop any ongoing navigation
                 try
@@ -389,6 +396,16 @@ public partial class ShukaQuestPage : ContentPage
         {
             System.Diagnostics.Debug.WriteLine("[ShukaQuestPage] Handler removed, cleaning up");
         }
+    }
+
+    /// <summary>
+    /// Called when the WebView's platform handler changes. Used to attach the
+    /// long-click listener once <see cref="global::Android.Webkit.WebView"/> is available.
+    /// </summary>
+    private void OnWebViewHandlerChanged(object? sender, EventArgs e)
+    {
+        if (SiteWebView.Handler?.PlatformView == null) return;
+        ConfigureWebViewForImageHandling();
     }
 
     // ── Navigation ────────────────────────────────────────────────────────────
@@ -1437,40 +1454,45 @@ public partial class ShukaQuestPage : ContentPage
                 settings.JavaScriptCanOpenWindowsAutomatically = false;
                 settings.SetSupportMultipleWindows(false);
 
+                // Guard: only attach the long-click listener once per WebView instance.
+                if (_longClickListenerAttached) return;
+                _longClickListenerAttached = true;
+
                 // Hook long-press image context actions.
                 // Fix: image context menu actions inside the Mini Browser not functioning.
-                androidWebView.SetOnLongClickListener(new AndroidViewLongClickListener(async (x, y) =>
+                //
+                // Design notes:
+                //  • OnLongClick runs on the Android main thread — we must NOT block it with
+                //    GetAwaiter().GetResult() or we deadlock against MainThread.InvokeOnMainThreadAsync.
+                //  • We use a synchronous callback that fires-and-forgets the async menu show,
+                //    returning true immediately to consume the long-press event.
+                //  • SrcImageAnchorType covers images wrapped inside <a> tags (the most common case
+                //    on manga/novel sites). ImageType covers bare <img> tags.
+                androidWebView.SetOnLongClickListener(new AndroidViewLongClickListener(v =>
                 {
                     try
                     {
                         var hit = androidWebView.GetHitTestResult();
-                        if (hit == null)
-                            return true;
+                        if (hit == null) return false;
 
-                        // Only handle long-press on <img> elements.
-                        if (hit.Type != global::Android.Webkit.HitTestResult.ImageType)
-                            return false;
+                        // Handle both bare <img> and <a><img></a> elements.
+                        bool isImage =
+                            hit.Type == global::Android.Webkit.HitTestResult.ImageType ||
+                            hit.Type == global::Android.Webkit.HitTestResult.SrcImageAnchorType;
+                        if (!isImage) return false;
 
-                        string? imageUrl = null;
+                        // Extra usually contains the image URL.
+                        string? imageUrl = hit.Extra;
+                        if (string.IsNullOrWhiteSpace(imageUrl)) return false;
 
-                        // Extra usually contains the image URL (or "data:" url).
-                        var extra = hit.Extra;
-                        if (!string.IsNullOrWhiteSpace(extra))
-                            imageUrl = extra;
-
-                        if (string.IsNullOrWhiteSpace(imageUrl))
-                            return true;
-
-                        await MainThread.InvokeOnMainThreadAsync(async () =>
-                        {
-                            await ShowImageContextMenuAsync(imageUrl);
-                        });
-
+                        // Fire-and-forget from the main thread — ShowImageContextMenuAsync
+                        // is awaitable and schedules its continuations back on the main thread.
+                        _ = ShowImageContextMenuAsync(imageUrl);
                         return true;
                     }
                     catch
                     {
-                        return true;
+                        return false;
                     }
                 }));
             }
@@ -1483,11 +1505,17 @@ public partial class ShukaQuestPage : ContentPage
     }
 
 #if ANDROID
+    /// <summary>
+    /// Synchronous long-click listener adapter. The callback receives the view and returns
+    /// true to consume the event. Keeping the callback synchronous avoids the deadlock that
+    /// occurs when blocking the main thread (<c>GetAwaiter().GetResult()</c>) while the
+    /// async body tries to re-enter it via <c>MainThread.InvokeOnMainThreadAsync</c>.
+    /// </summary>
     private sealed class AndroidViewLongClickListener : Java.Lang.Object, global::Android.Views.View.IOnLongClickListener
     {
-        private readonly Func<float, float, System.Threading.Tasks.Task<bool>> _handler;
+        private readonly Func<global::Android.Views.View?, bool> _handler;
 
-        public AndroidViewLongClickListener(Func<float, float, System.Threading.Tasks.Task<bool>> handler)
+        public AndroidViewLongClickListener(Func<global::Android.Views.View?, bool> handler)
         {
             _handler = handler;
         }
@@ -1496,10 +1524,7 @@ public partial class ShukaQuestPage : ContentPage
         {
             try
             {
-                if (v == null)
-                    return false;
-
-                return _handler(v.GetX(), v.GetY()).GetAwaiter().GetResult();
+                return _handler(v);
             }
             catch
             {
@@ -1594,52 +1619,153 @@ public partial class ShukaQuestPage : ContentPage
     }
 
     /// <summary>
-    /// Shows image context menu with copy URL and open in new tab options.
+    /// Shows the image context menu bottom sheet (replaces the native action sheet).
     /// </summary>
     private async Task ShowImageContextMenuAsync(string? imageUrl)
     {
         if (string.IsNullOrWhiteSpace(imageUrl))
             return;
 
+        _currentImageContextMenuUrl = imageUrl;
+        await ShowImageContextMenuSheetAsync(imageUrl);
+    }
+
+    private async Task ShowImageContextMenuSheetAsync(string imageUrl)
+    {
+        if (_isImageContextMenuOpen)
+            return;
+
+        _isImageContextMenuOpen = true;
+        ImageContextMenuUrlLabel.Text = imageUrl;
+        ImageContextMenuOverlay.IsVisible = true;
+        ImageContextMenuOverlay.Opacity = 0;
+        ImageContextMenuSheet.Opacity = 0;
+        ImageContextMenuSheet.TranslationY = 30;
+
+        await Task.WhenAll(
+            ImageContextMenuOverlay.FadeToAsync(1, 160, Easing.CubicOut),
+            ImageContextMenuSheet.FadeToAsync(1, 180, Easing.CubicOut),
+            ImageContextMenuSheet.TranslateToAsync(0, 0, 180, Easing.CubicOut));
+    }
+
+    private async Task HideImageContextMenuSheetAsync()
+    {
+        if (!_isImageContextMenuOpen)
+            return;
+
+        _isImageContextMenuOpen = false;
+        await Task.WhenAll(
+            ImageContextMenuSheet.FadeToAsync(0, 140, Easing.CubicIn),
+            ImageContextMenuSheet.TranslateToAsync(0, 24, 140, Easing.CubicIn),
+            ImageContextMenuOverlay.FadeToAsync(0, 140, Easing.CubicIn));
+        ImageContextMenuOverlay.IsVisible = false;
+    }
+
+    private async void OnImageContextMenuOverlayTapped(object sender, TappedEventArgs e)
+        => await HideImageContextMenuSheetAsync();
+
+    private void OnImageContextMenuSheetTapped(object sender, TappedEventArgs e)
+    {
+        // Prevent taps inside the sheet from propagating to the overlay dismiss handler.
+    }
+
+    private async void OnImageContextMenuCloseTapped(object sender, TappedEventArgs e)
+        => await HideImageContextMenuSheetAsync();
+
+    private async void OnImageContextMenuOpenNewTabTapped(object sender, TappedEventArgs e)
+    {
+        var url = _currentImageContextMenuUrl;
+        await HideImageContextMenuSheetAsync();
+        if (!string.IsNullOrWhiteSpace(url) && Uri.TryCreate(url, UriKind.Absolute, out _))
+        {
+            AddTab(url, switchToTab: true);
+            Navigate(url);
+            await ShowQueuedToastAsync("Opened in new tab");
+        }
+    }
+
+    private async void OnImageContextMenuCopyImageTapped(object sender, TappedEventArgs e)
+    {
+        var url = _currentImageContextMenuUrl;
+        await HideImageContextMenuSheetAsync();
+        if (!string.IsNullOrWhiteSpace(url))
+            await CopyImageToClipboardAsync(url);
+    }
+
+    private async void OnImageContextMenuCopyUrlTapped(object sender, TappedEventArgs e)
+    {
+        var url = _currentImageContextMenuUrl;
+        await HideImageContextMenuSheetAsync();
+        if (!string.IsNullOrWhiteSpace(url))
+        {
+            await Clipboard.Default.SetTextAsync(url);
+            await ShowQueuedToastAsync("Image URL copied!");
+        }
+    }
+
+    /// <summary>
+    /// Downloads the image at <paramref name="imageUrl"/> to the app cache and copies
+    /// it to the Android clipboard as a content:// URI via FileProvider.
+    /// Works on Android 9+ (API 28+). On failure falls back to copying the URL text.
+    /// </summary>
+    private async Task CopyImageToClipboardAsync(string imageUrl)
+    {
         try
         {
-            var result = await DisplayActionSheetAsync(
-                "Image Options",
-                "Cancel",
-                null,
-                "Copy Image URL",
-                "Open Image in New Tab",
-                "Open in Browser"
-            );
+            await ShowQueuedToastAsync("Downloading image…");
 
-            switch (result)
+            using var httpClient = new HttpClient();
+            httpClient.Timeout = TimeSpan.FromSeconds(20);
+            // Pass a browser UA so image CDNs don't block the request.
+            httpClient.DefaultRequestHeaders.TryAddWithoutValidation(
+                "User-Agent",
+                "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36");
+
+            var bytes = await httpClient.GetByteArrayAsync(imageUrl);
+
+            // Pick extension from URL; fall back to .jpg.
+            string ext = ".jpg";
+            var lowerUrl = imageUrl.ToLowerInvariant();
+            if (lowerUrl.Contains(".png")) ext = ".png";
+            else if (lowerUrl.Contains(".gif")) ext = ".gif";
+            else if (lowerUrl.Contains(".webp")) ext = ".webp";
+
+            // Always overwrite the same temp file so the cache doesn't grow unbounded.
+            var cachePath = Path.Combine(FileSystem.CacheDirectory, $"shuka_img_copy{ext}");
+            await File.WriteAllBytesAsync(cachePath, bytes);
+
+#if ANDROID
+            var ctx = global::Android.App.Application.Context;
+            var file = new Java.IO.File(cachePath);
+            var uri = global::AndroidX.Core.Content.FileProvider.GetUriForFile(
+                ctx, "com.seizue.shuka.fileprovider", file);
+
+            string mimeType = ext switch
             {
-                case "Copy Image URL":
-                    await Clipboard.Default.SetTextAsync(imageUrl);
-                    await ShowQueuedToastAsync("Image URL copied!");
-                    break;
+                ".png" => "image/png",
+                ".gif" => "image/gif",
+                ".webp" => "image/webp",
+                _ => "image/jpeg"
+            };
 
-                case "Open Image in New Tab":
-                    if (Uri.TryCreate(imageUrl, UriKind.Absolute, out _))
-                    {
-                        // Add a fresh tab and navigate so the WebView actually loads the image URL.
-                        AddTab(imageUrl, switchToTab: true);
-                        Navigate(imageUrl);
-                        await ShowQueuedToastAsync("Opened in new tab");
-                    }
-                    break;
-
-                case "Open in Browser":
-                    if (Uri.TryCreate(imageUrl, UriKind.Absolute, out _))
-                    {
-                        await Launcher.Default.OpenAsync(new Uri(imageUrl));
-                    }
-                    break;
-            }
+            var clip = global::Android.Content.ClipData.NewUri(
+                ctx.ContentResolver, "Copied Image", uri);
+            var clipboard = (global::Android.Content.ClipboardManager)
+                ctx.GetSystemService(global::Android.Content.Context.ClipboardService)!;
+            clipboard.PrimaryClip = clip;
+#endif
+            await ShowQueuedToastAsync("Image copied!");
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[ShukaQuestPage] ShowImageContextMenuAsync error: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"[ShukaQuestPage] CopyImageToClipboardAsync error: {ex.Message}");
+            // Graceful fallback: copy the raw URL so the user isn't left empty-handed.
+            try
+            {
+                await Clipboard.Default.SetTextAsync(imageUrl);
+                await ShowQueuedToastAsync("Copied image URL (image download failed)");
+            }
+            catch { /* ignore */ }
         }
     }
 
