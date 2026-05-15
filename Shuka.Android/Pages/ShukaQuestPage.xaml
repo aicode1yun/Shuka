@@ -728,25 +728,35 @@
                                                Keyboard="Url"
                                                ReturnType="Go"
                                                HeightRequest="40"
+                                               TextChanged="OnMenuPasteUrlTextChanged"
                                                Completed="OnMenuPasteUrlCompleted" />
                                     </Border>
                                     <Border Grid.Column="1"
-                                            x:Name="MenuPasteFromClipboardBtn"
+                                            x:Name="MenuPasteClearBtn"
                                             Stroke="{DynamicResource Stroke}"
                                             StrokeThickness="1"
                                             StrokeShape="RoundRectangle 10"
                                             BackgroundColor="{DynamicResource BgPage}"
-                                            WidthRequest="40"
+                                            Padding="10,0"
                                             HeightRequest="40"
-                                            VerticalOptions="Center">
-                                        <Label Text="&#xE22B;"
-                                               FontFamily="{DynamicResource IconFont}"
-                                               FontSize="18"
-                                               TextColor="{DynamicResource TextSecondary}"
-                                               HorizontalOptions="Center"
-                                               VerticalOptions="Center" />
+                                            VerticalOptions="Center"
+                                            IsVisible="False">
+                                        <HorizontalStackLayout Spacing="4"
+                                                               VerticalOptions="Center"
+                                                               HorizontalOptions="Center">
+                                            <Label Text="&#xE5CD;"
+                                                   FontFamily="{DynamicResource IconFont}"
+                                                   FontSize="16"
+                                                   TextColor="{DynamicResource TextMuted}"
+                                                   VerticalOptions="Center" />
+                                            <Label Text="Clear"
+                                                   FontSize="12"
+                                                   FontAttributes="Bold"
+                                                   TextColor="{DynamicResource TextMuted}"
+                                                   VerticalOptions="Center" />
+                                        </HorizontalStackLayout>
                                         <Border.GestureRecognizers>
-                                            <TapGestureRecognizer Tapped="OnMenuPasteFromClipboardTapped" />
+                                            <TapGestureRecognizer Tapped="OnMenuPasteUrlClearTapped" />
                                         </Border.GestureRecognizers>
                                     </Border>
                                     <Border Grid.Column="2"

@@ -15,6 +15,9 @@ public partial class SourceBrowsePage : ContentPage
     private bool       _hasMore = true;
     private string     _query   = "";
 
+    private bool _isImageContextMenuOpen;
+    private string? _currentImageContextMenuUrl;
+
     public SourceBrowsePage(IBrowsableAdapter source, string? initialQuery = null)
     {
         InitializeComponent();
@@ -238,7 +241,7 @@ public partial class SourceBrowsePage : ContentPage
                 HorizontalOptions = LayoutOptions.Center,
                 VerticalOptions   = LayoutOptions.Center,
             };
-            coverView = new Border
+            var coverBorder = new Border
             {
                 StrokeThickness = 0,
                 StrokeShape     = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 8 },
@@ -246,7 +249,9 @@ public partial class SourceBrowsePage : ContentPage
                 HeightRequest   = 92,
                 Content         = img,
             };
-            ((Border)coverView).SetDynamicResource(Border.BackgroundColorProperty, "BgInput");
+            coverBorder.SetDynamicResource(Border.BackgroundColorProperty, "BgInput");
+            coverView = coverBorder;
+            AttachCoverImageLongPress(coverBorder, novel.CoverUrl.Trim());
         }
         else
         {
@@ -423,5 +428,244 @@ public partial class SourceBrowsePage : ContentPage
         // Navigate to Downloads tab
         if (Shell.Current != null)
             _ = Shell.Current.GoToAsync("//DownloadsPage");
+    }
+
+    // ── Cover image long-press → same options as Shuka Quest (list uses MAUI Image, not WebView) ──
+
+    private void AttachCoverImageLongPress(Border coverBorder, string imageUrl)
+    {
+        if (string.IsNullOrWhiteSpace(imageUrl) ||
+            !Uri.TryCreate(imageUrl, UriKind.Absolute, out var u) ||
+            (u.Scheme != Uri.UriSchemeHttp && u.Scheme != Uri.UriSchemeHttps))
+            return;
+
+        CancellationTokenSource? lpCts = null;
+        var pointerGesture = new PointerGestureRecognizer();
+
+        pointerGesture.PointerPressed += async (_, _) =>
+        {
+            try
+            {
+                lpCts?.Cancel();
+                lpCts?.Dispose();
+                var cts = new CancellationTokenSource();
+                lpCts = cts;
+                try
+                {
+                    await Task.Delay(500, cts.Token);
+                    TryHapticLight();
+                    var urlCopy = imageUrl;
+                    MainThread.BeginInvokeOnMainThread(() => _ = ShowImageContextMenuAsync(urlCopy));
+                }
+                catch (OperationCanceledException) { /* short tap */ }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[SourceBrowsePage] Cover long-press: {ex.Message}");
+            }
+        };
+
+        pointerGesture.PointerReleased += (_, _) =>
+        {
+            try
+            {
+                if (lpCts != null && !lpCts.Token.IsCancellationRequested)
+                    lpCts.Cancel();
+            }
+            catch { /* ignore */ }
+        };
+
+        coverBorder.GestureRecognizers.Add(pointerGesture);
+    }
+
+#if ANDROID
+    private static void TryHapticLight()
+    {
+        try
+        {
+#pragma warning disable CA1416
+            if (global::Android.OS.Build.VERSION.SdkInt >= global::Android.OS.BuildVersionCodes.S)
+            {
+                var vibratorManager = global::Android.App.Application.Context
+                    .GetSystemService(global::Android.Content.Context.VibratorManagerService) as global::Android.OS.VibratorManager;
+                var vibrator = vibratorManager?.DefaultVibrator;
+                if (vibrator?.HasVibrator == true)
+                {
+                    var effect = global::Android.OS.VibrationEffect.CreateOneShot(
+                        50, global::Android.OS.VibrationEffect.DefaultAmplitude);
+                    vibrator.Vibrate(effect);
+                }
+            }
+            else if (global::Android.OS.Build.VERSION.SdkInt >= global::Android.OS.BuildVersionCodes.O)
+            {
+#pragma warning disable CA1422
+                var vibrator = global::Android.App.Application.Context
+                    .GetSystemService(global::Android.Content.Context.VibratorService) as global::Android.OS.Vibrator;
+#pragma warning restore CA1422
+                if (vibrator?.HasVibrator == true)
+                {
+                    var effect = global::Android.OS.VibrationEffect.CreateOneShot(
+                        50, global::Android.OS.VibrationEffect.DefaultAmplitude);
+                    vibrator.Vibrate(effect);
+                }
+            }
+#pragma warning restore CA1416
+        }
+        catch { /* ignore */ }
+    }
+#else
+    private static void TryHapticLight() { }
+#endif
+
+    private async Task ShowImageContextMenuAsync(string? imageUrl)
+    {
+        if (string.IsNullOrWhiteSpace(imageUrl))
+            return;
+
+        _currentImageContextMenuUrl = imageUrl;
+        await ShowImageContextMenuSheetAsync(imageUrl);
+    }
+
+    private async Task ShowImageContextMenuSheetAsync(string imageUrl)
+    {
+        if (_isImageContextMenuOpen)
+            return;
+
+        _isImageContextMenuOpen = true;
+        ImageContextMenuUrlLabel.Text = imageUrl;
+        ImageContextMenuOverlay.IsVisible = true;
+        ImageContextMenuOverlay.Opacity = 0;
+        ImageContextMenuSheet.Opacity = 0;
+        ImageContextMenuSheet.TranslationY = 30;
+
+        await Task.WhenAll(
+            ImageContextMenuOverlay.FadeToAsync(1, 160, Easing.CubicOut),
+            ImageContextMenuSheet.FadeToAsync(1, 180, Easing.CubicOut),
+            ImageContextMenuSheet.TranslateToAsync(0, 0, 180, Easing.CubicOut));
+    }
+
+    private async Task HideImageContextMenuSheetAsync()
+    {
+        if (!_isImageContextMenuOpen)
+            return;
+
+        _isImageContextMenuOpen = false;
+        await Task.WhenAll(
+            ImageContextMenuSheet.FadeToAsync(0, 140, Easing.CubicIn),
+            ImageContextMenuSheet.TranslateToAsync(0, 24, 140, Easing.CubicIn),
+            ImageContextMenuOverlay.FadeToAsync(0, 140, Easing.CubicIn));
+        ImageContextMenuOverlay.IsVisible = false;
+    }
+
+    private async void OnImageContextMenuOverlayTapped(object sender, TappedEventArgs e)
+        => await HideImageContextMenuSheetAsync();
+
+    private void OnImageContextMenuSheetTapped(object sender, TappedEventArgs e) { }
+
+    private async void OnImageContextMenuCloseTapped(object sender, TappedEventArgs e)
+        => await HideImageContextMenuSheetAsync();
+
+    private async void OnImageContextMenuOpenNewTabTapped(object sender, TappedEventArgs e)
+    {
+        var url = _currentImageContextMenuUrl;
+        await HideImageContextMenuSheetAsync();
+        if (string.IsNullOrWhiteSpace(url) || !Uri.TryCreate(url, UriKind.Absolute, out _))
+            return;
+        if (Shell.Current == null)
+            return;
+
+        await ShowImageActionToastAsync("Opening…", displayMs: 600);
+        await Shell.Current.Navigation.PushAsync(new ShukaQuestPage(url));
+    }
+
+    private async void OnImageContextMenuCopyImageTapped(object sender, TappedEventArgs e)
+    {
+        var url = _currentImageContextMenuUrl;
+        await HideImageContextMenuSheetAsync();
+        if (!string.IsNullOrWhiteSpace(url))
+            await CopyImageToClipboardAsync(url);
+    }
+
+    private async void OnImageContextMenuCopyUrlTapped(object sender, TappedEventArgs e)
+    {
+        var url = _currentImageContextMenuUrl;
+        await HideImageContextMenuSheetAsync();
+        if (!string.IsNullOrWhiteSpace(url))
+        {
+            await Clipboard.Default.SetTextAsync(url);
+            await ShowImageActionToastAsync("Image URL copied!");
+        }
+    }
+
+    /// <summary>
+    /// Same approach as ShukaQuestPage: download bytes, write cache file, Android clipboard URI.
+    /// </summary>
+    private async Task CopyImageToClipboardAsync(string imageUrl)
+    {
+        try
+        {
+            await ShowImageActionToastAsync("Downloading image…", displayMs: 2000);
+
+            using var httpClient = new HttpClient();
+            httpClient.Timeout = TimeSpan.FromSeconds(20);
+            httpClient.DefaultRequestHeaders.TryAddWithoutValidation(
+                "User-Agent",
+                "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36");
+
+            var bytes = await httpClient.GetByteArrayAsync(imageUrl);
+
+            string ext = ".jpg";
+            var lowerUrl = imageUrl.ToLowerInvariant();
+            if (lowerUrl.Contains(".png", StringComparison.Ordinal)) ext = ".png";
+            else if (lowerUrl.Contains(".gif", StringComparison.Ordinal)) ext = ".gif";
+            else if (lowerUrl.Contains(".webp", StringComparison.Ordinal)) ext = ".webp";
+
+            var cachePath = Path.Combine(FileSystem.CacheDirectory, $"shuka_srcbrowse_img_copy{ext}");
+            await File.WriteAllBytesAsync(cachePath, bytes);
+
+#if ANDROID
+            var ctx = global::Android.App.Application.Context;
+            var file = new Java.IO.File(cachePath);
+            var uri = global::AndroidX.Core.Content.FileProvider.GetUriForFile(
+                ctx, "com.seizue.shuka.fileprovider", file);
+
+            var clip = global::Android.Content.ClipData.NewUri(
+                ctx.ContentResolver, "Copied Image", uri);
+            var clipboard = (global::Android.Content.ClipboardManager)
+                ctx.GetSystemService(global::Android.Content.Context.ClipboardService)!;
+            clipboard.PrimaryClip = clip;
+#endif
+            await ShowImageActionToastAsync("Image copied!");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SourceBrowsePage] CopyImageToClipboardAsync: {ex.Message}");
+            try
+            {
+                await Clipboard.Default.SetTextAsync(imageUrl);
+                await ShowImageActionToastAsync("Copied image URL (download failed)");
+            }
+            catch { /* ignore */ }
+        }
+    }
+
+    private async Task ShowImageActionToastAsync(string message, int displayMs = 2500)
+    {
+        ImageActionToastLabel.Text = message;
+        ImageActionToast.Opacity = 0;
+        ImageActionToast.TranslationY = 20;
+        ImageActionToast.IsVisible = true;
+
+        await Task.WhenAll(
+            ImageActionToast.FadeToAsync(1.0, 250, Easing.CubicOut),
+            ImageActionToast.TranslateToAsync(0, 0, 250, Easing.CubicOut));
+
+        await Task.Delay(displayMs);
+
+        await Task.WhenAll(
+            ImageActionToast.FadeToAsync(0, 250, Easing.CubicIn),
+            ImageActionToast.TranslateToAsync(0, 20, 250, Easing.CubicIn));
+
+        ImageActionToast.IsVisible = false;
     }
 }

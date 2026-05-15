@@ -133,6 +133,172 @@
                                      Padding="16,12,16,40"
                                      Spacing="10" />
             </ScrollView>
+
+            <!-- Image context menu (long-press on cover) — same actions as Shuka Quest -->
+            <Grid x:Name="ImageContextMenuOverlay"
+                  IsVisible="False"
+                  BackgroundColor="#88000000"
+                  HorizontalOptions="Fill"
+                  VerticalOptions="Fill">
+                <Grid.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnImageContextMenuOverlayTapped" />
+                </Grid.GestureRecognizers>
+
+                <Border x:Name="ImageContextMenuSheet"
+                        Margin="12,0,12,16"
+                        Padding="14,14,14,10"
+                        VerticalOptions="End"
+                        Stroke="{DynamicResource Stroke}"
+                        StrokeThickness="1"
+                        StrokeShape="RoundRectangle 18"
+                        BackgroundColor="{DynamicResource BgCard}"
+                        TranslationY="30"
+                        Opacity="0">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnImageContextMenuSheetTapped" />
+                    </Border.GestureRecognizers>
+                    <VerticalStackLayout Spacing="6">
+
+                        <Grid ColumnDefinitions="*,Auto"
+                              Padding="2,0,2,8">
+                            <VerticalStackLayout Spacing="2">
+                                <Label Text="Image Options"
+                                       FontSize="16"
+                                       FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}" />
+                                <Label x:Name="ImageContextMenuUrlLabel"
+                                       FontSize="10"
+                                       TextColor="{DynamicResource TextMuted}"
+                                       LineBreakMode="MiddleTruncation"
+                                       MaxLines="1" />
+                            </VerticalStackLayout>
+                            <Label Grid.Column="1"
+                                   Text="&#xE5CD;"
+                                   FontFamily="{DynamicResource IconFont}"
+                                   FontSize="20"
+                                   TextColor="{DynamicResource TextMuted}">
+                                <Label.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnImageContextMenuCloseTapped" />
+                                </Label.GestureRecognizers>
+                            </Label>
+                        </Grid>
+
+                        <Border Stroke="{DynamicResource Stroke}"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 14"
+                                BackgroundColor="{DynamicResource BgInput}"
+                                Padding="12,10">
+                            <Grid ColumnDefinitions="24,*,Auto"
+                                  ColumnSpacing="10">
+                                <Label Text="&#xE157;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="18"
+                                       TextColor="{DynamicResource TextMuted}"
+                                       VerticalOptions="Center" />
+                                <Label Grid.Column="1"
+                                       Text="Open image in new tab"
+                                       FontSize="13"
+                                       FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}"
+                                       VerticalOptions="Center" />
+                                <Label Grid.Column="2"
+                                       Text="&#xE5CC;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="18"
+                                       TextColor="{DynamicResource TextMuted}"
+                                       VerticalOptions="Center" />
+                            </Grid>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnImageContextMenuOpenNewTabTapped" />
+                            </Border.GestureRecognizers>
+                        </Border>
+
+                        <Border Stroke="{DynamicResource Stroke}"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 14"
+                                BackgroundColor="{DynamicResource BgInput}"
+                                Padding="12,10">
+                            <Grid ColumnDefinitions="24,*,Auto"
+                                  ColumnSpacing="10">
+                                <Label Text="&#xE3F4;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="18"
+                                       TextColor="{DynamicResource TextMuted}"
+                                       VerticalOptions="Center" />
+                                <Label Grid.Column="1"
+                                       Text="Copy image"
+                                       FontSize="13"
+                                       FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}"
+                                       VerticalOptions="Center" />
+                                <Label Grid.Column="2"
+                                       Text="&#xE5CC;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="18"
+                                       TextColor="{DynamicResource TextMuted}"
+                                       VerticalOptions="Center" />
+                            </Grid>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnImageContextMenuCopyImageTapped" />
+                            </Border.GestureRecognizers>
+                        </Border>
+
+                        <Border Stroke="{DynamicResource Stroke}"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 14"
+                                BackgroundColor="{DynamicResource BgInput}"
+                                Padding="12,10">
+                            <Grid ColumnDefinitions="24,*,Auto"
+                                  ColumnSpacing="10">
+                                <Label Text="&#xE14D;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="18"
+                                       TextColor="{DynamicResource TextMuted}"
+                                       VerticalOptions="Center" />
+                                <Label Grid.Column="1"
+                                       Text="Copy image URL"
+                                       FontSize="13"
+                                       FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}"
+                                       VerticalOptions="Center" />
+                                <Label Grid.Column="2"
+                                       Text="&#xE5CC;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="18"
+                                       TextColor="{DynamicResource TextMuted}"
+                                       VerticalOptions="Center" />
+                            </Grid>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnImageContextMenuCopyUrlTapped" />
+                            </Border.GestureRecognizers>
+                        </Border>
+
+                    </VerticalStackLayout>
+                </Border>
+            </Grid>
+
+            <Border x:Name="ImageActionToast"
+                    BackgroundColor="{DynamicResource Accent}"
+                    StrokeThickness="0"
+                    StrokeShape="RoundRectangle 16"
+                    Padding="18,12"
+                    HorizontalOptions="Center"
+                    VerticalOptions="End"
+                    Margin="0,0,0,32"
+                    IsVisible="False">
+                <HorizontalStackLayout Spacing="10">
+                    <Label Text="&#xE86C;"
+                           FontFamily="{DynamicResource IconFont}"
+                           FontSize="16"
+                           TextColor="{DynamicResource TextOnAccent}"
+                           VerticalOptions="Center" />
+                    <Label x:Name="ImageActionToastLabel"
+                           Text=""
+                           FontSize="13" FontAttributes="Bold"
+                           TextColor="{DynamicResource TextOnAccent}"
+                           VerticalOptions="Center" />
+                </HorizontalStackLayout>
+            </Border>
         </Grid>
     </Grid>
 </ContentPage>

@@ -2934,6 +2934,7 @@ public partial class ShukaQuestPage : ContentPage
         _isBrowserMenuOpen = true;
         RefreshBrowserMenuState();
         await TryAutoFillMenuPasteUrlFromClipboardAsync();
+        RefreshMenuPasteClearButtonVisibility();
         BrowserMenuOverlay.IsVisible = true;
         BrowserMenuOverlay.Opacity = 0;
         BrowserMenuSheet.Opacity = 0;
@@ -3039,25 +3040,26 @@ public partial class ShukaQuestPage : ContentPage
         }
     }
 
-    private async void OnMenuPasteFromClipboardTapped(object sender, TappedEventArgs e)
+    private void OnMenuPasteUrlTextChanged(object? sender, TextChangedEventArgs e)
+        => RefreshMenuPasteClearButtonVisibility();
+
+    private void RefreshMenuPasteClearButtonVisibility()
+    {
+        if (MenuPasteClearBtn == null || MenuPasteUrlEntry == null) return;
+        MenuPasteClearBtn.IsVisible = !string.IsNullOrWhiteSpace(MenuPasteUrlEntry.Text);
+    }
+
+    private void OnMenuPasteUrlClearTapped(object sender, TappedEventArgs e)
     {
         try
         {
-            if (!Clipboard.Default.HasText)
-            {
-                await ShowQueuedToastAsync("Clipboard is empty");
-                return;
-            }
-
-            string? text = await Clipboard.Default.GetTextAsync();
-            if (string.IsNullOrWhiteSpace(text)) return;
-
-            MenuPasteUrlEntry.Text = text.Trim();
+            if (MenuPasteUrlEntry == null) return;
+            MenuPasteUrlEntry.Text = string.Empty;
             try { MenuPasteUrlEntry.Focus(); } catch { /* ignore */ }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[ShukaQuestPage] Paste from clipboard error: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"[ShukaQuestPage] Menu paste URL clear error: {ex.Message}");
         }
     }
 
