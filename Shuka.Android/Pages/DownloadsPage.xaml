@@ -10,9 +10,9 @@
         <!-- ── Top App Bar ──────────────────────────────────── -->
         <Grid Grid.Row="0"
               ColumnDefinitions="Auto,*,Auto,12,Auto"
-              Padding="20,52,20,20"
+              Padding="20,52,20,16"
               BackgroundColor="{DynamicResource BgCard}"
-              HeightRequest="120">
+              HeightRequest="110">
 
             <!-- Icon -->
             <Border Grid.Column="0"
@@ -31,7 +31,7 @@
             </Border>
 
             <!-- Title + summary pill -->
-            <VerticalStackLayout Grid.Column="1" Spacing="3" VerticalOptions="Center">
+            <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
                 <Label Text="Downloads"
                        FontSize="22" FontAttributes="Bold"
                        TextColor="{DynamicResource TextPrimary}" />
