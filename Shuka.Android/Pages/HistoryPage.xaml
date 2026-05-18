@@ -256,8 +256,8 @@
             <!-- Scrollable list of novel cards -->
             <ScrollView x:Name="ListScroll" IsVisible="False">
                 <VerticalStackLayout x:Name="CardList"
-                                     Padding="16,12,16,112"
-                                     Spacing="12" />
+                                     Padding="16,13,16,92"
+                                     Spacing="13" />
             </ScrollView>
 
         </Grid>

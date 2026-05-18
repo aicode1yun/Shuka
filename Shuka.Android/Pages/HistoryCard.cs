@@ -29,7 +29,7 @@ public class HistoryCard : ContentView
                 Source            = ImageSource.FromFile(entry.CoverLocalPath),
                 Aspect            = Aspect.AspectFill,
                 WidthRequest      = 72,
-                HeightRequest     = 104,
+                HeightRequest     = 112,
                 HorizontalOptions = LayoutOptions.Center,
                 VerticalOptions   = LayoutOptions.Center,
             };
@@ -38,7 +38,7 @@ public class HistoryCard : ContentView
                 StrokeThickness = 0,
                 StrokeShape     = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 10 },
                 WidthRequest    = 72,
-                HeightRequest   = 104,
+                HeightRequest   = 112,
                 Content         = img,
             };
             ((Border)coverView).SetDynamicResource(Border.BackgroundColorProperty, "BgInput");
@@ -62,7 +62,7 @@ public class HistoryCard : ContentView
                 StrokeThickness = 0,
                 StrokeShape     = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 10 },
                 WidthRequest    = 72,
-                HeightRequest   = 104,
+                HeightRequest   = 112,
                 Content         = lilyImg,
             };
             ((Border)coverView).SetDynamicResource(Border.BackgroundColorProperty, "AccentContainer");
@@ -184,7 +184,7 @@ public class HistoryCard : ContentView
         {
             StrokeThickness = 1,
             StrokeShape     = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 20 },
-            Padding         = new Thickness(0),
+            Padding         = new Thickness(4),
             Content         = contentGrid,
         };
         card.SetDynamicResource(Border.BackgroundColorProperty, "BgCard");
@@ -253,11 +253,12 @@ public class HistoryCard : ContentView
             Children          = { iconLabel, textLabel },
         };
 
+        // Create border with rounded corners
         var btn = new Border
         {
             StrokeThickness = outlined ? 1 : 0,
-            StrokeShape     = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 10 },
-            HeightRequest   = 34,
+            StrokeShape     = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 8 },
+            HeightRequest   = 30,
             Padding         = new Thickness(8, 0),
             Content         = inner,
         };
