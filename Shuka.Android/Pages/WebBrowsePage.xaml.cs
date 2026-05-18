@@ -115,18 +115,51 @@ public partial class WebBrowsePage : ContentPage
     private bool _isNavigatingBack;
     private int _backSkipCount;
     private const int MaxBackSkipAttempts = 10;
+    private bool _webViewCleanedUp;
 
     private bool IsTranslateActive => _translateMode != WebTranslateMode.None;
+
+    /// <summary>Returns true if this page is still present on the Shell stack (not popped).</summary>
+    private bool IsStillOnNavigationStack()
+    {
+        try
+        {
+            return Shell.Current?.Navigation?.NavigationStack?.Contains(this) == true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 
     /// <summary>
     /// Returns true when the URL represents an empty/blank browser page that should
     /// never be shown to the user during back navigation.
     /// </summary>
-    private static bool IsBlankUrl(string url) =>
-        string.IsNullOrWhiteSpace(url) ||
-        url.Equals("about:blank", StringComparison.OrdinalIgnoreCase) ||
-        url.StartsWith("about:", StringComparison.OrdinalIgnoreCase) ||
-        url.Equals("chrome-error://chromewebdata/", StringComparison.OrdinalIgnoreCase);
+    private static bool IsBlankUrl(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+            return true;
+
+        if (url.Equals("about:blank", StringComparison.OrdinalIgnoreCase) ||
+            url.StartsWith("about:", StringComparison.OrdinalIgnoreCase) ||
+            url.Equals("chrome-error://chromewebdata/", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        // Inline frames / empty documents often appear during multi-step back.
+        if (url.StartsWith("about:srcdoc", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        var u = url.Trim();
+        // Tiny inline HTML placeholders sometimes sit in WebView history during redirects/back.
+        if (u.StartsWith("data:text/html", StringComparison.OrdinalIgnoreCase) && u.Length < 128)
+            return true;
+
+        if (u.StartsWith("blob:", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return false;
+    }
 
     /// <summary>
     /// Set this before pushing WebBrowsePage. When the user taps Fetch,
@@ -270,6 +303,9 @@ public partial class WebBrowsePage : ContentPage
             _isImageContextMenuOpen || _isCloudflareSheetOpen)
             return base.OnBackButtonPressed();
 
+        if (_webViewCleanedUp)
+            return false;
+
         if (SiteWebView.CanGoBack)
         {
             _isNavigatingBack = true;
@@ -297,26 +333,25 @@ public partial class WebBrowsePage : ContentPage
         // Restore the tab bar when leaving
         MainActivity.Instance?.SetTabBarVisible(true);
 
-        // Clean up WebView to prevent memory leaks
-        CleanupWebView();
-
-        // Clear the NameScope to prevent "element already exists" errors on next navigation
-        try
+        // Dispose only when this page is no longer on the Shell stack. Do not dispose on a
+        // transient disappear while still pushed (avoids white screen when returning).
+        if (!IsStillOnNavigationStack())
+            CleanupWebView();
+        else
         {
-            // Get the current NameScope and clear all registrations
-            var nameScope = Microsoft.Maui.Controls.Internals.NameScope.GetNameScope(this);
-            if (nameScope is Microsoft.Maui.Controls.Internals.NameScope ns)
+            // Pop often completes one frame after OnDisappearing — re-check so we still tear down.
+            MainThread.BeginInvokeOnMainThread(() =>
             {
-                // Clear all registered names
-                System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] Clearing NameScope for instance #{_instanceId}");
-            }
-
-            // Set a new empty NameScope
-            Microsoft.Maui.Controls.Internals.NameScope.SetNameScope(this, new Microsoft.Maui.Controls.Internals.NameScope());
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] Error clearing NameScope: {ex.Message}");
+                try
+                {
+                    if (!_webViewCleanedUp && !IsStillOnNavigationStack())
+                        CleanupWebView();
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] Deferred stack cleanup check: {ex.Message}");
+                }
+            });
         }
     }
 
@@ -334,11 +369,8 @@ public partial class WebBrowsePage : ContentPage
     {
         base.OnNavigatedFrom(args);
 
-        // If we're being popped (not just hidden), do a full cleanup
-        if (Shell.Current.Navigation.NavigationStack.Contains(this) == false)
-        {
+        if (!IsStillOnNavigationStack())
             CleanupWebView();
-        }
     }
 
     /// <summary>
@@ -347,6 +379,10 @@ public partial class WebBrowsePage : ContentPage
     /// </summary>
     private void CleanupWebView()
     {
+        if (_webViewCleanedUp)
+            return;
+        _webViewCleanedUp = true;
+
         try
         {
             if (SiteWebView != null)
@@ -406,6 +442,19 @@ public partial class WebBrowsePage : ContentPage
             {
                 System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] Error disconnecting handler: {ex.Message}");
             }
+
+            _longClickListenerAttached = false;
+
+            // Clear NameScope once native WebView is gone (was previously run on every disappear).
+            try
+            {
+                Microsoft.Maui.Controls.Internals.NameScope.SetNameScope(this, new Microsoft.Maui.Controls.Internals.NameScope());
+                System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] NameScope reset for instance #{_instanceId}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] Error clearing NameScope: {ex.Message}");
+            }
         }
         catch (Exception ex)
         {
@@ -418,6 +467,9 @@ public partial class WebBrowsePage : ContentPage
     /// </summary>
     private void OnWebViewHandlerChanged(object? sender, EventArgs e)
     {
+        if (_webViewCleanedUp)
+            return;
+
         if (SiteWebView.Handler?.PlatformView == null)
         {
             _longClickListenerAttached = false;
@@ -434,6 +486,9 @@ public partial class WebBrowsePage : ContentPage
     {
         try
         {
+            if (_webViewCleanedUp)
+                return;
+
 #if ANDROID
             if (SiteWebView.Handler?.PlatformView is not global::Android.Webkit.WebView androidWebView)
                 return;
@@ -664,6 +719,9 @@ public partial class WebBrowsePage : ContentPage
     {
         try
         {
+            if (_webViewCleanedUp)
+                return;
+
             // Validate URL format
             if (string.IsNullOrWhiteSpace(url))
             {
@@ -745,6 +803,13 @@ public partial class WebBrowsePage : ContentPage
     {
         try
         {
+            if (_webViewCleanedUp)
+            {
+                if (Shell.Current?.Navigation != null)
+                    await Shell.Current.Navigation.PopAsync();
+                return;
+            }
+
             if (SiteWebView.CanGoBack)
             {
                 _isNavigatingBack = true;
@@ -1517,6 +1582,9 @@ public partial class WebBrowsePage : ContentPage
     {
         try
         {
+            if (_webViewCleanedUp)
+                return;
+
             // Collapse FAB menu when navigating
             if (_fabMenuExpanded)
             {
@@ -1559,6 +1627,9 @@ public partial class WebBrowsePage : ContentPage
     {
         try
         {
+            if (_webViewCleanedUp)
+                return;
+
             _isLoading = false;
             LoadingBar.IsVisible = false;
             LoadingBar.Progress = 0;
@@ -1601,7 +1672,20 @@ public partial class WebBrowsePage : ContentPage
                     _backSkipCount++;
                     System.Diagnostics.Debug.WriteLine(
                         $"[WebBrowsePage] Skipping blank back entry #{_backSkipCount}: '{_currentUrl}'");
-                    SiteWebView.GoBack();
+                    // Defer GoBack so we are not inside WebView re-entrant navigation (reduces white flashes).
+                    MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        try
+                        {
+                            if (_webViewCleanedUp || SiteWebView == null) return;
+                            if (SiteWebView.CanGoBack)
+                                SiteWebView.GoBack();
+                        }
+                        catch (Exception goEx)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[WebBrowsePage] Deferred GoBack: {goEx.Message}");
+                        }
+                    });
                     return;
                 }
                 else

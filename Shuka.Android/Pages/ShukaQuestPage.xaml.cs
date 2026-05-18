@@ -118,18 +118,49 @@ public partial class ShukaQuestPage : ContentPage
     private bool _isNavigatingBack;
     private int _backSkipCount;
     private const int MaxBackSkipAttempts = 10;
+    private bool _webViewCleanedUp;
 
     private bool IsTranslateActive => _translateMode != WebTranslateMode.None;
+
+    /// <summary>Returns true if this page is still present on the Shell stack (not popped).</summary>
+    private bool IsStillOnNavigationStack()
+    {
+        try
+        {
+            return Shell.Current?.Navigation?.NavigationStack?.Contains(this) == true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 
     /// <summary>
     /// Returns true when the URL represents an empty/blank browser page that should
     /// never be shown to the user during back navigation.
     /// </summary>
-    private static bool IsBlankUrl(string url) =>
-        string.IsNullOrWhiteSpace(url) ||
-        url.Equals("about:blank", StringComparison.OrdinalIgnoreCase) ||
-        url.StartsWith("about:", StringComparison.OrdinalIgnoreCase) ||
-        url.Equals("chrome-error://chromewebdata/", StringComparison.OrdinalIgnoreCase);
+    private static bool IsBlankUrl(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+            return true;
+
+        if (url.Equals("about:blank", StringComparison.OrdinalIgnoreCase) ||
+            url.StartsWith("about:", StringComparison.OrdinalIgnoreCase) ||
+            url.Equals("chrome-error://chromewebdata/", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (url.StartsWith("about:srcdoc", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        var u = url.Trim();
+        if (u.StartsWith("data:text/html", StringComparison.OrdinalIgnoreCase) && u.Length < 128)
+            return true;
+
+        if (u.StartsWith("blob:", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return false;
+    }
 
     /// <summary>
     /// Set this before pushing ShukaQuestPage. When the user taps Fetch,
@@ -287,6 +318,9 @@ public partial class ShukaQuestPage : ContentPage
             return base.OnBackButtonPressed();
         }
 
+        if (_webViewCleanedUp)
+            return false;
+
         if (SiteWebView.CanGoBack)
         {
             _isNavigatingBack = true;
@@ -314,26 +348,22 @@ public partial class ShukaQuestPage : ContentPage
         // Restore the tab bar when leaving
         MainActivity.Instance?.SetTabBarVisible(true);
 
-        // Clean up WebView to prevent memory leaks
-        CleanupWebView();
-
-        // Clear the NameScope to prevent "element already exists" errors on next navigation
-        try
+        if (!IsStillOnNavigationStack())
+            CleanupWebView();
+        else
         {
-            // Get the current NameScope and clear all registrations
-            var nameScope = Microsoft.Maui.Controls.Internals.NameScope.GetNameScope(this);
-            if (nameScope is Microsoft.Maui.Controls.Internals.NameScope ns)
+            MainThread.BeginInvokeOnMainThread(() =>
             {
-                // Clear all registered names
-                System.Diagnostics.Debug.WriteLine($"[ShukaQuestPage] Clearing NameScope for instance #{_instanceId}");
-            }
-
-            // Set a new empty NameScope
-            Microsoft.Maui.Controls.Internals.NameScope.SetNameScope(this, new Microsoft.Maui.Controls.Internals.NameScope());
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"[ShukaQuestPage] Error clearing NameScope: {ex.Message}");
+                try
+                {
+                    if (!_webViewCleanedUp && !IsStillOnNavigationStack())
+                        CleanupWebView();
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[ShukaQuestPage] Deferred stack cleanup check: {ex.Message}");
+                }
+            });
         }
     }
 
@@ -351,11 +381,8 @@ public partial class ShukaQuestPage : ContentPage
     {
         base.OnNavigatedFrom(args);
 
-        // If we're being popped (not just hidden), do a full cleanup
-        if (Shell.Current.Navigation.NavigationStack.Contains(this) == false)
-        {
+        if (!IsStillOnNavigationStack())
             CleanupWebView();
-        }
     }
 
     /// <summary>
@@ -364,6 +391,10 @@ public partial class ShukaQuestPage : ContentPage
     /// </summary>
     private void CleanupWebView()
     {
+        if (_webViewCleanedUp)
+            return;
+        _webViewCleanedUp = true;
+
         try
         {
             if (SiteWebView != null)
@@ -423,6 +454,18 @@ public partial class ShukaQuestPage : ContentPage
             {
                 System.Diagnostics.Debug.WriteLine($"[ShukaQuestPage] Error disconnecting handler: {ex.Message}");
             }
+
+            _longClickListenerAttached = false;
+
+            try
+            {
+                Microsoft.Maui.Controls.Internals.NameScope.SetNameScope(this, new Microsoft.Maui.Controls.Internals.NameScope());
+                System.Diagnostics.Debug.WriteLine($"[ShukaQuestPage] NameScope reset for instance #{_instanceId}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ShukaQuestPage] Error clearing NameScope: {ex.Message}");
+            }
         }
         catch (Exception ex)
         {
@@ -447,7 +490,15 @@ public partial class ShukaQuestPage : ContentPage
     /// </summary>
     private void OnWebViewHandlerChanged(object? sender, EventArgs e)
     {
-        if (SiteWebView.Handler?.PlatformView == null) return;
+        if (_webViewCleanedUp)
+            return;
+
+        if (SiteWebView.Handler?.PlatformView == null)
+        {
+            _longClickListenerAttached = false;
+            return;
+        }
+
         ConfigureWebViewForImageHandling();
     }
 
@@ -460,6 +511,9 @@ public partial class ShukaQuestPage : ContentPage
     {
         try
         {
+            if (_webViewCleanedUp)
+                return;
+
             // Validate URL format
             if (string.IsNullOrWhiteSpace(url))
             {
@@ -541,6 +595,13 @@ public partial class ShukaQuestPage : ContentPage
     {
         try
         {
+            if (_webViewCleanedUp)
+            {
+                if (Shell.Current?.Navigation != null)
+                    await Shell.Current.Navigation.PopAsync();
+                return;
+            }
+
             if (SiteWebView.CanGoBack)
             {
                 _isNavigatingBack = true;
@@ -1313,6 +1374,9 @@ public partial class ShukaQuestPage : ContentPage
     {
         try
         {
+            if (_webViewCleanedUp)
+                return;
+
             // Collapse FAB menu when navigating
             if (_fabMenuExpanded)
             {
@@ -1355,6 +1419,9 @@ public partial class ShukaQuestPage : ContentPage
     {
         try
         {
+            if (_webViewCleanedUp)
+                return;
+
             _isLoading = false;
             LoadingBar.IsVisible = false;
             LoadingBar.Progress = 0;
@@ -1397,7 +1464,19 @@ public partial class ShukaQuestPage : ContentPage
                     _backSkipCount++;
                     System.Diagnostics.Debug.WriteLine(
                         $"[ShukaQuestPage] Skipping blank back entry #{_backSkipCount}: '{_currentUrl}'");
-                    SiteWebView.GoBack();
+                    MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        try
+                        {
+                            if (_webViewCleanedUp || SiteWebView == null) return;
+                            if (SiteWebView.CanGoBack)
+                                SiteWebView.GoBack();
+                        }
+                        catch (Exception goEx)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[ShukaQuestPage] Deferred GoBack: {goEx.Message}");
+                        }
+                    });
                     return;
                 }
                 else
@@ -1497,6 +1576,9 @@ public partial class ShukaQuestPage : ContentPage
     {
         try
         {
+            if (_webViewCleanedUp)
+                return;
+
 #if ANDROID
             if (SiteWebView.Handler?.PlatformView is global::Android.Webkit.WebView androidWebView)
             {
