@@ -63,7 +63,7 @@ jobs:
           $prev = git describe --tags --abbrev=0 HEAD^ 2>$null
           if (-not $prev) { $prev = git rev-list --max-parents=0 HEAD }
 
-          $commits = git log "$prev..HEAD" --pretty=format:"%s (%h)" --no-merges
+          $commits = git log "$prev..HEAD" --pretty=format:"%s (%h)" --no-merges -- . ":(exclude)README.md" ":(exclude)README*.md"
           if (-not $commits) {
             $bullets = "- Initial release"
           } else {
@@ -185,7 +185,7 @@ jobs:
           $prev = git describe --tags --abbrev=0 HEAD^ 2>$null
           if (-not $prev) { $prev = git rev-list --max-parents=0 HEAD }
 
-          $commits = git log "$prev..HEAD" --pretty=format:"%s (%h)" --no-merges
+          $commits = git log "$prev..HEAD" --pretty=format:"%s (%h)" --no-merges -- . ":(exclude)README.md" ":(exclude)README*.md"
           if (-not $commits) {
             $bullets = "- Initial release"
           } else {
