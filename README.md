@@ -5,7 +5,7 @@
      alt="appicon" />
 
 # Shuka
-A cross-platform web novel downloader and translator that converts Chinese novels into English `.epub` for any e-reader. Available as a **PowerShell CLI for Windows** and an **Android app built with .NET MAUI.**
+A cross-platform web novel downloader and machine translation (MTL) tool that converts Chinese web novels into English `.epub` for any e-reader. Available as a **PowerShell CLI for Windows** and an **Android app built with .NET MAUI.**
 
 <p align="center">   
      
