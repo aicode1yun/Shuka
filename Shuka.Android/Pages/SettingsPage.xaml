@@ -39,7 +39,7 @@
         </Grid>
 
         <ScrollView Grid.Row="1" x:Name="BodyScrollView">
-            <VerticalStackLayout Padding="16,20,16,112" Spacing="8">
+            <VerticalStackLayout Padding="14,20,16,92" Spacing="6">
 
                 <!-- ── APPEARANCE ──────────────────────────── -->
                 <Label Text="APPEARANCE"
