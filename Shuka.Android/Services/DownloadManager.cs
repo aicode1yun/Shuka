@@ -31,14 +31,16 @@ public class DownloadManager
     /// Use <see cref="FindExisting"/> first to check for duplicates before calling this.
     /// </summary>
     public DownloadItem Enqueue(string url, int chapters, string? coverUrl,
-        int chapterFrom = 0)
+        int chapterFrom = 0, bool? translate = null)
     {
+        bool shouldTranslate = translate ?? Preferences.Default.Get("translate_to_english_enabled", true);
         var item = new DownloadItem
         {
             Url          = url,
             Chapters     = chapters,
             CoverUrl     = coverUrl ?? "",
             ChapterFrom  = chapterFrom,
+            Translate    = shouldTranslate,
         };
 
         MainThread.BeginInvokeOnMainThread(() => Downloads.Insert(0, item));
@@ -85,7 +87,7 @@ public class DownloadManager
         MainThread.BeginInvokeOnMainThread(() => Downloads.Remove(failed));
 
         // Re-enqueue with the same URL — RunAsync will find the checkpoint automatically
-        return Enqueue(failed.Url, failed.Chapters, failed.CoverUrl, failed.ChapterFrom);
+        return Enqueue(failed.Url, failed.Chapters, failed.CoverUrl, failed.ChapterFrom, failed.Translate);
     }
 
     /// <summary>Dismiss a failed or cancelled item from the list without retrying.</summary>
@@ -153,8 +155,9 @@ public class DownloadManager
             Log($"Title:    {book.Title}");
             Log($"Author:   {book.Author}");
             Log($"Chapters: {book.Total}");
+            Log($"Translate: {(item.Translate ? "Yes" : "No")}");
 
-            item.StatusText = $"Downloading {book.Total} chapters...";
+            item.StatusText = item.Translate ? $"Downloading & translating {book.Total} chapters..." : $"Downloading {book.Total} chapters...";
 
             var progress = new Progress<ProgressEventArgs>(p =>
             {
@@ -180,7 +183,7 @@ public class DownloadManager
             try
             {
                 epubPath = await service.ProcessBook(book, tempPath, progress, Log, ct,
-                    checkpointPath);
+                    checkpointPath, item.Translate);
             }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {

@@ -7,7 +7,7 @@ namespace Shuka.Core;
 public static class EpubBuilder
 {
     public static void Build(string path, string titleZh, string titleEn, string authorZh, string authorEn,
-        List<(int Idx, string ChTitle, string Text)> chapters, byte[]? coverBytes, string coverMime)
+        List<(int Idx, string ChTitle, string Text)> chapters, byte[]? coverBytes, string coverMime, bool translate = true)
     {
         using var zip = ZipFile.Open(path, ZipArchiveMode.Create);
 
@@ -38,7 +38,7 @@ public static class EpubBuilder
         {
             coverImgFname = "cover.svg";
             coverMimeAttr = "image/svg+xml";
-            WriteEntry(zip, "OEBPS/cover.svg", GenerateCoverSvg(titleEn, titleZh, authorEn, authorZh));
+            WriteEntry(zip, "OEBPS/cover.svg", GenerateCoverSvg(titleEn, titleZh, authorEn, authorZh, translate));
         }
 
         WriteEntry(zip, "OEBPS/cover.xhtml",
@@ -52,28 +52,54 @@ public static class EpubBuilder
             "</body></html>");
         items.Add(("cover", "cover.xhtml", "Cover"));
 
-        WriteEntry(zip, "OEBPS/titlepage.xhtml",
-            "<?xml version=\"1.0\" encoding=\"utf-8\"?>" +
-            "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">" +
-            "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><title>Title Page</title>" +
-            "<style>" +
-            "body{font-family:Georgia,serif;text-align:center;margin:3em 2em;}" +
-            ".title-en{font-size:1.8em;font-weight:bold;margin-bottom:0.3em;}" +
-            ".title-zh{font-size:1.3em;color:#555;margin-bottom:1.5em;}" +
-            ".author-label{font-size:0.9em;color:#888;text-transform:uppercase;letter-spacing:0.1em;}" +
-            ".author-en{font-size:1.2em;font-weight:bold;margin-top:0.2em;}" +
-            ".author-zh{font-size:1em;color:#555;}" +
-            ".divider{margin:2em auto;width:60px;border-top:2px solid #ccc;}" +
-            ".source{font-size:0.8em;color:#aaa;margin-top:3em;}" +
-            "</style></head><body>" +
-            $"<div class=\"title-en\">{Escape(titleEn)}</div>" +
-            $"<div class=\"title-zh\">{Escape(titleZh)}</div>" +
-            "<div class=\"divider\"></div>" +
-            "<div class=\"author-label\">Author</div>" +
-            $"<div class=\"author-en\">{Escape(authorEn)}</div>" +
-            $"<div class=\"author-zh\">{Escape(authorZh)}</div>" +
-            "<div class=\"source\">Translated to English by Shuka</div>" +
-            "</body></html>");
+        string titlePageContent;
+        if (translate)
+        {
+            titlePageContent =
+                "<?xml version=\"1.0\" encoding=\"utf-8\"?>" +
+                "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">" +
+                "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><title>Title Page</title>" +
+                "<style>" +
+                "body{font-family:Georgia,serif;text-align:center;margin:3em 2em;}" +
+                ".title-en{font-size:1.8em;font-weight:bold;margin-bottom:0.3em;}" +
+                ".title-zh{font-size:1.3em;color:#555;margin-bottom:1.5em;}" +
+                ".author-label{font-size:0.9em;color:#888;text-transform:uppercase;letter-spacing:0.1em;}" +
+                ".author-en{font-size:1.2em;font-weight:bold;margin-top:0.2em;}" +
+                ".author-zh{font-size:1em;color:#555;}" +
+                ".divider{margin:2em auto;width:60px;border-top:2px solid #ccc;}" +
+                ".source{font-size:0.8em;color:#aaa;margin-top:3em;}" +
+                "</style></head><body>" +
+                $"<div class=\"title-en\">{Escape(titleEn)}</div>" +
+                $"<div class=\"title-zh\">{Escape(titleZh)}</div>" +
+                "<div class=\"divider\"></div>" +
+                "<div class=\"author-label\">Author</div>" +
+                $"<div class=\"author-en\">{Escape(authorEn)}</div>" +
+                $"<div class=\"author-zh\">{Escape(authorZh)}</div>" +
+                "<div class=\"source\">Translated to English by Shuka</div>" +
+                "</body></html>";
+        }
+        else
+        {
+            titlePageContent =
+                "<?xml version=\"1.0\" encoding=\"utf-8\"?>" +
+                "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">" +
+                "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><title>Title Page</title>" +
+                "<style>" +
+                "body{font-family:Georgia,serif;text-align:center;margin:3em 2em;}" +
+                ".title-zh{font-size:1.8em;font-weight:bold;margin-bottom:1.5em;}" +
+                ".author-label{font-size:0.9em;color:#888;text-transform:uppercase;letter-spacing:0.1em;}" +
+                ".author-zh{font-size:1.2em;font-weight:bold;margin-top:0.2em;}" +
+                ".divider{margin:2em auto;width:60px;border-top:2px solid #ccc;}" +
+                ".source{font-size:0.8em;color:#aaa;margin-top:3em;}" +
+                "</style></head><body>" +
+                $"<div class=\"title-zh\">{Escape(titleZh)}</div>" +
+                "<div class=\"divider\"></div>" +
+                "<div class=\"author-label\">Author</div>" +
+                $"<div class=\"author-zh\">{Escape(authorZh)}</div>" +
+                "<div class=\"source\">Generated by Shuka</div>" +
+                "</body></html>";
+        }
+        WriteEntry(zip, "OEBPS/titlepage.xhtml", titlePageContent);
         items.Add(("titlepage", "titlepage.xhtml", "Title Page"));
 
         foreach (var (idx, chTitle, text) in chapters)
@@ -92,6 +118,10 @@ public static class EpubBuilder
                 string.Join("", paras) + "</body></html>");
         }
 
+        string mainTitle = translate ? titleEn : titleZh;
+        string mainAuthor = translate ? authorEn : authorZh;
+        string lang = translate ? "en" : "zh";
+
         string coverItem = $"<item id=\"{coverItemId}\" href=\"{coverImgFname}\" media-type=\"{coverMimeAttr}\" properties=\"cover-image\"/>";
         string mf = coverItem + string.Join("", items.Select(c => $"<item id=\"{c.Id}\" href=\"{c.Fname}\" media-type=\"application/xhtml+xml\"/>"));
         string sp = string.Join("", items.Select(c => $"<itemref idref=\"{c.Id}\"/>"));
@@ -102,8 +132,8 @@ public static class EpubBuilder
             "<?xml version=\"1.0\" encoding=\"utf-8\"?>" +
             "<package xmlns=\"http://www.idpf.org/2007/opf\" unique-identifier=\"uid\" version=\"2.0\">" +
             "<metadata xmlns:dc=\"http://purl.org/dc/elements/1.1/\">" +
-            $"<dc:title>{Escape(titleEn)}</dc:title><dc:creator>{Escape(authorEn)}</dc:creator>" +
-            $"<dc:language>en</dc:language><dc:identifier id=\"uid\">{uid}</dc:identifier>" +
+            $"<dc:title>{Escape(mainTitle)}</dc:title><dc:creator>{Escape(mainAuthor)}</dc:creator>" +
+            $"<dc:language>{lang}</dc:language><dc:identifier id=\"uid\">{uid}</dc:identifier>" +
             "<meta name=\"cover\" content=\"cover-image\"/>" +
             $"</metadata><manifest><item id=\"ncx\" href=\"toc.ncx\" media-type=\"application/x-dtbncx+xml\"/>{mf}</manifest>" +
             $"<spine toc=\"ncx\">{sp}</spine></package>");
@@ -113,10 +143,10 @@ public static class EpubBuilder
             "<!DOCTYPE ncx PUBLIC \"-//NISO//DTD ncx 2005-1//EN\" \"http://www.daisy.org/z3986/2005/ncx-2005-1.dtd\">" +
             "<ncx xmlns=\"http://www.daisy.org/z3986/2005/ncx/\" version=\"2005-1\">" +
             $"<head><meta name=\"dtb:uid\" content=\"{uid}\"/></head>" +
-            $"<docTitle><text>{Escape(titleEn)}</text></docTitle><navMap>{np}</navMap></ncx>");
+            $"<docTitle><text>{Escape(mainTitle)}</text></docTitle><navMap>{np}</navMap></ncx>");
     }
 
-    public static string GenerateCoverSvg(string titleEn, string titleZh, string authorEn, string authorZh)
+    public static string GenerateCoverSvg(string titleEn, string titleZh, string authorEn, string authorZh, bool translate = true)
     {
         var palettes = new[]
         {
@@ -127,16 +157,57 @@ public static class EpubBuilder
             ("#1a1a1a", "#c0392b", "#f5f5f5"),
             ("#0d2137", "#f7971e", "#ffffff"),
         };
-        int pick = Math.Abs(titleEn.GetHashCode()) % palettes.Length;
+        string mainTitle = translate ? titleEn : titleZh;
+        int pick = Math.Abs(mainTitle.GetHashCode()) % palettes.Length;
         var (bg, accent, fg) = palettes[pick];
 
-        var titleLines = WrapText(titleEn, 22);
+        List<string> titleLines;
+        if (translate)
+        {
+            titleLines = WrapText(titleEn, 22);
+        }
+        else
+        {
+            titleLines = new List<string>();
+            string t = titleZh;
+            int wrapLen = 10;
+            for (int i = 0; i < t.Length; i += wrapLen)
+            {
+                titleLines.Add(t.Substring(i, Math.Min(wrapLen, t.Length - i)));
+            }
+        }
+
         var titleSvg = string.Join("", titleLines.Select((l, i) =>
             $"<tspan x=\"300\" dy=\"{(i == 0 ? 0 : 52)}\">{Escape(l)}</tspan>"));
 
         double titleBlockH = titleLines.Count * 52;
         double titleY = 280 - titleBlockH / 2;
-        string zhShort = titleZh.Length > 20 ? titleZh[..20] + "…" : titleZh;
+
+        string subtitleSvg = "";
+        if (translate)
+        {
+            string zhShort = titleZh.Length > 20 ? titleZh[..20] + "…" : titleZh;
+            subtitleSvg = $"<text x=\"300\" y=\"{titleY + titleBlockH + 24}\" font-family=\"serif\" font-size=\"22\" " +
+                          $"fill=\"{fg}\" text-anchor=\"middle\" opacity=\"0.6\">{Escape(zhShort)}</text>";
+        }
+
+        string authorSectionSvg = "";
+        if (translate)
+        {
+            authorSectionSvg =
+                $"<text x=\"300\" y=\"610\" font-family=\"Georgia, serif\" font-size=\"24\" font-weight=\"bold\" " +
+                $"fill=\"{fg}\" text-anchor=\"middle\">{Escape(authorEn)}</text>" +
+                $"<text x=\"300\" y=\"645\" font-family=\"serif\" font-size=\"18\" " +
+                $"fill=\"{fg}\" text-anchor=\"middle\" opacity=\"0.6\">{Escape(authorZh)}</text>";
+        }
+        else
+        {
+            authorSectionSvg =
+                $"<text x=\"300\" y=\"610\" font-family=\"Georgia, serif\" font-size=\"24\" font-weight=\"bold\" " +
+                $"fill=\"{fg}\" text-anchor=\"middle\">{Escape(authorZh)}</text>";
+        }
+
+        string footerText = translate ? "Translated to English by Shuka" : "Generated by Shuka";
 
         return
             "<?xml version=\"1.0\" encoding=\"utf-8\"?>" +
@@ -151,15 +222,11 @@ public static class EpubBuilder
             $"<rect x=\"60\" y=\"{titleY - 30}\" width=\"4\" height=\"{titleBlockH + 60}\" fill=\"{accent}\" rx=\"2\"/>" +
             $"<text x=\"300\" y=\"{titleY}\" font-family=\"Georgia, serif\" font-size=\"44\" font-weight=\"bold\" " +
             $"fill=\"{fg}\" text-anchor=\"middle\">{titleSvg}</text>" +
-            $"<text x=\"300\" y=\"{titleY + titleBlockH + 24}\" font-family=\"serif\" font-size=\"22\" " +
-            $"fill=\"{fg}\" text-anchor=\"middle\" opacity=\"0.6\">{Escape(zhShort)}</text>" +
+            subtitleSvg +
             $"<line x1=\"220\" y1=\"580\" x2=\"380\" y2=\"580\" stroke=\"{accent}\" stroke-width=\"1.5\"/>" +
-            $"<text x=\"300\" y=\"610\" font-family=\"Georgia, serif\" font-size=\"24\" font-weight=\"bold\" " +
-            $"fill=\"{fg}\" text-anchor=\"middle\">{Escape(authorEn)}</text>" +
-            $"<text x=\"300\" y=\"645\" font-family=\"serif\" font-size=\"18\" " +
-            $"fill=\"{fg}\" text-anchor=\"middle\" opacity=\"0.6\">{Escape(authorZh)}</text>" +
+            authorSectionSvg +
             $"<text x=\"300\" y=\"870\" font-family=\"Georgia, serif\" font-size=\"13\" " +
-            $"fill=\"{fg}\" text-anchor=\"middle\" opacity=\"0.35\">Translated to English by Shuka</text>" +
+            $"fill=\"{fg}\" text-anchor=\"middle\" opacity=\"0.35\">{footerText}</text>" +
             "</svg>";
     }
 

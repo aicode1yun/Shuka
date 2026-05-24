@@ -66,6 +66,11 @@ public partial class MainPage : ContentPage
         if (ChaptersEntry.Text == "0" || string.IsNullOrEmpty(ChaptersEntry.Text))
             ChaptersEntry.Text = savedChapters;
 
+        // Restore translation preference
+        bool translate = Preferences.Default.Get("translate_to_english_enabled", true);
+        TranslateSwitch.IsToggled = translate;
+        UpdateTranslateOptionUi(translate);
+
         // Re-apply tab colors in case the theme changed while on another tab
         SetActiveTab(DownloadPanel.IsVisible);
         UpdateDiscoverBottomInset();
@@ -998,8 +1003,9 @@ public partial class MainPage : ContentPage
                 suppressCardTap = true;
                 await dlBtn.ScaleToAsync(0.93, 70, Easing.CubicOut);
                 await dlBtn.ScaleToAsync(1.0, 70, Easing.SpringOut);
+                bool translate = Preferences.Default.Get("translate_to_english_enabled", true);
                 DownloadManager.Instance.Enqueue(novel.Url, 0,
-                    string.IsNullOrWhiteSpace(novel.CoverUrl) ? null : novel.CoverUrl);
+                    string.IsNullOrWhiteSpace(novel.CoverUrl) ? null : novel.CoverUrl, 0, translate);
                 if (Shell.Current != null)
                     await Shell.Current.GoToAsync("//DownloadsPage");
                 await Task.Delay(80);
@@ -1391,7 +1397,7 @@ public partial class MainPage : ContentPage
             if (!shouldQueue) return;
         }
 
-        DownloadManager.Instance.Enqueue(url, chapters, coverUrl, chapterFrom);
+        DownloadManager.Instance.Enqueue(url, chapters, coverUrl, chapterFrom, TranslateSwitch.IsToggled);
         // Clear the saved draft — the user has submitted it
         Preferences.Default.Remove("draft_url");
         Preferences.Default.Remove("draft_cover");
@@ -1489,4 +1495,24 @@ public partial class MainPage : ContentPage
         if (!string.IsNullOrWhiteSpace(text)) CoverEntry.Text = text.Trim();
     }
     private void OnCoverClearTapped(object sender, TappedEventArgs e) => CoverEntry.Text = "";
+
+    private void OnTranslateToggled(object sender, ToggledEventArgs e)
+    {
+        Preferences.Default.Set("translate_to_english_enabled", e.Value);
+        UpdateTranslateOptionUi(e.Value);
+    }
+
+    private void UpdateTranslateOptionUi(bool translate)
+    {
+        if (translate)
+        {
+            TranslateOptionSub.Text = "Translates title, author, and chapters to English using Google Translate";
+            DownloadBtnLabel.Text = "Download & Translate";
+        }
+        else
+        {
+            TranslateOptionSub.Text = "Skipping translation; EPUB will be in the original language";
+            DownloadBtnLabel.Text = "Download Original";
+        }
+    }
 }

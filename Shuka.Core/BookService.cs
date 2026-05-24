@@ -90,32 +90,49 @@ public class BookService
 
     public async Task<string> ProcessBook(BookInfo book, string outputPath,
         IProgress<ProgressEventArgs>? progress = null, Action<string>? log = null,
-        CancellationToken ct = default, string? checkpointPath = null)
+        CancellationToken ct = default, string? checkpointPath = null, bool translate = true)
     {
         ct.ThrowIfCancellationRequested();
-        log?.Invoke("Translating title/author...");
+        byte[]? coverBytes;
+        string coverMime;
 
-        // Run title/author translation and cover download in parallel
-        var titleTask = _translator.Translate(book.Title, log, ct);
-        var authorTask = _translator.Translate(book.Author, log, ct);
-        var coverTask = DownloadCover(book.CoverUrl, log);
+        if (translate)
+        {
+            log?.Invoke("Translating title/author...");
 
-        await Task.WhenAll(titleTask, authorTask, coverTask);
+            // Run title/author translation and cover download in parallel
+            var titleTask = _translator.Translate(book.Title, log, ct);
+            var authorTask = _translator.Translate(book.Author, log, ct);
+            var coverTask = DownloadCover(book.CoverUrl, log);
 
-        book.TitleEn = titleTask.Result;
-        book.AuthorEn = authorTask.Result;
-        var (coverBytes, coverMime) = coverTask.Result;
+            await Task.WhenAll(titleTask, authorTask, coverTask);
 
-        log?.Invoke($"Title (EN): {book.TitleEn}  Author (EN): {book.AuthorEn}");
+            book.TitleEn = titleTask.Result;
+            book.AuthorEn = authorTask.Result;
+            (coverBytes, coverMime) = coverTask.Result;
+
+            log?.Invoke($"Title (EN): {book.TitleEn}  Author (EN): {book.AuthorEn}");
+        }
+        else
+        {
+            log?.Invoke("Processing title/author...");
+
+            var coverTask = DownloadCover(book.CoverUrl, log);
+            await coverTask;
+
+            book.TitleEn = book.Title;
+            book.AuthorEn = book.Author;
+            (coverBytes, coverMime) = coverTask.Result;
+        }
 
         ct.ThrowIfCancellationRequested();
-        var chapters = await DownloadChapters(book, progress, log, ct, checkpointPath);
+        var chapters = await DownloadChapters(book, progress, log, ct, checkpointPath, translate);
 
         ct.ThrowIfCancellationRequested();
         log?.Invoke("Building EPUB...");
         if (File.Exists(outputPath)) File.Delete(outputPath);
         EpubBuilder.Build(outputPath, book.Title, book.TitleEn!, book.Author, book.AuthorEn!,
-            chapters, coverBytes, coverMime);
+            chapters, coverBytes, coverMime, translate);
 
         // Delete checkpoint on success — no longer needed
         if (checkpointPath != null) CheckpointService.Delete(checkpointPath);
@@ -132,7 +149,7 @@ public class BookService
     /// </summary>
     private async Task<List<(int Idx, string Title, string Text)>> DownloadChapters(
         BookInfo book, IProgress<ProgressEventArgs>? progress, Action<string>? log,
-        CancellationToken ct = default, string? checkpointPath = null)
+        CancellationToken ct = default, string? checkpointPath = null, bool translate = true)
     {
         var chapterList = book.ChapterUrls.Take(book.Total).ToList();
         int total = chapterList.Count;
@@ -162,7 +179,7 @@ public class BookService
                 {
                     Current = i + 1,
                     Total = total,
-                    Message = $"Translated chapter {i + 1} of {total}..."
+                    Message = translate ? $"Translated chapter {i + 1} of {total}..." : $"Downloaded chapter {i + 1} of {total}..."
                 });
                 continue;
             }
@@ -201,29 +218,36 @@ public class BookService
             string text = "";
             if (paras.Count > 0)
             {
-                for (int transAttempt = 1; transAttempt <= 6; transAttempt++)
+                if (translate)
                 {
-                    try
+                    for (int transAttempt = 1; transAttempt <= 6; transAttempt++)
                     {
-                        text = await _translator.Translate(string.Join("\n", paras), log, ct);
-                        break;
-                    }
-                    catch (OperationCanceledException) { throw; }
-                    catch (Exception ex)
-                    {
-                        if (transAttempt == 6)
+                        try
                         {
-                            log?.Invoke($"[translate failed ch{i + 1} after 6 attempts] {ex.Message} — keeping original");
-                            text = string.Join("\n", paras);
+                            text = await _translator.Translate(string.Join("\n", paras), log, ct);
+                            break;
                         }
-                        else
+                        catch (OperationCanceledException) { throw; }
+                        catch (Exception ex)
                         {
-                            // Exponential backoff: 2s, 4s, 8s, 16s, 30s max
-                            int delaySec = Math.Min((int)Math.Pow(2, transAttempt), 30);
-                            log?.Invoke($"[translate retry {transAttempt}/6 ch{i + 1}] waiting {delaySec}s...");
-                            await Task.Delay(delaySec * 1000, ct);
+                            if (transAttempt == 6)
+                            {
+                                log?.Invoke($"[translate failed ch{i + 1} after 6 attempts] {ex.Message} — keeping original");
+                                text = string.Join("\n", paras);
+                            }
+                            else
+                            {
+                                // Exponential backoff: 2s, 4s, 8s, 16s, 30s max
+                                int delaySec = Math.Min((int)Math.Pow(2, transAttempt), 30);
+                                log?.Invoke($"[translate retry {transAttempt}/6 ch{i + 1}] waiting {delaySec}s...");
+                                await Task.Delay(delaySec * 1000, ct);
+                            }
                         }
                     }
+                }
+                else
+                {
+                    text = string.Join("\n", paras);
                 }
             }
 
@@ -238,7 +262,7 @@ public class BookService
             {
                 Current = i + 1,
                 Total = total,
-                Message = $"Translated chapter {i + 1} of {total}..."
+                Message = translate ? $"Translated chapter {i + 1} of {total}..." : $"Downloaded chapter {i + 1} of {total}..."
             });
         }
 

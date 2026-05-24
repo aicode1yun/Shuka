@@ -28,6 +28,7 @@ public class DownloadItem : INotifyPropertyChanged
     public int    Chapters   { get; init; }
     /// <summary>1-based start chapter. 0 = from the beginning.</summary>
     public int    ChapterFrom { get; init; } = 0;
+    public bool   Translate   { get; init; } = true;
 
     // Resolved after GatherBookInfo
     public string Title  { get; set; } = "Loading...";

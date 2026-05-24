@@ -288,6 +288,34 @@
                                 </Border>
                             </VerticalStackLayout>
 
+                            <!-- Translate behavior -->
+                            <Grid ColumnDefinitions="*,Auto" Padding="0,4,0,0">
+                                <VerticalStackLayout Grid.Column="0" Spacing="2" VerticalOptions="Center">
+                                    <HorizontalStackLayout Spacing="6" VerticalOptions="Center">
+                                        <Label Text="{DynamicResource IconTranslate}"
+                                               FontFamily="{DynamicResource IconFont}"
+                                               FontSize="14"
+                                               TextColor="{DynamicResource AccentLight}"
+                                               VerticalOptions="Center" />
+                                        <Label Text="Translate to English"
+                                               FontSize="12" FontAttributes="Bold"
+                                               TextColor="{DynamicResource TextSecondary}"
+                                               VerticalOptions="Center" />
+                                    </HorizontalStackLayout>
+                                    <Label x:Name="TranslateOptionSub"
+                                           Text="Translates title, author, and chapters to English using Google Translate"
+                                           FontSize="11"
+                                           TextColor="{DynamicResource TextMuted}" />
+                                </VerticalStackLayout>
+                                <Switch x:Name="TranslateSwitch"
+                                        Grid.Column="1"
+                                        IsToggled="True"
+                                        OnColor="{DynamicResource AccentLight}"
+                                        ThumbColor="White"
+                                        VerticalOptions="Center"
+                                        Toggled="OnTranslateToggled" />
+                            </Grid>
+
                         </VerticalStackLayout>
                     </Border>
 
