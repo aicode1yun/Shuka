@@ -1,8 +1,18 @@
-﻿using System.Text;
+using System.Text;
 using Shuka;
 using Shuka.Core;
 
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+
+// Parse translation flags
+bool translate = true;
+var argsList = args.ToList();
+if (argsList.RemoveAll(arg => arg.Equals("--no-translate", StringComparison.OrdinalIgnoreCase) ||
+                             arg.Equals("--original", StringComparison.OrdinalIgnoreCase)) > 0)
+{
+    translate = false;
+}
+args = argsList.ToArray();
 
 // Background release check (non-blocking).
 ReleaseUpdateService.StartBackgroundCheck(message =>
@@ -40,7 +50,7 @@ if (args.Length == 0)
     var             translatorTui = new Translator(httpClientTui);
     var             downloaderTui = new Downloader(fetcherTui, translatorTui, httpClientTui);
 
-    await Tui.RunAsync(downloaderTui);
+    await Tui.RunAsync(downloaderTui, translate);
     return;
 }
 
@@ -110,7 +120,7 @@ if (args[0].Equals("--batch", StringComparison.OrdinalIgnoreCase))
     for (int i = 0; i < books.Count; i++)
     {
         Console.WriteLine($"\n[{i + 1}/{books.Count}]");
-        try   { await downloader.ProcessBookAsync(books[i]); }
+        try   { await downloader.ProcessBookAsync(books[i], null, translate); }
         catch (Exception ex) { Console.WriteLine($"  [error] {books[i].Title}: {ex.Message}"); }
     }
     Console.WriteLine("\nBatch complete.");
@@ -165,5 +175,5 @@ if (args[0].Equals("--batch", StringComparison.OrdinalIgnoreCase))
     if (book.Total == 0) { Console.WriteLine("No chapters found."); return; }
 
     Console.WriteLine("=== Phase 2: Downloading & building EPUB ===");
-    await downloader.ProcessBookAsync(book, outFile);
+    await downloader.ProcessBookAsync(book, outFile, translate);
 }

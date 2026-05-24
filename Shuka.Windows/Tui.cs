@@ -10,7 +10,7 @@ namespace Shuka;
 /// </summary>
 internal static class Tui
 {
-    public static async Task RunAsync(Downloader downloader)
+    public static async Task RunAsync(Downloader downloader, bool defaultTranslate = true)
     {
         while (true)
         {
@@ -31,10 +31,10 @@ internal static class Tui
             switch (choice)
             {
                 case "Download single novel":
-                    await RunSingleAsync(downloader);
+                    await RunSingleAsync(downloader, defaultTranslate);
                     break;
                 case "Batch download (multiple novels)":
-                    await RunBatchAsync(downloader);
+                    await RunBatchAsync(downloader, defaultTranslate);
                     break;
                 case "Fix Cloudflare (--solve-cf)":
                     await RunSolveCfAsync();
@@ -55,7 +55,7 @@ internal static class Tui
 
     // ── Single download ───────────────────────────────────────────────────────
 
-    private static async Task RunSingleAsync(Downloader downloader)
+    private static async Task RunSingleAsync(Downloader downloader, bool defaultTranslate = true)
     {
         AnsiConsole.Clear();
         RenderHeader();
@@ -82,9 +82,19 @@ internal static class Tui
                 .DefaultValue(0)
                 .ValidationErrorMessage("[red]Enter a number[/]"));
 
+        var translatePrompt = new SelectionPrompt<string>()
+            .Title("[grey]Translation behavior?[/]")
+            .HighlightStyle(new Style(Color.IndianRed1))
+            .AddChoices("Translate to English", "Keep original (no translation)");
+        
+        translatePrompt.DefaultValue(defaultTranslate ? "Translate to English" : "Keep original (no translation)");
+        
+        var translateChoice = AnsiConsole.Prompt(translatePrompt);
+        bool translate = translateChoice == "Translate to English";
+
         AnsiConsole.WriteLine();
 
-        await RunDownloadAsync(downloader, url, chapters, cover);
+        await RunDownloadAsync(downloader, url, chapters, cover, translate);
 
         var after = AnsiConsole.Prompt(
             new SelectionPrompt<string>()
@@ -101,7 +111,7 @@ internal static class Tui
 
     // ── Batch download ────────────────────────────────────────────────────────
 
-    private static async Task RunBatchAsync(Downloader downloader)
+    private static async Task RunBatchAsync(Downloader downloader, bool defaultTranslate = true)
     {
         AnsiConsole.Clear();
         RenderHeader();
@@ -167,6 +177,16 @@ internal static class Tui
 
         if (queue.Count == 0) return;
 
+        var translatePrompt = new SelectionPrompt<string>()
+            .Title("[grey]Translation behavior for batch?[/]")
+            .HighlightStyle(new Style(Color.IndianRed1))
+            .AddChoices("Translate to English", "Keep original (no translation)");
+        
+        translatePrompt.DefaultValue(defaultTranslate ? "Translate to English" : "Keep original (no translation)");
+        
+        var translateChoice = AnsiConsole.Prompt(translatePrompt);
+        bool translate = translateChoice == "Translate to English";
+
         AnsiConsole.WriteLine();
 
         // Show queue summary
@@ -189,7 +209,7 @@ internal static class Tui
         for (int i = 0; i < queue.Count; i++)
         {
             AnsiConsole.MarkupLine($"[bold]\n[{i + 1}/{queue.Count}] Downloading...[/]");
-            await RunDownloadAsync(downloader, queue[i].Url, 0, queue[i].Cover);
+            await RunDownloadAsync(downloader, queue[i].Url, 0, queue[i].Cover, translate);
         }
 
         AnsiConsole.MarkupLine("\n[green]✓ Batch complete! Check your Downloads folder.[/]");
@@ -236,7 +256,7 @@ internal static class Tui
     // ── Download pipeline with live progress ──────────────────────────────────
 
     private static async Task RunDownloadAsync(
-        Downloader downloader, string url, int chapters, string? cover)
+        Downloader downloader, string url, int chapters, string? cover, bool translate)
     {
         BookInfo? book = null;
 
@@ -298,7 +318,7 @@ internal static class Tui
                         {
                             task.Value       = current;
                             task.Description = $"[cyan]{Markup.Escape(book.TitleEn ?? book.Title)}[/] [dim]{Markup.Escape(msg)}[/]";
-                        });
+                        }, translate);
 
                     task.Value       = book.Total;
                     task.Description = $"[green]✓ {Markup.Escape(book.TitleEn ?? book.Title)}[/]";

@@ -50,48 +50,83 @@ internal sealed class Downloader
     // ── Full pipeline ─────────────────────────────────────────────────────────
 
     /// <summary>CLI mode — prints progress to Console.</summary>
-    public async Task ProcessBookAsync(BookInfo book, string? outFile = null)
+    public async Task ProcessBookAsync(BookInfo book, string? outFile = null, bool translate = true)
     {
         Console.WriteLine($"\n--- {book.Title} ({book.Total} chapters) [{book.Adapter.SiteName}] ---");
 
-        Console.Write("  Translating title/author...");
-        book.TitleEn  = await _translator.Translate(book.Title);
-        book.AuthorEn = await _translator.Translate(book.Author);
-        Console.WriteLine(" done");
-        Console.WriteLine($"  Title (EN):  {book.TitleEn}");
-        Console.WriteLine($"  Author (EN): {book.AuthorEn}");
+        byte[]? coverBytes;
+        string coverMime;
 
-        var (coverBytes, coverMime) = await DownloadCoverAsync(book.CoverUrl);
-        var chapters = await DownloadChaptersAsync(book, null);
+        if (translate)
+        {
+            Console.Write("  Translating title/author...");
+            book.TitleEn  = await _translator.Translate(book.Title);
+            book.AuthorEn = await _translator.Translate(book.Author);
+            Console.WriteLine(" done");
+            Console.WriteLine($"  Title (EN):  {book.TitleEn}");
+            Console.WriteLine($"  Author (EN): {book.AuthorEn}");
+
+            var coverRes = await DownloadCoverAsync(book.CoverUrl);
+            coverBytes = coverRes.bytes;
+            coverMime = coverRes.mime;
+        }
+        else
+        {
+            Console.WriteLine("  Processing title/author...");
+            book.TitleEn  = book.Title;
+            book.AuthorEn = book.Author;
+
+            var coverRes = await DownloadCoverAsync(book.CoverUrl);
+            coverBytes = coverRes.bytes;
+            coverMime = coverRes.mime;
+        }
+
+        var chapters = await DownloadChaptersAsync(book, null, translate);
 
         Console.WriteLine("\n  Building EPUB...");
         string path = BuildOutputPath(book, outFile);
         if (File.Exists(path)) File.Delete(path);
         EpubBuilder.Build(path, book.Title, book.TitleEn!, book.Author, book.AuthorEn!,
-            chapters, coverBytes, coverMime);
+            chapters, coverBytes, coverMime, translate);
         Console.WriteLine($"  Saved: {Path.GetFullPath(path)}");
     }
 
     /// <summary>TUI mode — reports progress via callback instead of Console.Write.</summary>
     public async Task ProcessBookAsync(BookInfo book, string? outFile,
-        Action<int, int, string> onProgress)
+        Action<int, int, string> onProgress, bool translate = true)
     {
-        book.TitleEn  = await _translator.Translate(book.Title);
-        book.AuthorEn = await _translator.Translate(book.Author);
+        byte[]? coverBytes;
+        string coverMime;
 
-        var (coverBytes, coverMime) = await DownloadCoverAsync(book.CoverUrl, silent: true);
-        var chapters = await DownloadChaptersAsync(book, onProgress);
+        if (translate)
+        {
+            book.TitleEn  = await _translator.Translate(book.Title);
+            book.AuthorEn = await _translator.Translate(book.Author);
+            var coverRes = await DownloadCoverAsync(book.CoverUrl, silent: true);
+            coverBytes = coverRes.bytes;
+            coverMime = coverRes.mime;
+        }
+        else
+        {
+            book.TitleEn  = book.Title;
+            book.AuthorEn = book.Author;
+            var coverRes = await DownloadCoverAsync(book.CoverUrl, silent: true);
+            coverBytes = coverRes.bytes;
+            coverMime = coverRes.mime;
+        }
+
+        var chapters = await DownloadChaptersAsync(book, onProgress, translate);
 
         string path = BuildOutputPath(book, outFile);
         if (File.Exists(path)) File.Delete(path);
         EpubBuilder.Build(path, book.Title, book.TitleEn!, book.Author, book.AuthorEn!,
-            chapters, coverBytes, coverMime);
+            chapters, coverBytes, coverMime, translate);
     }
 
     // ── Chapter download pipeline ─────────────────────────────────────────────
 
     private async Task<List<(int Idx, string Title, string Text)>> DownloadChaptersAsync(
-        BookInfo book, Action<int, int, string>? onProgress)
+        BookInfo book, Action<int, int, string>? onProgress, bool translate = true)
     {
         var fetchSem = new SemaphoreSlim(1);
         var t0 = DateTime.Now;
@@ -113,15 +148,26 @@ internal sealed class Downloader
                 string eta = i > 0
                     ? $"~{TimeSpan.FromSeconds(elapsed / i * (book.Total - i)):mm\\:ss} left"
                     : "";
-                Console.Write($"\r  [{i + 1}/{book.Total}] Translating... {eta}      ");
+                string phaseText = translate ? "Translating" : "Downloading";
+                Console.Write($"\r  [{i + 1}/{book.Total}] {phaseText}... {eta}      ");
             }
 
             var (_, chTitle, html) = await fetchTasks[i];
             var paras = book.Adapter.ExtractChapterText(html);
-            string english = await _translator.Translate(string.Join("\n", paras));
-            chapters.Add((i + 1, chTitle, english));
+            
+            string content;
+            if (translate)
+            {
+                content = await _translator.Translate(string.Join("\n", paras));
+            }
+            else
+            {
+                content = string.Join("\n", paras);
+            }
+            
+            chapters.Add((i + 1, chTitle, content));
 
-            onProgress?.Invoke(i + 1, book.Total, $"Chapter {i + 1} of {book.Total}");
+            onProgress?.Invoke(i + 1, book.Total, translate ? $"Chapter {i + 1} of {book.Total}" : $"Downloaded ch {i + 1} of {book.Total}");
         }
 
         return chapters;
