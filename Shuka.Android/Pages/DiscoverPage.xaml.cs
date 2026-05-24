@@ -94,11 +94,12 @@ public partial class DiscoverPage : ContentPage
         {
             Command = new Command(async () =>
             {
-                var topPage = Shell.Current?.Navigation?.NavigationStack?.LastOrDefault();
-                if (topPage is SourceBrowsePage)
+                var nav = Shell.Current?.Navigation;
+                if (nav == null) return;
+                if (nav.NavigationStack?.LastOrDefault() is SourceBrowsePage)
                     return;
 
-                await Shell.Current.Navigation.PushAsync(new SourceBrowsePage(source));
+                await nav.PushAsync(new SourceBrowsePage(source));
             })
         });
 
@@ -410,12 +411,13 @@ public partial class DiscoverPage : ContentPage
         {
             Command = new Command(async () =>
             {
-                var topPage = Shell.Current?.Navigation?.NavigationStack?.LastOrDefault();
-                if (topPage is SourceBrowsePage)
+                var nav = Shell.Current?.Navigation;
+                if (nav == null) return;
+                if (nav.NavigationStack?.LastOrDefault() is SourceBrowsePage)
                     return;
 
                 var browsePage = new SourceBrowsePage(source, initialQuery: query);
-                await Shell.Current.Navigation.PushAsync(browsePage);
+                await nav.PushAsync(browsePage);
             })
         });
 

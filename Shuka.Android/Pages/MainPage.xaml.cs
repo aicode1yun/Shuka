@@ -337,7 +337,9 @@ public partial class MainPage : ContentPage
 
                     // Ensure the page is not cached by Shell
                     Shell.SetPresentationMode(questPage, PresentationMode.NotAnimated);
-                    await Shell.Current.Navigation.PushAsync(questPage, true);
+                    var nav = Shell.Current?.Navigation;
+                    if (nav != null)
+                        await nav.PushAsync(questPage, true);
                 }
                 catch (Exception ex)
                 {
@@ -513,12 +515,13 @@ public partial class MainPage : ContentPage
                 await bookmarkBtn.ScaleToAsync(0.85, 70, Easing.CubicOut);
                 await bookmarkBtn.ScaleToAsync(1.0, 70, Easing.SpringOut);
 
-                var topPage = Shell.Current?.Navigation?.NavigationStack?.LastOrDefault();
-                if (topPage is BookmarksPage)
+                var nav = Shell.Current?.Navigation;
+                if (nav == null) return;
+                if (nav.NavigationStack?.LastOrDefault() is BookmarksPage)
                     return;
 
                 // Navigate to bookmarks page filtered by this source
-                await Shell.Current.Navigation.PushAsync(
+                await nav.PushAsync(
                     new BookmarksPage(source.SiteName));
             })
         });
@@ -605,7 +608,9 @@ public partial class MainPage : ContentPage
                     {
                         // Ensure the page is not cached by Shell
                         Shell.SetPresentationMode(webPage, PresentationMode.NotAnimated);
-                        await Shell.Current.Navigation.PushAsync(webPage, true);
+                        var nav = Shell.Current?.Navigation;
+                        if (nav != null)
+                            await nav.PushAsync(webPage, true);
                     }
                 }
                 catch (Exception ex)
@@ -645,8 +650,9 @@ public partial class MainPage : ContentPage
     {
         try
         {
-            var topPage = Shell.Current?.Navigation?.NavigationStack?.LastOrDefault();
-            if (topPage is ShukaQuestPage)
+            var nav = Shell.Current?.Navigation;
+            if (nav == null) return;
+            if (nav.NavigationStack?.LastOrDefault() is ShukaQuestPage)
                 return;
 
             // Register the fetch callback before opening the WebView
@@ -654,7 +660,7 @@ public partial class MainPage : ContentPage
 
             // Open Shuka Quest browser
             var questPage = new ShukaQuestPage("https://www.google.com");
-            await Shell.Current.Navigation.PushAsync(questPage);
+            await nav.PushAsync(questPage);
         }
         catch (Exception ex)
         {

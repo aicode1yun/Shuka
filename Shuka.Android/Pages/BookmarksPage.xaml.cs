@@ -500,11 +500,12 @@ public partial class BookmarksPage : ContentPage
                 
                 if (webPage != null)
                 {
-                    var topPage = Shell.Current?.Navigation?.NavigationStack?.LastOrDefault();
-                    if (topPage is WebBrowsePage)
+                    var nav = Shell.Current?.Navigation;
+                    if (nav == null) return;
+                    if (nav.NavigationStack?.LastOrDefault() is WebBrowsePage)
                         return;
 
-                    await Shell.Current.Navigation.PushAsync(webPage);
+                    await nav.PushAsync(webPage);
                 }
             }));
 
@@ -738,11 +739,12 @@ public partial class BookmarksPage : ContentPage
                             
                             if (webPage != null)
                             {
-                                var topPage = Shell.Current?.Navigation?.NavigationStack?.LastOrDefault();
-                                if (topPage is WebBrowsePage)
+                                var nav = Shell.Current?.Navigation;
+                                if (nav == null) return;
+                                if (nav.NavigationStack?.LastOrDefault() is WebBrowsePage)
                                     return;
 
-                                await Shell.Current.Navigation.PushAsync(webPage);
+                                await nav.PushAsync(webPage);
                             }
                         }
                         catch (Exception ex)
