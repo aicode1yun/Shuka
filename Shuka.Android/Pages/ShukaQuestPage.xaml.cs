@@ -349,9 +349,11 @@ public partial class ShukaQuestPage : ContentPage
         System.Diagnostics.Debug.WriteLine($"[ShukaQuestPage] Instance #{_instanceId} disappearing");
 
         // Restore the tab bar when leaving to a page that needs it
-        if (Navigation?.NavigationStack?.Contains(this) == false)
+        var navStack = Navigation?.NavigationStack ?? Shell.Current?.Navigation?.NavigationStack;
+        bool isPopped = Navigation == null || !Navigation.NavigationStack.Contains(this);
+        if (isPopped)
         {
-            var previousPage = Navigation?.NavigationStack?.LastOrDefault();
+            var previousPage = navStack?.LastOrDefault(p => p != this);
             if (previousPage == null || 
                 (previousPage is not AboutPage &&
                  previousPage is not SourceBrowsePage &&
@@ -2486,10 +2488,9 @@ public partial class ShukaQuestPage : ContentPage
     /// </summary>
     private static string? DetectSite(string url)
     {
-        foreach (var key in _exampleUrls.Keys)
-            if (url.Contains(key, StringComparison.OrdinalIgnoreCase))
-                return key;
-        return null;
+        if (string.IsNullOrWhiteSpace(url)) return null;
+        var adapter = BookService.Adapters.FirstOrDefault(a => a.Matches(url));
+        return adapter?.SiteName;
     }
 
     /// <summary>
@@ -2549,7 +2550,13 @@ public partial class ShukaQuestPage : ContentPage
         string url = _currentUrl;
         string site = DetectSite(url) ?? "";
 
-        // Validate: must be a novel index page
+        // Validate: must be a supported site and novel index page
+        if (string.IsNullOrEmpty(site))
+        {
+            await ShowInvalidUrlBannerAsync("This site is not a supported novel source.");
+            return;
+        }
+
         if (!IsNovelPage(url))
         {
             string hint = _exampleUrls.TryGetValue(site, out var ex)
@@ -2585,7 +2592,13 @@ public partial class ShukaQuestPage : ContentPage
         string url = _currentUrl;
         string site = DetectSite(url) ?? "";
 
-        // Validate: must be a novel index page, not just the site homepage/listing
+        // Validate: must be a supported site and novel index page, not just the site homepage/listing
+        if (string.IsNullOrEmpty(site))
+        {
+            await ShowInvalidUrlBannerAsync("This site is not a supported novel source.");
+            return;
+        }
+
         if (!IsNovelPage(url))
         {
             string hint = _exampleUrls.TryGetValue(site, out var ex)

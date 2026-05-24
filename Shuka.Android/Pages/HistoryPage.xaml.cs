@@ -30,6 +30,7 @@ public partial class HistoryPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        MainActivity.Instance?.SetTabBarVisible(true);
         TabTransition.Prepare(myTabIndex: 2);
         await TabTransition.SlideInAsync(BodyGrid);
     }

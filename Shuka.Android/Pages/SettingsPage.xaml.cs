@@ -26,6 +26,7 @@ public partial class SettingsPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        MainActivity.Instance?.SetTabBarVisible(true);
         TabTransition.Prepare(myTabIndex: 3);
         
         // Run animation and data loading concurrently for better performance
@@ -464,6 +465,10 @@ public partial class SettingsPage : ContentPage
         var grid = (Grid)sender;
         await grid.ScaleToAsync(0.95, 100, Easing.CubicOut);
         await grid.ScaleToAsync(1.0, 100, Easing.CubicOut);
+
+        var topPage = Shell.Current?.Navigation?.NavigationStack?.LastOrDefault();
+        if (topPage is AboutPage)
+            return;
 
         await Navigation.PushAsync(new AboutPage());
     }

@@ -43,6 +43,7 @@ public partial class BookmarksPage : ContentPage
     protected override void OnAppearing()
     {
         base.OnAppearing();
+        MainActivity.Instance?.SetTabBarVisible(true);
         UpdateSheetBottomMargins();
         BuildBookmarksList();
     }
@@ -499,6 +500,10 @@ public partial class BookmarksPage : ContentPage
                 
                 if (webPage != null)
                 {
+                    var topPage = Shell.Current?.Navigation?.NavigationStack?.LastOrDefault();
+                    if (topPage is WebBrowsePage)
+                        return;
+
                     await Shell.Current.Navigation.PushAsync(webPage);
                 }
             }));
@@ -733,6 +738,10 @@ public partial class BookmarksPage : ContentPage
                             
                             if (webPage != null)
                             {
+                                var topPage = Shell.Current?.Navigation?.NavigationStack?.LastOrDefault();
+                                if (topPage is WebBrowsePage)
+                                    return;
+
                                 await Shell.Current.Navigation.PushAsync(webPage);
                             }
                         }

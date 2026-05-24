@@ -21,6 +21,7 @@ public partial class DiscoverPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        MainActivity.Instance?.SetTabBarVisible(true);
         BodyGrid.Opacity = 0;
         BodyGrid.TranslationY = 18;
         await Task.WhenAll(
@@ -93,8 +94,10 @@ public partial class DiscoverPage : ContentPage
         {
             Command = new Command(async () =>
             {
-                await card.ScaleToAsync(0.97, 80, Easing.CubicOut);
-                await card.ScaleToAsync(1.0, 80, Easing.SpringOut);
+                var topPage = Shell.Current?.Navigation?.NavigationStack?.LastOrDefault();
+                if (topPage is SourceBrowsePage)
+                    return;
+
                 await Shell.Current.Navigation.PushAsync(new SourceBrowsePage(source));
             })
         });
@@ -407,6 +410,10 @@ public partial class DiscoverPage : ContentPage
         {
             Command = new Command(async () =>
             {
+                var topPage = Shell.Current?.Navigation?.NavigationStack?.LastOrDefault();
+                if (topPage is SourceBrowsePage)
+                    return;
+
                 var browsePage = new SourceBrowsePage(source, initialQuery: query);
                 await Shell.Current.Navigation.PushAsync(browsePage);
             })

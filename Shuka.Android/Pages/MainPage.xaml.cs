@@ -52,6 +52,7 @@ public partial class MainPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        MainActivity.Instance?.SetTabBarVisible(true);
 
         // Restore draft inputs that were saved before the app went to background
         string savedUrl = Preferences.Default.Get("draft_url", "");
@@ -317,8 +318,15 @@ public partial class MainPage : ContentPage
             {
                 try
                 {
+                    var topPage = Shell.Current?.Navigation?.NavigationStack?.LastOrDefault();
+                    if (topPage is ShukaQuestPage)
+                        return;
+
                     // Immediate visual feedback
                     var scaleTask = card.ScaleToAsync(0.95, 50, Easing.CubicOut);
+
+                    // Register the fetch callback before opening the WebView
+                    ShukaQuestPage.OnUrlFetched = FillUrlFromWebView;
 
                     // Create ShukaQuestPage with Google as default
                     var questPage = new ShukaQuestPage("https://www.google.com");
@@ -505,6 +513,10 @@ public partial class MainPage : ContentPage
                 await bookmarkBtn.ScaleToAsync(0.85, 70, Easing.CubicOut);
                 await bookmarkBtn.ScaleToAsync(1.0, 70, Easing.SpringOut);
 
+                var topPage = Shell.Current?.Navigation?.NavigationStack?.LastOrDefault();
+                if (topPage is BookmarksPage)
+                    return;
+
                 // Navigate to bookmarks page filtered by this source
                 await Shell.Current.Navigation.PushAsync(
                     new BookmarksPage(source.SiteName));
@@ -571,6 +583,10 @@ public partial class MainPage : ContentPage
                         return;
                     }
 
+                    var topPage = Shell.Current?.Navigation?.NavigationStack?.LastOrDefault();
+                    if (topPage is WebBrowsePage)
+                        return;
+
                     // Register the fetch callback before opening the WebView
                     WebBrowsePage.OnUrlFetched = FillUrlFromWebView;
 
@@ -629,6 +645,13 @@ public partial class MainPage : ContentPage
     {
         try
         {
+            var topPage = Shell.Current?.Navigation?.NavigationStack?.LastOrDefault();
+            if (topPage is ShukaQuestPage)
+                return;
+
+            // Register the fetch callback before opening the WebView
+            ShukaQuestPage.OnUrlFetched = FillUrlFromWebView;
+
             // Open Shuka Quest browser
             var questPage = new ShukaQuestPage("https://www.google.com");
             await Shell.Current.Navigation.PushAsync(questPage);

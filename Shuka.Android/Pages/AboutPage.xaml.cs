@@ -31,9 +31,11 @@ public partial class AboutPage : ContentPage
         
         // Only restore tab bar if we're going back to a page that needs it
         // Check if we're still in the navigation stack
-        if (Navigation?.NavigationStack?.Contains(this) == false)
+        var navStack = Navigation?.NavigationStack ?? Shell.Current?.Navigation?.NavigationStack;
+        bool isPopped = Navigation == null || !Navigation.NavigationStack.Contains(this);
+        if (isPopped)
         {
-            var previousPage = Navigation?.NavigationStack?.LastOrDefault();
+            var previousPage = navStack?.LastOrDefault(p => p != this);
             if (previousPage == null || 
                 (previousPage is not AboutPage &&
                  previousPage is not SourceBrowsePage &&

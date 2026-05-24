@@ -51,9 +51,11 @@ public partial class SourceBrowsePage : ContentPage
         base.OnDisappearing();
         
         // Only restore tab bar if we're going back to a page that needs it
-        if (Navigation?.NavigationStack?.Contains(this) == false)
+        var navStack = Navigation?.NavigationStack ?? Shell.Current?.Navigation?.NavigationStack;
+        bool isPopped = Navigation == null || !Navigation.NavigationStack.Contains(this);
+        if (isPopped)
         {
-            var previousPage = Navigation?.NavigationStack?.LastOrDefault();
+            var previousPage = navStack?.LastOrDefault(p => p != this);
             if (previousPage == null || 
                 (previousPage is not AboutPage &&
                  previousPage is not SourceBrowsePage &&

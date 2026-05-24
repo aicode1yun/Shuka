@@ -13,7 +13,7 @@ public class BookService
     private readonly HttpClient _gtClient;
     private readonly Translator _translator;
 
-    internal static readonly ISiteAdapter[] Adapters =
+    public static readonly ISiteAdapter[] Adapters =
         [new ShukuAdapter(), new CzBooksAdapter(), new DmxsAdapter(), new ShubaAdapter(), new QuanbenAdapter()];
 
     /// <summary>

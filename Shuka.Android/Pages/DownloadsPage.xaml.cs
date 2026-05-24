@@ -39,6 +39,7 @@ public partial class DownloadsPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        MainActivity.Instance?.SetTabBarVisible(true);
 
         // Re-apply tab colors in case the theme changed while on another tab
         ApplySubTabColors(_isOngoingTabActive);
