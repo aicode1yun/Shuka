@@ -13,13 +13,49 @@ public partial class AboutPage : ContentPage
     protected override void OnAppearing()
     {
         base.OnAppearing();
-        MainActivity.Instance?.SetTabBarVisible(false);
+        
+        // Ensure tab bar is hidden when this page appears
+        // Use BeginInvokeOnMainThread to ensure it runs after navigation completes
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            MainActivity.Instance?.SetTabBarVisible(false);
+        });
+        
+        // Force layout refresh to prevent blank page issue
+        this.ForceLayout();
     }
 
     protected override void OnDisappearing()
     {
         base.OnDisappearing();
-        MainActivity.Instance?.SetTabBarVisible(true);
+        
+        // Only restore tab bar if we're going back to a page that needs it
+        // Check if we're still in the navigation stack
+        if (Navigation?.NavigationStack?.Contains(this) == false)
+        {
+            var previousPage = Navigation?.NavigationStack?.LastOrDefault();
+            if (previousPage == null || 
+                (previousPage is not AboutPage &&
+                 previousPage is not SourceBrowsePage &&
+                 previousPage is not WebBrowsePage &&
+                 previousPage is not ShukaQuestPage))
+            {
+                MainActivity.Instance?.SetTabBarVisible(true);
+            }
+        }
+    }
+
+    protected override void OnNavigatedTo(NavigatedToEventArgs args)
+    {
+        base.OnNavigatedTo(args);
+        
+        // Additional safety: ensure content is visible when navigated to
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            this.IsVisible = true;
+            this.Opacity = 1.0;
+            MainActivity.Instance?.SetTabBarVisible(false);
+        });
     }
 
     private async void OnBackTapped(object sender, TappedEventArgs e)

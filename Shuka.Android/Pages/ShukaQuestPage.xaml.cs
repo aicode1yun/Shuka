@@ -88,6 +88,7 @@ public partial class ShukaQuestPage : ContentPage
     private bool _isRecentLinksOpen;
     private bool _isImageContextMenuOpen;
     private string? _currentImageContextMenuUrl;
+    private string? _currentLinkContextMenuUrl;
     private bool _isCloudflareSheetOpen;
     private TaskCompletionSource<string?>? _cloudflareChoiceTcs;
     private static string WebHistoryFile =>
@@ -119,6 +120,8 @@ public partial class ShukaQuestPage : ContentPage
     private int _backSkipCount;
     private const int MaxBackSkipAttempts = 10;
     private bool _webViewCleanedUp;
+
+    private readonly Stack<string> _backNavigationHistory = new();
 
     private bool IsTranslateActive => _translateMode != WebTranslateMode.None;
 
@@ -345,8 +348,19 @@ public partial class ShukaQuestPage : ContentPage
         base.OnDisappearing();
         System.Diagnostics.Debug.WriteLine($"[ShukaQuestPage] Instance #{_instanceId} disappearing");
 
-        // Restore the tab bar when leaving
-        MainActivity.Instance?.SetTabBarVisible(true);
+        // Restore the tab bar when leaving to a page that needs it
+        if (Navigation?.NavigationStack?.Contains(this) == false)
+        {
+            var previousPage = Navigation?.NavigationStack?.LastOrDefault();
+            if (previousPage == null || 
+                (previousPage is not AboutPage &&
+                 previousPage is not SourceBrowsePage &&
+                 previousPage is not WebBrowsePage &&
+                 previousPage is not ShukaQuestPage))
+            {
+                MainActivity.Instance?.SetTabBarVisible(true);
+            }
+        }
 
         if (!IsStillOnNavigationStack())
             CleanupWebView();
@@ -1571,6 +1585,7 @@ public partial class ShukaQuestPage : ContentPage
 
     /// <summary>
     /// Configures WebView for proper image handling and context menu support.
+    /// Also handles link long-press with preview and context menu.
     /// </summary>
     private void ConfigureWebViewForImageHandling()
     {
@@ -1615,8 +1630,8 @@ public partial class ShukaQuestPage : ContentPage
                 if (_longClickListenerAttached) return;
                 _longClickListenerAttached = true;
 
-                // Hook long-press image context actions.
-                // Fix: image context menu actions inside the Mini Browser not functioning.
+                // Hook long-press context actions for both images and links.
+                // Fix: context menu actions inside the Mini Browser not functioning.
                 //
                 // Design notes:
                 //  • OnLongClick runs on the Android main thread — we must NOT block it with
@@ -1625,6 +1640,7 @@ public partial class ShukaQuestPage : ContentPage
                 //    returning true immediately to consume the long-press event.
                 //  • SrcImageAnchorType covers images wrapped inside <a> tags (the most common case
                 //    on manga/novel sites). ImageType covers bare <img> tags.
+                //  • AnchorType covers <a> tags with text links.
                 androidWebView.SetOnLongClickListener(new AndroidViewLongClickListener(v =>
                 {
                     try
@@ -1632,20 +1648,39 @@ public partial class ShukaQuestPage : ContentPage
                         var hit = androidWebView.GetHitTestResult();
                         if (hit == null) return false;
 
-                        // Handle both bare <img> and <a><img></a> elements.
-                        bool isImage =
-                            hit.Type == global::Android.Webkit.HitTestResult.ImageType ||
-                            hit.Type == global::Android.Webkit.HitTestResult.SrcImageAnchorType;
-                        if (!isImage) return false;
+                        string? extra = hit.Extra;
 
-                        // Extra usually contains the image URL.
-                        string? imageUrl = hit.Extra;
-                        if (string.IsNullOrWhiteSpace(imageUrl)) return false;
+                        // Image wrapped in an anchor: show both image and link sections.
+                        // The image src is in hit.Extra; we use JS to retrieve the anchor href.
+                        if (hit.Type == global::Android.Webkit.HitTestResult.SrcImageAnchorType)
+                        {
+                            string? imageUrl = extra;
+                            if (!string.IsNullOrWhiteSpace(imageUrl))
+                                _ = ShowImageAndLinkContextMenuAsync(imageUrl, anchorWebView: androidWebView);
+                            return true;
+                        }
 
-                        // Fire-and-forget from the main thread — ShowImageContextMenuAsync
-                        // is awaitable and schedules its continuations back on the main thread.
-                        _ = ShowImageContextMenuAsync(imageUrl);
-                        return true;
+                        // Pure anchor / text link — show only link actions.
+                        bool isLink =
+                            hit.Type == global::Android.Webkit.HitTestResult.AnchorType ||
+                            hit.Type == global::Android.Webkit.HitTestResult.SrcAnchorType;
+
+                        if (isLink)
+                        {
+                            if (!string.IsNullOrWhiteSpace(extra))
+                                _ = ShowLinkContextMenuAsync(extra);
+                            return true;
+                        }
+
+                        // Pure image (no anchor wrapper) — show only image actions.
+                        if (hit.Type == global::Android.Webkit.HitTestResult.ImageType)
+                        {
+                            if (!string.IsNullOrWhiteSpace(extra))
+                                _ = ShowImageContextMenuAsync(extra);
+                            return true;
+                        }
+
+                        return false;
                     }
                     catch
                     {
@@ -1793,7 +1828,13 @@ public partial class ShukaQuestPage : ContentPage
             return;
 
         _isImageContextMenuOpen = true;
+
+        // Configure sections: image-only mode
+        ImageContextMenuTitleLabel.Text = "Image Options";
         ImageContextMenuUrlLabel.Text = imageUrl;
+        ImageOptionsSection.IsVisible = true;
+        LinkOptionsSection.IsVisible = false;
+
         ImageContextMenuOverlay.IsVisible = true;
         ImageContextMenuOverlay.Opacity = 0;
         ImageContextMenuSheet.Opacity = 0;
@@ -1857,6 +1898,115 @@ public partial class ShukaQuestPage : ContentPage
         {
             await Clipboard.Default.SetTextAsync(url);
             await ShowQueuedToastAsync("Image URL copied!");
+        }
+    }
+
+    // ── Link Context Menu ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Shows the shared bottom sheet with only the Link Options section visible.
+    /// Used when the long-pressed element is a plain text hyperlink.
+    /// </summary>
+    private async Task ShowLinkContextMenuAsync(string linkUrl)
+    {
+        if (string.IsNullOrWhiteSpace(linkUrl) || _isImageContextMenuOpen)
+            return;
+
+        _currentLinkContextMenuUrl = linkUrl;
+        _currentImageContextMenuUrl = null;
+        _isImageContextMenuOpen = true;
+
+        // Configure sections: link-only mode
+        ImageContextMenuTitleLabel.Text = "Link Options";
+        ImageContextMenuUrlLabel.Text = linkUrl;
+        ImageOptionsSection.IsVisible = false;
+        LinkOptionsSection.IsVisible = true;
+        LinkSectionHeaderLabel.IsVisible = false; // no divider needed in link-only mode
+
+        ImageContextMenuOverlay.IsVisible = true;
+        ImageContextMenuOverlay.Opacity = 0;
+        ImageContextMenuSheet.Opacity = 0;
+        ImageContextMenuSheet.TranslationY = 30;
+
+        await Task.WhenAll(
+            ImageContextMenuOverlay.FadeToAsync(1, 160, Easing.CubicOut),
+            ImageContextMenuSheet.FadeToAsync(1, 180, Easing.CubicOut),
+            ImageContextMenuSheet.TranslateToAsync(0, 0, 180, Easing.CubicOut));
+    }
+
+    /// <summary>
+    /// Shows the shared bottom sheet with BOTH Image and Link sections when an image
+    /// is wrapped inside an anchor tag. Uses JS to extract the anchor href accurately.
+    /// </summary>
+    private async Task ShowImageAndLinkContextMenuAsync(string imageUrl,
+        global::Android.Webkit.WebView? anchorWebView = null)
+    {
+        if (string.IsNullOrWhiteSpace(imageUrl) || _isImageContextMenuOpen)
+            return;
+
+        _currentImageContextMenuUrl = imageUrl;
+
+        // Try to fetch the anchor href via JS for accurate link extraction
+        string? linkUrl = null;
+        if (anchorWebView != null)
+        {
+            try
+            {
+                var jsResult = await SiteWebView.EvaluateJavaScriptAsync(
+                    "(function(){" +
+                    "  var el = document.elementFromPoint(" +
+                    "    window.__shukaLongTapX || 0, window.__shukaLongTapY || 0);" +
+                    "  while(el && el.tagName !== 'A') el = el.parentElement;" +
+                    "  return el ? el.href : null;" +
+                    "})()");
+                if (!string.IsNullOrWhiteSpace(jsResult) && jsResult != "null")
+                    linkUrl = jsResult.Trim('"');
+            }
+            catch { /* JS failed — treat as image-only */ }
+        }
+
+        _currentLinkContextMenuUrl = linkUrl;
+        _isImageContextMenuOpen = true;
+
+        bool hasLink = !string.IsNullOrWhiteSpace(linkUrl);
+
+        ImageContextMenuTitleLabel.Text = hasLink ? "Image & Link Options" : "Image Options";
+        ImageContextMenuUrlLabel.Text = imageUrl;
+        ImageOptionsSection.IsVisible = true;
+        LinkOptionsSection.IsVisible = hasLink;
+        LinkSectionHeaderLabel.IsVisible = hasLink; // show "Link Options" divider when both sections present
+
+        ImageContextMenuOverlay.IsVisible = true;
+        ImageContextMenuOverlay.Opacity = 0;
+        ImageContextMenuSheet.Opacity = 0;
+        ImageContextMenuSheet.TranslationY = 30;
+
+        await Task.WhenAll(
+            ImageContextMenuOverlay.FadeToAsync(1, 160, Easing.CubicOut),
+            ImageContextMenuSheet.FadeToAsync(1, 180, Easing.CubicOut),
+            ImageContextMenuSheet.TranslateToAsync(0, 0, 180, Easing.CubicOut));
+    }
+
+    private async void OnLinkContextMenuOpenNewTabTapped(object sender, TappedEventArgs e)
+    {
+        var url = _currentLinkContextMenuUrl;
+        await HideImageContextMenuSheetAsync();
+        if (!string.IsNullOrWhiteSpace(url) && Uri.TryCreate(url, UriKind.Absolute, out _))
+        {
+            AddTab(url, switchToTab: true);
+            Navigate(url);
+            await ShowQueuedToastAsync("Opened in new tab");
+        }
+    }
+
+    private async void OnLinkContextMenuCopyUrlTapped(object sender, TappedEventArgs e)
+    {
+        var url = _currentLinkContextMenuUrl;
+        await HideImageContextMenuSheetAsync();
+        if (!string.IsNullOrWhiteSpace(url))
+        {
+            await Clipboard.Default.SetTextAsync(url);
+            await ShowQueuedToastAsync("Link copied!");
         }
     }
 
@@ -2078,6 +2228,28 @@ public partial class ShukaQuestPage : ContentPage
         try
         {
             System.Diagnostics.Debug.WriteLine("[ShukaQuestPage] ===== AD BLOCKER INJECTION START =====");
+
+            // Inject touch coordinates tracker for long taps
+            var coordsJs = @"
+(function(){
+  if (!window.__shukaCoordsRegistered) {
+    window.__shukaCoordsRegistered = true;
+    window.__shukaLongTapX = 0;
+    window.__shukaLongTapY = 0;
+    window.addEventListener('touchstart', function(e) {
+      if (e.touches.length > 0) {
+        window.__shukaLongTapX = e.touches[0].clientX;
+        window.__shukaLongTapY = e.touches[0].clientY;
+      }
+    }, {passive: true});
+    window.addEventListener('contextmenu', function(e) {
+      window.__shukaLongTapX = e.clientX;
+      window.__shukaLongTapY = e.clientY;
+    });
+  }
+})();
+";
+            await SiteWebView.EvaluateJavaScriptAsync(coordsJs);
 
             var js = AdBlockerService.Instance.GetCosmeticFilterScript();
             if (string.IsNullOrEmpty(js))

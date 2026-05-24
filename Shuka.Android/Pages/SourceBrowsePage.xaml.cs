@@ -49,7 +49,20 @@ public partial class SourceBrowsePage : ContentPage
     protected override void OnDisappearing()
     {
         base.OnDisappearing();
-        MainActivity.Instance?.SetTabBarVisible(true);
+        
+        // Only restore tab bar if we're going back to a page that needs it
+        if (Navigation?.NavigationStack?.Contains(this) == false)
+        {
+            var previousPage = Navigation?.NavigationStack?.LastOrDefault();
+            if (previousPage == null || 
+                (previousPage is not AboutPage &&
+                 previousPage is not SourceBrowsePage &&
+                 previousPage is not WebBrowsePage &&
+                 previousPage is not ShukaQuestPage))
+            {
+                MainActivity.Instance?.SetTabBarVisible(true);
+            }
+        }
     }
 
     // ── Navigation ────────────────────────────────────────────────────────────
