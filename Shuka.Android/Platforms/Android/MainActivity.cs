@@ -368,10 +368,18 @@ public class MainActivity : MauiAppCompatActivity
                     float diffY = ev.GetY() - _swipeStartY;
 
                     float density = Resources?.DisplayMetrics?.Density ?? 1f;
-                    float threshold = 60 * density; // Snappy 60 dp gesture threshold
+                    float threshold = 40 * density; // Responsive 40 dp gesture threshold
 
-                    // Check if swipe distance is reached and horizontal action is dominant
-                    if (Math.Abs(diffX) > threshold && Math.Abs(diffX) > Math.Abs(diffY) * 1.5f)
+                    // Guard: If vertical scrolling is dominant and exceeds a small scroll threshold,
+                    // disarm swipe tracking for this gesture sequence to avoid accidental tab switches.
+                    if (Math.Abs(diffY) > 20 * density && Math.Abs(diffY) > Math.Abs(diffX) * 1.5f)
+                    {
+                        _isSwipeTracking = false;
+                        break;
+                    }
+
+                    // Check if swipe distance is reached and horizontal action is dominant (more forgiving 1.2x ratio)
+                    if (Math.Abs(diffX) > threshold && Math.Abs(diffX) > Math.Abs(diffY) * 1.2f)
                     {
                         int delta = diffX > 0 ? -1 : 1;
                         int currentIndex = Controls.CustomTabBar.ActiveIndex;
