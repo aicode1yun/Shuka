@@ -9,26 +9,23 @@ namespace Shuka.Android.Behaviors;
 ///   protected override async void OnAppearing()
 ///   {
 ///       base.OnAppearing();
-///       TabTransition.Prepare(myTabIndex: N);
-///       await TabTransition.SlideInAsync(BodyGrid, myTabIndex: N);
+///       TabTransition.Prepare(BodyGrid, myTabIndex: N);
+///       await TabTransition.SlideInAsync(BodyGrid);
 ///   }
 ///
 /// Pass the specific content view (e.g. BodyGrid, BodyScrollView) — not the page itself.
 /// </summary>
 public static class TabTransition
 {
-    private const int    DurationMs    = 320;
-    private const double SlideDistance = 14;
-
     private static bool _goingRight    = true;
     private static bool _shouldAnimate = false;
 
     /// <summary>
     /// Call synchronously at the top of OnAppearing (no await).
-    /// Captures the slide direction from AppShell before any awaits change it.
-    /// Does NOT touch page or content opacity — avoids any tab bar flash.
+    /// Captures the slide direction and applies initial layout properties synchronously
+    /// on the UI thread to prevent any momentary split-second flashing.
     /// </summary>
-    public static void Prepare(int myTabIndex)
+    public static void Prepare(View contentView, int myTabIndex)
     {
         int from = AppShell.LastTabIndex;
         int to   = myTabIndex;
@@ -36,34 +33,36 @@ public static class TabTransition
         if (from == to)
         {
             _shouldAnimate = false;
+            contentView.Opacity = 1.0;
+            contentView.TranslationX = 0;
+            contentView.Scale = 1.0;
             return;
         }
 
         _goingRight    = to > from;
         _shouldAnimate = true;
+
+        // Apply starting states synchronously to prevent layout flashing
+        contentView.Opacity      = 0;
+        contentView.TranslationX = _goingRight ? 80 : -80; // Sleek and spacious lateral shift
+        contentView.Scale        = 0.96;                   // Dynamic subtle scale down
     }
 
     /// <summary>
-    /// Animates only the content view (not the tab bar or header).
-    /// Hides and offsets the content view after layout, then animates it in.
+    /// Animates only the content view using a snappier, fluid deceleration.
     /// </summary>
     public static async Task SlideInAsync(View contentView)
     {
         if (!_shouldAnimate) return;
 
-        // Wait one frame for layout to complete so TranslationX sticks.
+        // Wait one brief frame to allow the renderer to process the initial state
         await Task.Delay(16);
 
-        // Hide and offset only the content — tab bar and header are untouched.
-        contentView.Opacity      = 0;
-        contentView.TranslationX = _goingRight ? SlideDistance : -SlideDistance;
-
-        // One more frame so the renderer picks up the starting state.
-        await Task.Delay(16);
-
+        // Premium fluid deceleration transition in 240ms
         await Task.WhenAll(
-            contentView.TranslateToAsync(0, 0, DurationMs, Easing.SinOut),
-            contentView.FadeToAsync(1.0, DurationMs, Easing.SinOut)
+            contentView.TranslateToAsync(0, 0, 240, Easing.CubicOut),
+            contentView.FadeToAsync(1.0, 240, Easing.CubicOut),
+            contentView.ScaleToAsync(1.0, 240, Easing.CubicOut)
         );
     }
 }

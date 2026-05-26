@@ -44,7 +44,7 @@ public partial class DownloadsPage : ContentPage
         // Re-apply tab colors in case the theme changed while on another tab
         ApplySubTabColors(_isOngoingTabActive);
 
-        TabTransition.Prepare(myTabIndex: 1);
+        TabTransition.Prepare(BodyGrid, myTabIndex: 1);
 
         var animationTask = TabTransition.SlideInAsync(BodyGrid);
         var loadTask = Task.Run(() =>

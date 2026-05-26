@@ -27,7 +27,7 @@ public partial class SettingsPage : ContentPage
     {
         base.OnAppearing();
         MainActivity.Instance?.SetTabBarVisible(true);
-        TabTransition.Prepare(myTabIndex: 3);
+        TabTransition.Prepare(BodyScrollView, myTabIndex: 3);
         
         // Run animation and data loading concurrently for better performance
         var animationTask = TabTransition.SlideInAsync(BodyScrollView);

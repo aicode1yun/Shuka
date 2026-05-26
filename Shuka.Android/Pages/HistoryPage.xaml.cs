@@ -31,7 +31,7 @@ public partial class HistoryPage : ContentPage
     {
         base.OnAppearing();
         MainActivity.Instance?.SetTabBarVisible(true);
-        TabTransition.Prepare(myTabIndex: 2);
+        TabTransition.Prepare(BodyGrid, myTabIndex: 2);
         await TabTransition.SlideInAsync(BodyGrid);
     }
 

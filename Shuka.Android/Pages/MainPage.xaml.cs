@@ -75,7 +75,7 @@ public partial class MainPage : ContentPage
         SetActiveTab(DownloadPanel.IsVisible);
         UpdateDiscoverBottomInset();
 
-        TabTransition.Prepare(myTabIndex: 0);
+        TabTransition.Prepare(BodyGrid, myTabIndex: 0);
         await TabTransition.SlideInAsync(BodyGrid);
     }
 

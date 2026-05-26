@@ -23,6 +23,10 @@ public class MainActivity : MauiAppCompatActivity
     public static MainActivity? Instance { get; private set; }
     private int _persistentTabBarHeightPx;
     private int _systemNavBarInsetPx;
+    private float _swipeStartX;
+    private float _swipeStartY;
+    private bool _isSwipeTracking = false;
+    private static bool _isSwipeNavigating = false;
 
     // Folder picker support
     public const int FolderPickerRequestCode = 9001;
@@ -339,4 +343,120 @@ public class MainActivity : MauiAppCompatActivity
         // API 21–25: color set above, no icon tint control
     }
 #pragma warning restore CA1416, CA1422
+
+    // ── Platform Horizontal Swipe Navigation Interceptor ───────────────────
+
+    public override bool DispatchTouchEvent(MotionEvent? ev)
+    {
+        if (ev == null) return base.DispatchTouchEvent(ev);
+
+        switch (ev.ActionMasked)
+        {
+            case MotionEventActions.Down:
+                _swipeStartX = ev.GetX();
+                _swipeStartY = ev.GetY();
+                _isSwipeTracking = IsCurrentPageTab();
+                break;
+
+            case MotionEventActions.Move:
+                if (_isSwipeTracking)
+                {
+                    if (_isSwipeNavigating)
+                        break; // Keep tracking but wait until transition completes
+
+                    float diffX = ev.GetX() - _swipeStartX;
+                    float diffY = ev.GetY() - _swipeStartY;
+
+                    float density = Resources?.DisplayMetrics?.Density ?? 1f;
+                    float threshold = 60 * density; // Snappy 60 dp gesture threshold
+
+                    // Check if swipe distance is reached and horizontal action is dominant
+                    if (Math.Abs(diffX) > threshold && Math.Abs(diffX) > Math.Abs(diffY) * 1.5f)
+                    {
+                        int delta = diffX > 0 ? -1 : 1;
+                        int currentIndex = Controls.CustomTabBar.ActiveIndex;
+                        int targetIndex = currentIndex + delta;
+
+                        if (targetIndex >= 0 && targetIndex < AppShell.TabRoutes.Length)
+                        {
+                            _isSwipeTracking = false; // Prevent multiple triggers in same stream
+                            NavigateToTab(delta);
+
+                            // Cleanly abort ongoing touch states in child views (like ScrollViews or buttons)
+                            var cancelEvent = MotionEvent.Obtain(
+                                ev.DownTime,
+                                ev.EventTime,
+                                MotionEventActions.Cancel,
+                                ev.GetX(),
+                                ev.GetY(),
+                                0);
+                            if (cancelEvent != null)
+                            {
+                                base.DispatchTouchEvent(cancelEvent);
+                                cancelEvent.Recycle();
+                            }
+
+                            return true; // Consume this move event
+                        }
+                        else
+                        {
+                            // Out of bounds swipe (e.g. swipe right on home page or left on settings page)
+                            // Kill tracking for this gesture to avoid spamming checks
+                            _isSwipeTracking = false;
+                        }
+                    }
+                }
+                break;
+
+            case MotionEventActions.Up:
+            case MotionEventActions.Cancel:
+                _isSwipeTracking = false;
+                break;
+        }
+
+        return base.DispatchTouchEvent(ev);
+    }
+
+    public void NavigateToTab(int delta)
+    {
+        if (_isSwipeNavigating) return;
+
+        if (!IsCurrentPageTab()) return;
+
+        int currentIndex = Controls.CustomTabBar.ActiveIndex;
+        int targetIndex = currentIndex + delta;
+        if (targetIndex < 0 || targetIndex >= AppShell.TabRoutes.Length)
+            return;
+
+        _isSwipeNavigating = true;
+        string route = "//" + AppShell.TabRoutes[targetIndex];
+
+        MainThread.BeginInvokeOnMainThread(async () =>
+        {
+            try
+            {
+                Controls.CustomTabBar.SetActive(targetIndex);
+                await Shell.Current.GoToAsync(route);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[SwipeNavigation] Platform swipe failed: {ex.Message}");
+            }
+            finally
+            {
+                // Delay buffer matching tab transition duration to prevent double-swiping
+                await Task.Delay(300); // Snappy 300ms lock-out
+                _isSwipeNavigating = false;
+            }
+        });
+    }
+
+    private static bool IsCurrentPageTab()
+    {
+        var currentPage = Shell.Current?.CurrentPage;
+        if (currentPage == null) return false;
+
+        string name = currentPage.GetType().Name;
+        return name is "MainPage" or "DownloadsPage" or "HistoryPage" or "SettingsPage";
+    }
 }
