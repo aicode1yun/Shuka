@@ -208,7 +208,7 @@ internal static class Tui
 
         for (int i = 0; i < queue.Count; i++)
         {
-            AnsiConsole.MarkupLine($"[bold]\n[{i + 1}/{queue.Count}] Downloading...[/]");
+            AnsiConsole.MarkupLine($"[bold]\n[[{i + 1}/{queue.Count}]] Downloading...[/]");
             await RunDownloadAsync(downloader, queue[i].Url, 0, queue[i].Cover, translate);
         }
 
@@ -264,30 +264,35 @@ internal static class Tui
         await AnsiConsole.Status()
             .Spinner(Spinner.Known.Dots)
             .SpinnerStyle(Style.Parse("indianred1"))
-            .StartAsync("Gathering book info...", async ctx =>
+            .StartAsync($"[grey]Fetching[/] [dim]{Markup.Escape(url)}[/]", async ctx =>
             {
                 try
                 {
                     book = await downloader.GatherBookInfoAsync(url, chapters, cover);
-                    ctx.Status($"[green]Found:[/] {Markup.Escape(book.TitleEn ?? book.Title)}");
+                    ctx.Status("[green]✓ Book info gathered.[/]");
                 }
                 catch (Exception ex)
                 {
-                    AnsiConsole.MarkupLine($"[red]Error: {Markup.Escape(ex.Message)}[/]");
+                    AnsiConsole.MarkupLine($"[red]  ✗ Error: {Markup.Escape(ex.Message)}[/]");
                 }
             });
 
         if (book == null) return;
 
-        // Show book info panel
-        var panel = new Panel(
-            $"[bold]{Markup.Escape(book.TitleEn ?? book.Title)}[/]\n" +
-            $"[grey]{Markup.Escape(book.AuthorEn ?? book.Author)}[/]\n" +
-            $"[dim]{book.Total} chapters · {book.Adapter.SiteName}[/]")
-            .Border(BoxBorder.Rounded)
-            .BorderColor(Color.IndianRed1)
-            .Padding(1, 0);
-        AnsiConsole.Write(panel);
+        AnsiConsole.WriteLine();
+
+        // Show book info using a clean, left-accented vertical block.
+        // This avoids any right-border misalignment issues caused by CJK wide-character rendering variances in different terminals.
+        string title     = Markup.Escape(book.TitleEn  ?? book.Title);
+        string author    = Markup.Escape(book.AuthorEn ?? book.Author);
+        string source    = Markup.Escape(book.Adapter.SiteName);
+        string chapters2 = book.Total.ToString();
+
+        AnsiConsole.MarkupLine("  [indianred1]Book Info[/]");
+        AnsiConsole.MarkupLine($"  [indianred1]│[/] [grey]Title   [/]  [bold white]{title}[/]");
+        AnsiConsole.MarkupLine($"  [indianred1]│[/] [grey]Author  [/]  [white]{author}[/]");
+        AnsiConsole.MarkupLine($"  [indianred1]│[/] [grey]Source  [/]  [dim]{source}[/]");
+        AnsiConsole.MarkupLine($"  [indianred1]│[/] [grey]Chapters[/]  [dim]{chapters2}[/]");
         AnsiConsole.WriteLine();
 
         if (book.Total == 0)
