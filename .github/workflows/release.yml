@@ -214,10 +214,12 @@ jobs:
 
           ### Supported sites
           - 52shuku.net
+          - 69shuba.com (Cloudflare bypass)
           - czbooks.net (Cloudflare bypass)
           - dmxs.org
-          - 69shuba.com (Cloudflare bypass)
           - quanben.io
+          - situu.cc
+          - yamibo.com
           "@
 
           # Write with Unix line endings

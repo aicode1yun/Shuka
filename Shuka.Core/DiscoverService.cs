@@ -17,6 +17,7 @@ public class DiscoverService
         new DmxsBrowse(),
         new ShukuBrowse(),
         new SituuBrowse(),
+        new YamiboBrowse(),
     ];
 
     public DiscoverService(ICloudflareBypass? cfBypass = null)
