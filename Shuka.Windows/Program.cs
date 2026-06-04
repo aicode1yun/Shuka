@@ -5,7 +5,6 @@ using Shuka.Core;
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 Console.OutputEncoding = Encoding.UTF8;
 
-
 // Parse translation flags
 bool translate = true;
 var argsList = args.ToList();
