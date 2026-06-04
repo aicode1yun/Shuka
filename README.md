@@ -9,8 +9,8 @@ A cross-platform web novel downloader and machine translation (MTL) tool that co
 
 <p align="center">   
      
-[![GitHub Downloads](https://img.shields.io/github/downloads/seizue/Shuka/total?logo=github)](https://github.com/seizue/Shuka/releases)
-[![GitHub Release](https://img.shields.io/github/v/release/seizue/Shuka)](https://github.com/seizue/Shuka/releases)
+[![GitHub Downloads](https://img.shields.io/github/downloads/seizue/Shuka/total)](https://github.com/seizue/Shuka/releases)
+[![GitHub Release](https://img.shields.io/github/v/tag/seizue/Shuka)](https://github.com/seizue/Shuka/releases)
 [![GitHub License](https://img.shields.io/github/license/seizue/Shuka)](https://github.com/seizue/Shuka/blob/main/LICENSE)
 
 </div>
