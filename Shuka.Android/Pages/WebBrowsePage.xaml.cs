@@ -53,6 +53,14 @@ public partial class WebBrowsePage : ContentPage
         // 52shuku.net: /{category}/{folder}/bk{id}.html
         ["52shuku.net"] = url => System.Text.RegularExpressions.Regex.IsMatch(
             url, @"52shuku\.net/[^/]+/[^/]+/bk[^/]+\.html", System.Text.RegularExpressions.RegexOptions.IgnoreCase),
+
+        // situu.cc: /85_85861/
+        ["situu.cc"] = url => System.Text.RegularExpressions.Regex.IsMatch(
+            url, @"situu\.cc/\d+_\d+/?(?:[?#]|$)", System.Text.RegularExpressions.RegexOptions.IgnoreCase),
+
+        // yamibo.com: /novel/{id}
+        ["yamibo.com"] = url => System.Text.RegularExpressions.Regex.IsMatch(
+            url, @"yamibo\.com/novel/\d+/?(?:[?#]|$)", System.Text.RegularExpressions.RegexOptions.IgnoreCase),
     };
 
     /// <summary>Returns true if the URL is a valid novel index page for its site.</summary>
@@ -2146,6 +2154,8 @@ public partial class WebBrowsePage : ContentPage
         ["69shuba.com"] = "e.g. https://www.69shuba.com/book/48273.htm",
         ["dmxs.org"] = "e.g. https://www.dmxs.org/book/23204.html",
         ["52shuku.net"] = "e.g. https://www.52shuku.net/xiandaidushi/08_b/bkdKE.html",
+        ["situu.cc"] = "e.g. https://www.situu.cc/5_5792/",
+        ["yamibo.com"] = "e.g. https://www.yamibo.com/novel/267137",
     };
 
     // Static counter to ensure unique instances

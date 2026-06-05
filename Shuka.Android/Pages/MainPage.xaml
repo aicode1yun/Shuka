@@ -460,7 +460,7 @@
 
                 <!-- Source list -->
                 <ScrollView Grid.Row="1" x:Name="DiscoverSourceScrollView">
-                    <VerticalStackLayout Padding="16,4,16,40" Spacing="12"
+                    <VerticalStackLayout Padding="16,4,16,40" Spacing="10"
                                          x:Name="DiscoverSourceList" />
                 </ScrollView>
 
