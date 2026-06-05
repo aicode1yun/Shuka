@@ -2117,8 +2117,8 @@ public partial class WebBrowsePage : ContentPage
                     }
                     else
                     {
-                        FabDownload.IsVisible = onKnownSite;
-                        FabFetch.IsVisible = onKnownSite;
+                        FabDownload.IsVisible = onNovelPage;
+                        FabFetch.IsVisible = onNovelPage;
                         FabBookmark.IsVisible = onNovelPage;
                         
                         if (onNovelPage)
@@ -2199,8 +2199,8 @@ public partial class WebBrowsePage : ContentPage
 
         MainThread.BeginInvokeOnMainThread(() =>
         {
-            FabDownload.IsVisible = onKnownSite;
-            FabFetch.IsVisible = onKnownSite;
+            FabDownload.IsVisible = onNovelPage;
+            FabFetch.IsVisible = onNovelPage;
             FabBookmark.IsVisible = onNovelPage; // Only show on actual novel pages
 
             // Update bookmark icon state
