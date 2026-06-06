@@ -28,6 +28,7 @@ public partial class MainPage : ContentPage
     private bool _hasMore = false;
     private string _currentQuery = "";
     private CancellationTokenSource? _searchCts;
+    private double _pageWidth = 0; // updated in OnSizeAllocated, used for adaptive grid columns
 
     // Cache definitions
     private record SearchCacheKey(string Query, SearchScope Scope, string? SelectedSourceSiteName, int Page);
@@ -127,6 +128,7 @@ public partial class MainPage : ContentPage
     protected override void OnSizeAllocated(double width, double height)
     {
         base.OnSizeAllocated(width, height);
+        if (width > 0) _pageWidth = width;
         UpdateDiscoverBottomInset();
     }
 
@@ -1530,7 +1532,7 @@ public partial class MainPage : ContentPage
             if (result.IsSuccess && result.Results.Novels.Count > 0)
             {
                 var retryPairs = result.Results.Novels.Select(n => (n, source)).ToList();
-                var retryCards = BuildResultCardPairs(retryPairs);
+                var retryCards = BuildResultCardRows(retryPairs);
                 for (int i = 0; i < retryCards.Count; i++)
                     SearchResultsList.Children.Insert(rowIndex + i, retryCards[i]);
             }
@@ -1599,44 +1601,60 @@ public partial class MainPage : ContentPage
     }
 
     /// <summary>
-    /// Groups merged results into 2-column row Grids and appends them to SearchResultsList.
+    /// Returns the number of grid columns for search results.
+    /// 3 columns on phones, 4 on tablets (≥ 600 dp wide).
+    /// </summary>
+    private int ComputeSearchGridColumns()
+    {
+        double width = _pageWidth > 0
+            ? _pageWidth
+            : DeviceDisplay.Current.MainDisplayInfo.Width / DeviceDisplay.Current.MainDisplayInfo.Density;
+
+        // Tablets and large foldables in landscape
+        if (width >= 600) return 4;
+
+        // Phones (portrait and landscape)
+        return 3;
+    }
+
+    /// <summary>
+    /// Groups merged results into adaptive-column row Grids and appends them to SearchResultsList.
     /// </summary>
     private void AppendResultPairsToList(List<(NovelEntry Novel, IBrowsableAdapter Source)> items)
     {
-        var pairs = BuildResultCardPairs(items);
-        foreach (var row in pairs)
+        var rows = BuildResultCardRows(items);
+        foreach (var row in rows)
             SearchResultsList.Children.Add(row);
     }
 
     /// <summary>
-    /// Builds a list of 2-column row Grid views from the provided novel+source pairs.
-    /// Odd-count lists get a filler in the last row's second column.
+    /// Builds a list of N-column row Grid views from the provided novel+source pairs.
+    /// The last row is padded with transparent fillers when items don't divide evenly.
     /// </summary>
-    private List<View> BuildResultCardPairs(List<(NovelEntry Novel, IBrowsableAdapter Source)> items)
+    private List<View> BuildResultCardRows(List<(NovelEntry Novel, IBrowsableAdapter Source)> items)
     {
+        int cols = ComputeSearchGridColumns();
         var rows = new List<View>();
-        for (int i = 0; i < items.Count; i += 2)
+
+        for (int i = 0; i < items.Count; i += cols)
         {
+            var colDefs = new ColumnDefinitionCollection();
+            for (int c = 0; c < cols; c++)
+                colDefs.Add(new ColumnDefinition { Width = GridLength.Star });
+
             var rowGrid = new Grid
             {
-                ColumnDefinitions = new ColumnDefinitionCollection
-                {
-                    new ColumnDefinition { Width = GridLength.Star },
-                    new ColumnDefinition { Width = GridLength.Star },
-                },
+                ColumnDefinitions = colDefs,
                 ColumnSpacing = 8,
             };
 
-            rowGrid.Add(BuildSearchResultCard(items[i].Source, items[i].Novel), 0, 0);
-
-            if (i + 1 < items.Count)
+            for (int c = 0; c < cols; c++)
             {
-                rowGrid.Add(BuildSearchResultCard(items[i + 1].Source, items[i + 1].Novel), 1, 0);
-            }
-            else
-            {
-                // Filler for odd last item so first column doesn't stretch to full width
-                rowGrid.Add(new BoxView { Color = Colors.Transparent }, 1, 0);
+                int idx = i + c;
+                if (idx < items.Count)
+                    rowGrid.Add(BuildSearchResultCard(items[idx].Source, items[idx].Novel), c, 0);
+                else
+                    rowGrid.Add(new BoxView { Color = Colors.Transparent }, c, 0); // filler
             }
 
             rows.Add(rowGrid);
@@ -1646,8 +1664,8 @@ public partial class MainPage : ContentPage
 
     private View BuildSearchResultCard(IBrowsableAdapter source, NovelEntry novel)
     {
-        // Portrait-style card: large cover on top, info below — fits nicely in 2-column grid
-        const double coverHeight = 130;
+        // Portrait-style card: cover on top, info below — fits nicely in 3-column grid
+        const double coverHeight = 110;
         bool suppressCardTap = false;
 
         // ── Cover ────────────────────────────────────────────────────────────
