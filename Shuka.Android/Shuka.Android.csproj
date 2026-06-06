@@ -34,6 +34,7 @@
     <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" />
     <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#0F1117" BaseSize="128,128" />
     <MauiFont Include="Resources\Fonts\MaterialSymbols.ttf" />
+    <MauiFont Include="Resources\Fonts\Pacifico-Regular.ttf" />
     <MauiImage Include="Resources\Images\tab_home.svg" />
     <MauiImage Include="Resources\Images\tab_settings.svg" />
     <MauiImage Include="Resources\Images\tab_downloads.svg" />

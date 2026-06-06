@@ -28,9 +28,10 @@
             </Border>
 
             <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
-                <Label Text="Chinese → English EPUB"
-                       FontSize="12"
-                       TextColor="{DynamicResource TextMuted}" />
+                <Label Text="Shuka"
+                       FontSize="28"
+                       TextColor="{DynamicResource TextMuted}" 
+                       FontFamily="Pacifico" />
             </VerticalStackLayout>
         </Grid>
 

@@ -12,6 +12,7 @@ public static class MauiProgram
             .ConfigureFonts(fonts =>
             {
                 fonts.AddFont("MaterialSymbols.ttf", "MaterialSymbols");
+                fonts.AddFont("Pacifico-Regular.ttf", "Pacifico");
             })
             .ConfigureMauiHandlers(handlers =>
             {
