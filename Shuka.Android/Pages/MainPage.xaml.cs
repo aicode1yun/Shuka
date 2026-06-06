@@ -1192,10 +1192,7 @@ public partial class MainPage : ContentPage
                     }
                 }
 
-                foreach (var item in merged)
-                {
-                    SearchResultsList.Children.Add(BuildSearchResultCard(item.Source, item.Novel));
-                }
+                AppendResultPairsToList(merged);
 
                 foreach (var fail in failed)
                 {
@@ -1532,11 +1529,10 @@ public partial class MainPage : ContentPage
             SearchResultsList.Children.RemoveAt(rowIndex);
             if (result.IsSuccess && result.Results.Novels.Count > 0)
             {
-                for (int i = 0; i < result.Results.Novels.Count; i++)
-                {
-                    SearchResultsList.Children.Insert(rowIndex + i, 
-                        BuildSearchResultCard(source, result.Results.Novels[i]));
-                }
+                var retryPairs = result.Results.Novels.Select(n => (n, source)).ToList();
+                var retryCards = BuildResultCardPairs(retryPairs);
+                for (int i = 0; i < retryCards.Count; i++)
+                    SearchResultsList.Children.Insert(rowIndex + i, retryCards[i]);
             }
             else
             {
@@ -1602,12 +1598,59 @@ public partial class MainPage : ContentPage
         return btn;
     }
 
+    /// <summary>
+    /// Groups merged results into 2-column row Grids and appends them to SearchResultsList.
+    /// </summary>
+    private void AppendResultPairsToList(List<(NovelEntry Novel, IBrowsableAdapter Source)> items)
+    {
+        var pairs = BuildResultCardPairs(items);
+        foreach (var row in pairs)
+            SearchResultsList.Children.Add(row);
+    }
+
+    /// <summary>
+    /// Builds a list of 2-column row Grid views from the provided novel+source pairs.
+    /// Odd-count lists get a filler in the last row's second column.
+    /// </summary>
+    private List<View> BuildResultCardPairs(List<(NovelEntry Novel, IBrowsableAdapter Source)> items)
+    {
+        var rows = new List<View>();
+        for (int i = 0; i < items.Count; i += 2)
+        {
+            var rowGrid = new Grid
+            {
+                ColumnDefinitions = new ColumnDefinitionCollection
+                {
+                    new ColumnDefinition { Width = GridLength.Star },
+                    new ColumnDefinition { Width = GridLength.Star },
+                },
+                ColumnSpacing = 8,
+            };
+
+            rowGrid.Add(BuildSearchResultCard(items[i].Source, items[i].Novel), 0, 0);
+
+            if (i + 1 < items.Count)
+            {
+                rowGrid.Add(BuildSearchResultCard(items[i + 1].Source, items[i + 1].Novel), 1, 0);
+            }
+            else
+            {
+                // Filler for odd last item so first column doesn't stretch to full width
+                rowGrid.Add(new BoxView { Color = Colors.Transparent }, 1, 0);
+            }
+
+            rows.Add(rowGrid);
+        }
+        return rows;
+    }
+
     private View BuildSearchResultCard(IBrowsableAdapter source, NovelEntry novel)
     {
-        const double coverWidth = 44;
-        const double coverHeight = 62;
+        // Portrait-style card: large cover on top, info below — fits nicely in 2-column grid
+        const double coverHeight = 130;
         bool suppressCardTap = false;
 
+        // ── Cover ────────────────────────────────────────────────────────────
         View coverView;
         if (!string.IsNullOrWhiteSpace(novel.CoverUrl) &&
             Uri.TryCreate(novel.CoverUrl, UriKind.Absolute, out var coverUri))
@@ -1616,15 +1659,15 @@ public partial class MainPage : ContentPage
             {
                 Source = ImageSource.FromUri(coverUri),
                 Aspect = Aspect.AspectFill,
-                WidthRequest = coverWidth,
-                HeightRequest = coverHeight
+                HeightRequest = coverHeight,
+                HorizontalOptions = LayoutOptions.Fill,
             };
             coverView = new Border
             {
                 StrokeThickness = 0,
-                StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 7 },
-                WidthRequest = coverWidth,
+                StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = new CornerRadius(12, 12, 0, 0) },
                 HeightRequest = coverHeight,
+                HorizontalOptions = LayoutOptions.Fill,
                 Content = img,
             };
             ((Border)coverView).SetDynamicResource(Border.BackgroundColorProperty, "BgInput");
@@ -1635,82 +1678,109 @@ public partial class MainPage : ContentPage
             {
                 Source = ImageSource.FromFile("lily.png"),
                 Aspect = Aspect.AspectFit,
-                WidthRequest = 26,
-                HeightRequest = 26,
+                WidthRequest = 36,
+                HeightRequest = 36,
                 HorizontalOptions = LayoutOptions.Center,
                 VerticalOptions = LayoutOptions.Center,
-                Opacity = 0.45,
+                Opacity = 0.35,
             };
             coverView = new Border
             {
                 StrokeThickness = 0,
-                StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 7 },
-                WidthRequest = coverWidth,
+                StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = new CornerRadius(12, 12, 0, 0) },
                 HeightRequest = coverHeight,
+                HorizontalOptions = LayoutOptions.Fill,
                 Content = lilyImg,
             };
             ((Border)coverView).SetDynamicResource(Border.BackgroundColorProperty, "AccentContainer");
         }
 
-        var titleLbl = new Label
+        // ── Bookmark saved badge overlay ─────────────────────────────────────
+        bool isBookmarked = BookmarkService.Instance.IsBookmarked(novel.Url, source!.SiteName);
+        if (isBookmarked)
         {
-            Text = novel.Title,
-            FontSize = 12,
-            FontAttributes = FontAttributes.Bold,
-            LineBreakMode = LineBreakMode.TailTruncation,
-            MaxLines = 2
-        };
-        titleLbl.SetDynamicResource(Label.TextColorProperty, "TextPrimary");
+            var savedBadge = new Border
+            {
+                StrokeThickness = 0,
+                StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 5 },
+                Padding = new Thickness(4, 2),
+                HorizontalOptions = LayoutOptions.End,
+                VerticalOptions = LayoutOptions.Start,
+                Margin = new Thickness(0, 4, 4, 0),
+                Content = new Label
+                {
+                    Text = "\uE866",
+                    FontFamily = "MaterialSymbols",
+                    FontSize = 9,
+                    HorizontalOptions = LayoutOptions.Center,
+                    VerticalOptions = LayoutOptions.Center
+                }
+            };
+            savedBadge.SetDynamicResource(Border.BackgroundColorProperty, "AccentContainer");
+            ((Label)savedBadge.Content).SetDynamicResource(Label.TextColorProperty, "AccentLight");
 
-        string authorText = string.IsNullOrWhiteSpace(novel.Author) ? "Author: Unknown" : $"Author: {novel.Author}";
-        var authorLbl = new Label
-        {
-            Text = authorText,
-            FontSize = 10,
-            LineBreakMode = LineBreakMode.TailTruncation,
-            MaxLines = 1
-        };
-        authorLbl.SetDynamicResource(Label.TextColorProperty, "TextMuted");
+            var coverGrid = new Grid();
+            coverGrid.Add(coverView);
+            coverGrid.Add(savedBadge);
+            coverView = coverGrid;
+        }
 
+        // ── Source badge ─────────────────────────────────────────────────────
         Border? sourceBadge = null;
         if (source != null)
         {
             sourceBadge = new Border
             {
                 StrokeThickness = 0,
-                StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 6 },
-                Padding = new Thickness(6, 2),
+                StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 5 },
+                Padding = new Thickness(5, 2),
                 HorizontalOptions = LayoutOptions.Start,
             };
             sourceBadge.SetDynamicResource(Border.BackgroundColorProperty, "AccentContainer");
-            var badgeLbl = new Label { Text = source.SiteName, FontSize = 9, FontAttributes = FontAttributes.Bold };
+            var badgeLbl = new Label { Text = source.SiteName, FontSize = 8, FontAttributes = FontAttributes.Bold };
             badgeLbl.SetDynamicResource(Label.TextColorProperty, "AccentLight");
             sourceBadge.Content = badgeLbl;
         }
 
-        var metaFlow = new HorizontalStackLayout
+        // ── Title ────────────────────────────────────────────────────────────
+        var titleLbl = new Label
         {
-            Spacing = 8,
-            VerticalOptions = LayoutOptions.Center
+            Text = novel.Title,
+            FontSize = 11,
+            FontAttributes = FontAttributes.Bold,
+            LineBreakMode = LineBreakMode.TailTruncation,
+            MaxLines = 2
         };
-        if (sourceBadge != null) metaFlow.Children.Add(sourceBadge);
-        metaFlow.Children.Add(authorLbl);
+        titleLbl.SetDynamicResource(Label.TextColorProperty, "TextPrimary");
 
-        string chapterText = $"Chapter: {GetChapterSummary(novel)}";
+        // ── Author ───────────────────────────────────────────────────────────
+        string authorText = string.IsNullOrWhiteSpace(novel.Author) ? "Unknown" : novel.Author;
+        var authorLbl = new Label
+        {
+            Text = authorText,
+            FontSize = 9,
+            LineBreakMode = LineBreakMode.TailTruncation,
+            MaxLines = 1
+        };
+        authorLbl.SetDynamicResource(Label.TextColorProperty, "TextMuted");
+
+        // ── Chapter count ─────────────────────────────────────────────────────
+        string chapterText = GetChapterSummary(novel);
         var chapterLbl = new Label
         {
-            Text = chapterText,
-            FontSize = 10,
+            Text = string.IsNullOrWhiteSpace(chapterText) ? "" : $"Ch. {chapterText}",
+            FontSize = 9,
             LineBreakMode = LineBreakMode.TailTruncation,
             MaxLines = 1
         };
         chapterLbl.SetDynamicResource(Label.TextColorProperty, "TextMuted");
 
+        // ── Download button ──────────────────────────────────────────────────
         var dlIcon = new Label
         {
             Text = "\uF090",
             FontFamily = "MaterialSymbols",
-            FontSize = 12,
+            FontSize = 11,
             VerticalOptions = LayoutOptions.Center,
             HorizontalOptions = LayoutOptions.Center
         };
@@ -1720,10 +1790,9 @@ public partial class MainPage : ContentPage
         {
             StrokeThickness = 0,
             StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 6 },
-            WidthRequest = 24,
-            HeightRequest = 24,
+            WidthRequest = 26,
+            HeightRequest = 26,
             Padding = new Thickness(0),
-            HorizontalOptions = LayoutOptions.Start,
             Content = dlIcon,
         };
         dlBtn.SetDynamicResource(Border.BackgroundColorProperty, "Accent");
@@ -1744,41 +1813,12 @@ public partial class MainPage : ContentPage
             })
         });
 
-        bool isBookmarked = BookmarkService.Instance.IsBookmarked(novel.Url, source!.SiteName);
-
-        if (isBookmarked)
-        {
-            var savedBadge = new Border
-            {
-                StrokeThickness = 0,
-                StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 5 },
-                Padding = new Thickness(3, 1),
-                HorizontalOptions = LayoutOptions.End,
-                VerticalOptions = LayoutOptions.Start,
-                Margin = new Thickness(0, 2, 2, 0),
-                Content = new Label
-                {
-                    Text = "\uE866",
-                    FontFamily = "MaterialSymbols",
-                    FontSize = 9,
-                    HorizontalOptions = LayoutOptions.Center,
-                    VerticalOptions = LayoutOptions.Center
-                }
-            };
-            savedBadge.SetDynamicResource(Border.BackgroundColorProperty, "AccentContainer");
-            ((Label)savedBadge.Content).SetDynamicResource(Label.TextColorProperty, "AccentLight");
-
-            var coverGrid = new Grid();
-            coverGrid.Add(coverView);
-            coverGrid.Add(savedBadge);
-            coverView = coverGrid;
-        }
-
+        // ── Bookmark button ──────────────────────────────────────────────────
         var bmIcon = new Label
         {
             Text = isBookmarked ? "\uE866" : "\uE867",
             FontFamily = "MaterialSymbols",
-            FontSize = 12,
+            FontSize = 11,
             VerticalOptions = LayoutOptions.Center,
             HorizontalOptions = LayoutOptions.Center
         };
@@ -1788,10 +1828,9 @@ public partial class MainPage : ContentPage
         {
             StrokeThickness = 1,
             StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 6 },
-            WidthRequest = 24,
-            HeightRequest = 24,
+            WidthRequest = 26,
+            HeightRequest = 26,
             Padding = new Thickness(0),
-            HorizontalOptions = LayoutOptions.Start,
             Content = bmIcon,
         };
         bmBtn.SetDynamicResource(Border.BackgroundColorProperty, isBookmarked ? "AccentContainer" : "BgCard");
@@ -1823,7 +1862,6 @@ public partial class MainPage : ContentPage
                         source!.SiteName,
                         knownCount,
                         novel.CoverUrl);
-                    // If the listing didn't include a chapter count, fetch it in the background
                     if (knownCount == 0)
                         _ = Task.Run(async () =>
                         {
@@ -1847,38 +1885,48 @@ public partial class MainPage : ContentPage
             })
         });
 
+        // ── Action row ───────────────────────────────────────────────────────
         var actionRow = new HorizontalStackLayout
         {
             Spacing = 4,
+            HorizontalOptions = LayoutOptions.End,
             Children = { dlBtn, bmBtn }
         };
 
-        var textStack = new VerticalStackLayout
-        {
-            Spacing = 2,
-            VerticalOptions = LayoutOptions.Center,
-            Children = { titleLbl, metaFlow, chapterLbl, actionRow }
-        };
+        // ── Info stack (bottom of card) ──────────────────────────────────────
+        var infoRows = new VerticalStackLayout { Spacing = 0 };
+        if (sourceBadge != null) infoRows.Children.Add(sourceBadge);
+        infoRows.Children.Add(titleLbl);
+        infoRows.Children.Add(authorLbl);
+        if (!string.IsNullOrWhiteSpace(chapterLbl.Text)) infoRows.Children.Add(chapterLbl);
 
-        var grid = new Grid
+        var bottomSection = new Grid
         {
             ColumnDefinitions = new ColumnDefinitionCollection
             {
-                new ColumnDefinition { Width = GridLength.Auto },
                 new ColumnDefinition { Width = GridLength.Star },
+                new ColumnDefinition { Width = GridLength.Auto },
             },
-            ColumnSpacing = 8,
-            Padding = new Thickness(10),
+            Padding = new Thickness(8, 6),
+            ColumnSpacing = 4,
         };
-        grid.Add(coverView, 0, 0);
-        grid.Add(textStack, 1, 0);
+        bottomSection.Add(infoRows, 0, 0);
+        bottomSection.Add(actionRow, 1, 0);
+        Grid.SetRowSpan(bottomSection.Children[0] as View ?? new BoxView(), 1);
+
+        // ── Assemble portrait card ───────────────────────────────────────────
+        var cardContent = new VerticalStackLayout
+        {
+            Spacing = 0,
+            Children = { coverView, bottomSection }
+        };
 
         var card = new Border
         {
             StrokeThickness = 1,
             StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 12 },
             Padding = new Thickness(0),
-            Content = grid,
+            Content = cardContent,
             HorizontalOptions = LayoutOptions.Fill,
         };
         card.SetDynamicResource(Border.BackgroundColorProperty, "BgCard");
@@ -1889,25 +1937,20 @@ public partial class MainPage : ContentPage
             {
                 if (suppressCardTap)
                     return;
-                
-                // Immediate visual feedback - faster animation
+
                 var scaleTask = card.ScaleToAsync(0.95, 50, Easing.CubicOut);
-                
-                // Create WebBrowsePage on background thread to avoid UI blocking
+
                 WebBrowsePage? webPage = null;
                 await Task.Run(() =>
                 {
                     webPage = new WebBrowsePage(novel.Url);
                 });
-                
-                // Wait for animation and navigate
+
                 await scaleTask;
                 await card.ScaleToAsync(1.0, 100, Easing.SpringOut);
-                
+
                 if (webPage != null)
-                {
                     await Shell.Current.Navigation.PushAsync(webPage);
-                }
             })
         });
         return card;

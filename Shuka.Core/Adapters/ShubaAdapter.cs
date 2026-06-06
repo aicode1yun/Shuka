@@ -20,6 +20,7 @@ namespace Shuka.Core.Adapters;
 public class ShubaAdapter : ISiteAdapter
 {
     public string SiteName => "69shuba.com";
+    public bool RequiresCfBypass => true;
 
     public bool Matches(string url) =>
         url.Contains("69shuba.com", StringComparison.OrdinalIgnoreCase);

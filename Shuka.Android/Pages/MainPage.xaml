@@ -525,7 +525,7 @@
                            TextColor="{DynamicResource TextMuted}"
                            Margin="20,12,20,4" />
                     <ScrollView Grid.Row="1">
-                        <VerticalStackLayout Padding="16,4,16,40" Spacing="16"
+                        <VerticalStackLayout Padding="16,4,16,40" Spacing="8"
                                              x:Name="SearchResultsList" />
                     </ScrollView>
                 </Grid>

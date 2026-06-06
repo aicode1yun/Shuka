@@ -32,8 +32,14 @@ public class HttpFetcher : IDisposable
     }
 
     public async Task<string> Fetch(string url, int retries = 3, Action<string>? log = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default, bool forceBypass = false)
     {
+        if (forceBypass && _cfBypass != null)
+        {
+            log?.Invoke($"[CF bypass] Forcing bypass on {url}");
+            return await _cfBypass.FetchAsync(url);
+        }
+
         int delay = 500;
         Exception? last = null;
 
@@ -148,7 +154,27 @@ public class HttpFetcher : IDisposable
             {
                 throw;
             }
-            catch (Exception ex) { last = ex; await Task.Delay(delay, ct); delay = Math.Min(delay * 2, 8000); }
+            catch (Exception ex)
+            {
+                last = ex;
+                bool isKnownCfSite = url.Contains("69shuba.com", StringComparison.OrdinalIgnoreCase) ||
+                                     url.Contains("yamibo.com", StringComparison.OrdinalIgnoreCase) ||
+                                     url.Contains("czbooks.net", StringComparison.OrdinalIgnoreCase);
+                if (isKnownCfSite && _cfBypass != null)
+                {
+                    log?.Invoke($"[CF bypass] Request/connection failed on {url} ({ex.Message}). Falling back to CF bypass...");
+                    try
+                    {
+                        return await _cfBypass.FetchAsync(url);
+                    }
+                    catch (Exception bypassEx)
+                    {
+                        last = new Exception($"Standard fetch failed: {ex.Message}. Bypass also failed: {bypassEx.Message}", ex);
+                    }
+                }
+                await Task.Delay(delay, ct);
+                delay = Math.Min(delay * 2, 8000);
+            }
         }
 
         throw new Exception($"Fetch failed: {url} — {last?.Message}");

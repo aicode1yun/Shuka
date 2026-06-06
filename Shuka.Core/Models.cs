@@ -8,6 +8,7 @@ public interface ISiteAdapter
     string NormalizeUrl(string url);
     IndexInfo ParseIndex(string html, string indexUrl);
     List<string> ExtractChapterText(string html);
+    bool RequiresCfBypass => false;
 }
 
 // Parsed index result from an adapter

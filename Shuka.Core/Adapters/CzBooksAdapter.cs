@@ -8,6 +8,7 @@ namespace Shuka.Core.Adapters;
 public class CzBooksAdapter : ISiteAdapter
 {
     public string SiteName => "czbooks.net";
+    public bool RequiresCfBypass => true;
 
     public bool Matches(string url) =>
         url.Contains("czbooks.net", StringComparison.OrdinalIgnoreCase);

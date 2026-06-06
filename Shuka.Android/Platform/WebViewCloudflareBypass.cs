@@ -40,10 +40,14 @@ public class WebViewCloudflareBypass : ICloudflareBypass
         {
             var webView = new WebView
             {
-                IsVisible     = false,
-                WidthRequest  = 1,
-                HeightRequest = 1,
-                Source        = new UrlWebViewSource { Url = url }
+                // Keep visible in the render tree so Android doesn't throttle JS execution.
+                // Opacity near-zero makes it invisible to the user while staying active.
+                IsVisible      = true,
+                Opacity        = 0.01,
+                InputTransparent = true,
+                WidthRequest   = 1,
+                HeightRequest  = 1,
+                Source         = new UrlWebViewSource { Url = url }
             };
 
             var (hostLayout, overlay) = AttachWebView(webView);
@@ -212,9 +216,13 @@ public class WebViewCloudflareBypass : ICloudflareBypass
     {
         var overlay = new Grid
         {
-            IsVisible     = false,
-            WidthRequest  = 1,
-            HeightRequest = 1
+            // Keep overlay visible so Android allocates a rendering surface for the WebView.
+            // Near-zero opacity keeps it completely invisible to the user.
+            IsVisible        = true,
+            Opacity          = 0.01,
+            InputTransparent = true,
+            WidthRequest     = 1,
+            HeightRequest    = 1
         };
         overlay.Add(webView);
 

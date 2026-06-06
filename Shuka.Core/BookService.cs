@@ -67,7 +67,7 @@ public class BookService
         indexUrl = adapter.NormalizeUrl(indexUrl);
         log?.Invoke($"Gathering [{adapter.SiteName}]: {indexUrl}");
 
-        string html = await _fetcher.Fetch(indexUrl, log: log, ct: ct);
+        string html = await _fetcher.Fetch(indexUrl, log: log, ct: ct, forceBypass: adapter.RequiresCfBypass);
         var info = adapter.ParseIndex(html, indexUrl);
 
         // Apply from/to range
@@ -192,7 +192,7 @@ public class BookService
             {
                 try
                 {
-                    html = await _fetcher.Fetch(ch.Url, log: log, ct: ct);
+                    html = await _fetcher.Fetch(ch.Url, log: log, ct: ct, forceBypass: book.Adapter.RequiresCfBypass);
                     break;
                 }
                 catch (OperationCanceledException) { throw; }

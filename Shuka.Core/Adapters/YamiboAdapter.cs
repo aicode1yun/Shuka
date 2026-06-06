@@ -15,6 +15,7 @@ namespace Shuka.Core.Adapters;
 public class YamiboAdapter : ISiteAdapter
 {
     public string SiteName => "yamibo.com";
+    public bool RequiresCfBypass => true;
 
     public bool Matches(string url) =>
         url.Contains("yamibo.com", StringComparison.OrdinalIgnoreCase);
