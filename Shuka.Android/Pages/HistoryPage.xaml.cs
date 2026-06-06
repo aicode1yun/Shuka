@@ -7,6 +7,8 @@ namespace Shuka.Android.Pages;
 
 public partial class HistoryPage : ContentPage
 {
+    private const string PrefKeyViewMode = "history_view_mode";
+
     private readonly Dictionary<Guid, HistoryCard> _cards = new();
     private string _searchQuery = "";
 
@@ -14,13 +16,20 @@ public partial class HistoryPage : ContentPage
     private SortField _sortField     = SortField.Date;
     private bool      _sortAscending = false; // date defaults to newest-first
 
+    private bool _isOptionsSheetOpen;
+    private HistoryEntry? _activeOptionsEntry;
+    private bool _isCompactView;
+    private double _lastWidth = -1;
+
     public HistoryPage()
     {
         InitializeComponent();
         HistoryService.Instance.Entries.CollectionChanged += OnCollectionChanged;
 
-        foreach (var entry in HistoryService.Instance.Entries)
-            AddCard(entry);
+        _isCompactView = Preferences.Default.Get(PrefKeyViewMode, false);
+        RefreshToggleViewPill();
+
+        RebuildCards();
 
         RefreshSortPills();
         ApplyFilter();
@@ -66,7 +75,8 @@ public partial class HistoryPage : ContentPage
         if (_cards.ContainsKey(entry.Id)) return;
         var card = BuildCard(entry);
         _cards[entry.Id] = card;
-        CardList.Add(card); // order managed by RebuildCardOrder
+
+        ApplyFilter();
     }
 
     private async Task AddCardWithAnimationAsync(HistoryEntry entry)
@@ -77,7 +87,9 @@ public partial class HistoryPage : ContentPage
         card.TranslationY = -20;
         card.Scale = 0.95;
         _cards[entry.Id] = card;
-        CardList.Add(card);
+
+        ApplyFilter();
+
         await Task.WhenAll(
             card.FadeToAsync(1.0, 350, Easing.CubicOut),
             card.TranslateToAsync(0, 0, 350, Easing.CubicOut),
@@ -90,17 +102,15 @@ public partial class HistoryPage : ContentPage
         await Task.WhenAll(
             card.FadeToAsync(0, 250, Easing.CubicIn),
             card.ScaleToAsync(0.9, 250, Easing.CubicIn));
-        CardList.Remove(card);
         _cards.Remove(entry.Id);
+        ApplyFilter();
     }
 
     private HistoryCard BuildCard(HistoryEntry entry)
     {
-        var card = new HistoryCard(entry);
-        card.OpenRequested        += OnOpenRequested;
-        card.ShareRequested       += OnShareRequested;
-        card.DeleteRequested      += OnDeleteRequested;
-        card.RedownloadRequested  += OnRedownloadRequested;
+        var card = new HistoryCard(entry, _isCompactView);
+        card.OpenRequested    += OnOpenRequested;
+        card.OptionsRequested += OnOptionsRequested;
         return card;
     }
 
@@ -205,6 +215,7 @@ public partial class HistoryPage : ContentPage
             EmptyState.IsVisible     = true;
             NoResultsState.IsVisible = false;
             ListScroll.IsVisible     = false;
+            GridScroll.IsVisible     = false;
             return;
         }
 
@@ -217,18 +228,62 @@ public partial class HistoryPage : ContentPage
               .ToList()
             : sorted;
 
-        // Rebuild card order in CardList to match sorted order
+        double width = _lastWidth;
+        if (width <= 0)
+        {
+            width = DeviceDisplay.Current.MainDisplayInfo.Width / DeviceDisplay.Current.MainDisplayInfo.Density;
+        }
+
+        double cardWidth = 80;
+        double cardHeight = 120;
+        if (width > 48)
+        {
+            cardWidth = (width - 48) / 4;
+            cardHeight = cardWidth * 1.5;
+        }
+
+        // Rebuild card order in CardList and CardGrid to match sorted order
         CardList.Clear();
+        CardGrid.Children.Clear();
+        CardGrid.RowDefinitions.Clear();
+
+        int index = 0;
         foreach (var entry in filtered)
         {
             if (_cards.TryGetValue(entry.Id, out var card))
-                CardList.Add(card);
+            {
+                if (_isCompactView)
+                {
+                    card.WidthRequest = cardWidth;
+                    card.HeightRequest = cardHeight;
+
+                    int row = index / 4;
+                    int col = index % 4;
+
+                    if (col == 0)
+                    {
+                        CardGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+                    }
+
+                    Grid.SetColumn(card, col);
+                    Grid.SetRow(card, row);
+                    CardGrid.Children.Add(card);
+                }
+                else
+                {
+                    card.WidthRequest = -1;
+                    card.HeightRequest = -1;
+                    CardList.Add(card);
+                }
+                index++;
+            }
         }
 
         int visibleCount = filtered.Count();
 
         EmptyState.IsVisible     = false;
-        ListScroll.IsVisible     = visibleCount > 0;
+        ListScroll.IsVisible     = visibleCount > 0 && !_isCompactView;
+        GridScroll.IsVisible     = visibleCount > 0 && _isCompactView;
         NoResultsState.IsVisible = visibleCount == 0;
 
         if (visibleCount == 0 && isSearching)
@@ -401,5 +456,160 @@ public partial class HistoryPage : ContentPage
         // Navigate to Downloads tab so the user can watch progress
         if (Shell.Current != null)
             await Shell.Current.GoToAsync("//DownloadsPage");
+    }
+
+    // ── Options sheet ─────────────────────────────────────────────────────────
+
+    private async void OnOptionsRequested(HistoryEntry entry)
+    {
+        await ShowOptionsSheetAsync(entry);
+    }
+
+    private async Task ShowOptionsSheetAsync(HistoryEntry entry)
+    {
+        if (_isOptionsSheetOpen || entry == null)
+            return;
+
+        _isOptionsSheetOpen = true;
+        _activeOptionsEntry = entry;
+        OptionsSheetSubtitle.Text = entry.Title;
+
+        bool fileExists = EpubOpener.IsAccessible(entry.EpubPath);
+        OptionsSheetShareBtn.IsVisible = fileExists;
+        OptionsSheetRedownloadBtn.IsVisible = !fileExists;
+
+        OptionsSheetOverlay.IsVisible = true;
+        OptionsSheetOverlay.Opacity = 0;
+        OptionsSheet.Opacity = 0;
+        OptionsSheet.TranslationY = 28;
+
+        UpdateSheetBottomMargins();
+
+        await Task.WhenAll(
+            OptionsSheetOverlay.FadeToAsync(1, 160, Easing.CubicOut),
+            OptionsSheet.FadeToAsync(1, 180, Easing.CubicOut),
+            OptionsSheet.TranslateToAsync(0, 0, 180, Easing.CubicOut));
+    }
+
+    private async Task HideOptionsSheetAsync()
+    {
+        if (!_isOptionsSheetOpen)
+            return;
+
+        _isOptionsSheetOpen = false;
+        await Task.WhenAll(
+            OptionsSheet.FadeToAsync(0, 140, Easing.CubicIn),
+            OptionsSheet.TranslateToAsync(0, 24, 140, Easing.CubicIn),
+            OptionsSheetOverlay.FadeToAsync(0, 140, Easing.CubicIn));
+        OptionsSheetOverlay.IsVisible = false;
+        _activeOptionsEntry = null;
+    }
+
+    private async void OnOptionsSheetOverlayTapped(object sender, TappedEventArgs e)
+    {
+        await HideOptionsSheetAsync();
+    }
+
+    private void OnOptionsSheetTapped(object sender, TappedEventArgs e)
+    {
+        // Swallow tap so overlay handler does not close it.
+    }
+
+    private async void OnOptionsSheetCloseTapped(object sender, TappedEventArgs e)
+    {
+        await HideOptionsSheetAsync();
+    }
+
+    private async void OnOptionsSheetShareTapped(object sender, TappedEventArgs e)
+    {
+        if (_activeOptionsEntry == null) return;
+        var entry = _activeOptionsEntry;
+        await HideOptionsSheetAsync();
+        OnShareRequested(entry);
+    }
+
+    private async void OnOptionsSheetRedownloadTapped(object sender, TappedEventArgs e)
+    {
+        if (_activeOptionsEntry == null) return;
+        var entry = _activeOptionsEntry;
+        await HideOptionsSheetAsync();
+        OnRedownloadRequested(entry);
+    }
+
+    private async void OnOptionsSheetRemoveTapped(object sender, TappedEventArgs e)
+    {
+        if (_activeOptionsEntry == null) return;
+        var entry = _activeOptionsEntry;
+        await HideOptionsSheetAsync();
+        OnDeleteRequested(entry);
+    }
+
+    private void UpdateSheetBottomMargins()
+    {
+        double bottomInset = 16;
+#if ANDROID
+        if (MainActivity.Instance is { } activity)
+            bottomInset = Math.Max(bottomInset, activity.GetOverlayBottomInsetDip(14));
+#endif
+
+        OptionsSheet.Margin = new Thickness(12, 0, 12, bottomInset);
+    }
+
+    protected override void OnSizeAllocated(double width, double height)
+    {
+        base.OnSizeAllocated(width, height);
+        UpdateSheetBottomMargins();
+
+        if (width > 0 && Math.Abs(_lastWidth - width) > 0.1)
+        {
+            _lastWidth = width;
+            ApplyFilter();
+        }
+    }
+
+    private void RebuildCards()
+    {
+        _cards.Clear();
+        foreach (var entry in HistoryService.Instance.Entries)
+        {
+            var card = BuildCard(entry);
+            _cards[entry.Id] = card;
+        }
+    }
+
+    private void RefreshToggleViewPill()
+    {
+        if (_isCompactView)
+        {
+            ToggleViewPill.SetDynamicResource(Border.BackgroundColorProperty, "AccentContainer");
+            ToggleViewPill.SetDynamicResource(Border.StrokeProperty, "AccentLight");
+            ToggleViewIcon.SetDynamicResource(Label.TextColorProperty, "AccentLight");
+            ToggleViewIcon.Text = "\uE9B0"; // grid_view
+            ToggleViewLabel.SetDynamicResource(Label.TextColorProperty, "AccentLight");
+            ToggleViewLabel.Text = "Grid";
+        }
+        else
+        {
+            ToggleViewPill.SetDynamicResource(Border.BackgroundColorProperty, "BgInput");
+            ToggleViewPill.SetDynamicResource(Border.StrokeProperty, "Stroke");
+            ToggleViewIcon.SetDynamicResource(Label.TextColorProperty, "TextMuted");
+            ToggleViewIcon.Text = "\uE8EF"; // view_list
+            ToggleViewLabel.SetDynamicResource(Label.TextColorProperty, "TextMuted");
+            ToggleViewLabel.Text = "List";
+        }
+    }
+
+    private async void OnToggleViewTapped(object sender, TappedEventArgs e)
+    {
+        var btn = (Border)sender;
+        await btn.ScaleToAsync(0.95, 70, Easing.CubicOut);
+        await btn.ScaleToAsync(1.0, 70, Easing.SpringOut);
+
+        _isCompactView = !_isCompactView;
+        Preferences.Default.Set(PrefKeyViewMode, _isCompactView);
+
+        RefreshToggleViewPill();
+        RebuildCards();
+        ApplyFilter();
     }
 }

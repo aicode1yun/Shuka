@@ -9,192 +9,295 @@ namespace Shuka.Android.Pages;
 public class HistoryCard : ContentView
 {
     public event Action<HistoryEntry>? OpenRequested;
-    public event Action<HistoryEntry>? ShareRequested;
-    public event Action<HistoryEntry>? DeleteRequested;
-    public event Action<HistoryEntry>? RedownloadRequested;
+    public event Action<HistoryEntry>? OptionsRequested;
 
     private readonly HistoryEntry _entry;
 
-    public HistoryCard(HistoryEntry entry)
+    public HistoryCard(HistoryEntry entry, bool isCompact)
     {
         _entry = entry;
-
-        // ── Cover image ───────────────────────────────────────────────────────
-        View coverView;
-        if (!string.IsNullOrWhiteSpace(entry.CoverLocalPath) &&
-            File.Exists(entry.CoverLocalPath))
-        {
-            var img = new Image
-            {
-                Source            = ImageSource.FromFile(entry.CoverLocalPath),
-                Aspect            = Aspect.AspectFill,
-                WidthRequest      = 72,
-                HeightRequest     = 112,
-                HorizontalOptions = LayoutOptions.Center,
-                VerticalOptions   = LayoutOptions.Center,
-            };
-            coverView = new Border
-            {
-                StrokeThickness = 0,
-                StrokeShape     = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 10 },
-                WidthRequest    = 72,
-                HeightRequest   = 112,
-                Content         = img,
-            };
-            ((Border)coverView).SetDynamicResource(Border.BackgroundColorProperty, "BgInput");
-        }
-        else
-        {
-            // Fallback: show the Shuka lily icon when no cover is available
-            var lilyImg = new Image
-            {
-                Source            = ImageSource.FromFile("lily.png"),
-                Aspect            = Aspect.AspectFit,
-                WidthRequest      = 40,
-                HeightRequest     = 40,
-                HorizontalOptions = LayoutOptions.Center,
-                VerticalOptions   = LayoutOptions.Center,
-                Opacity           = 0.45,
-            };
-
-            coverView = new Border
-            {
-                StrokeThickness = 0,
-                StrokeShape     = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 10 },
-                WidthRequest    = 72,
-                HeightRequest   = 112,
-                Content         = lilyImg,
-            };
-            ((Border)coverView).SetDynamicResource(Border.BackgroundColorProperty, "AccentContainer");
-        }
-
-        // ── Title ─────────────────────────────────────────────────────────────
-        var titleLabel = new Label
-        {
-            Text          = entry.Title,
-            FontSize      = 14,
-            FontAttributes = FontAttributes.Bold,
-            LineBreakMode = LineBreakMode.TailTruncation,
-            MaxLines      = 2,
-        };
-        titleLabel.SetDynamicResource(Label.TextColorProperty, "TextPrimary");
-
-        // ── Author ────────────────────────────────────────────────────────────
-        var authorLabel = new Label
-        {
-            Text          = string.IsNullOrWhiteSpace(entry.Author) ? "" : entry.Author,
-            FontSize      = 12,
-            LineBreakMode = LineBreakMode.TailTruncation,
-            MaxLines      = 1,
-            IsVisible     = !string.IsNullOrWhiteSpace(entry.Author),
-        };
-        authorLabel.SetDynamicResource(Label.TextColorProperty, "TextMuted");
-
-        // ── Meta (chapters + date) ────────────────────────────────────────────
-        var metaLabel = new Label
-        {
-            Text     = $"{entry.ChapterCount} chapters  ·  {entry.CompletedAt:MMM d, yyyy}",
-            FontSize = 11,
-        };
-        metaLabel.SetDynamicResource(Label.TextColorProperty, "TextMuted");
-
-        // ── File exists indicator ─────────────────────────────────────────────
         bool fileExists = IsEpubAccessible(entry.EpubPath);
-        var fileLabel = new Label
-        {
-            Text      = fileExists ? "\uE876  File available" : "\uE5CD  File missing",
-            FontSize  = 11,
-        };
-        fileLabel.SetDynamicResource(Label.TextColorProperty,
-            fileExists ? "Success" : "TextMuted");
 
-        var textStack = new VerticalStackLayout
+        if (isCompact)
         {
-            Spacing         = 4,
-            VerticalOptions = LayoutOptions.Center,
-            Children        = { titleLabel, authorLabel, metaLabel, fileLabel }
-        };
-
-        // ── Action buttons — differ based on whether file exists ─────────────
-        Grid btnRow;
-        if (fileExists)
-        {
-            // File present: Open · Share · Remove
-            var openBtn  = MakeActionBtn("\uE2C7", "Open",   "Accent",  () => OpenRequested?.Invoke(_entry));
-            var shareBtn = MakeActionBtn("\uE6B8", "Share",  "BgInput", () => ShareRequested?.Invoke(_entry),  outlined: true);
-            var delBtn   = MakeActionBtn("\uE872", "Remove", "BgInput", () => DeleteRequested?.Invoke(_entry), outlined: true, danger: true);
-
-            btnRow = new Grid
+            // ── Grid view (Compact Grid style like Tachiyomi) ────────────────
+            View coverView;
+            if (!string.IsNullOrWhiteSpace(entry.CoverLocalPath) && File.Exists(entry.CoverLocalPath))
             {
-                ColumnDefinitions = new ColumnDefinitionCollection
+                coverView = new Image
                 {
-                    new ColumnDefinition { Width = GridLength.Star },
-                    new ColumnDefinition { Width = new GridLength(8) },
-                    new ColumnDefinition { Width = GridLength.Star },
-                    new ColumnDefinition { Width = new GridLength(8) },
-                    new ColumnDefinition { Width = GridLength.Star },
-                },
-                Margin = new Thickness(0, 8, 0, 0),
+                    Source = ImageSource.FromFile(entry.CoverLocalPath),
+                    Aspect = Aspect.AspectFill,
+                };
+            }
+            else
+            {
+                var lilyImg = new Image
+                {
+                    Source            = ImageSource.FromFile("lily.png"),
+                    Aspect            = Aspect.AspectFit,
+                    WidthRequest      = 28,
+                    HeightRequest     = 28,
+                    HorizontalOptions = LayoutOptions.Center,
+                    VerticalOptions   = LayoutOptions.Center,
+                    Opacity           = 0.45,
+                };
+                var fallbackGrid = new Grid();
+                fallbackGrid.SetDynamicResource(Grid.BackgroundColorProperty, "AccentContainer");
+                fallbackGrid.Add(lilyImg);
+                coverView = fallbackGrid;
+            }
+
+            var titleLabel = new Label
+            {
+                Text          = entry.Title,
+                FontSize      = 10.5,
+                FontAttributes = FontAttributes.Bold,
+                TextColor     = Colors.White,
+                LineBreakMode = LineBreakMode.TailTruncation,
+                MaxLines      = 2,
+                Margin        = new Thickness(6, 4),
+                VerticalOptions = LayoutOptions.Center,
             };
-            btnRow.Add(openBtn,  0, 0);
-            btnRow.Add(shareBtn, 2, 0);
-            btnRow.Add(delBtn,   4, 0);
+
+            var titleOverlay = new Border
+            {
+                StrokeThickness = 0,
+                BackgroundColor = Color.FromRgba(0, 0, 0, 160), // semi-transparent black
+                StrokeShape     = new Microsoft.Maui.Controls.Shapes.RoundRectangle 
+                { 
+                    CornerRadius = new CornerRadius(0, 0, 12, 12) 
+                },
+                VerticalOptions = LayoutOptions.End,
+                Content         = titleLabel,
+            };
+
+            // Options button overlayed on the top right
+            var moreIcon = new Label
+            {
+                Text            = "\uE5D4", // more_vert
+                FontFamily      = "MaterialSymbols",
+                FontSize        = 16,
+                TextColor       = Colors.White,
+                HorizontalOptions = LayoutOptions.Center,
+                VerticalOptions   = LayoutOptions.Center,
+            };
+
+            var moreBtn = new Border
+            {
+                StrokeThickness = 0,
+                BackgroundColor = Color.FromRgba(0, 0, 0, 120),
+                StrokeShape     = new Microsoft.Maui.Controls.Shapes.Ellipse(),
+                WidthRequest    = 24,
+                HeightRequest   = 24,
+                HorizontalOptions = LayoutOptions.End,
+                VerticalOptions = LayoutOptions.Start,
+                Margin          = new Thickness(4),
+                Content         = moreIcon,
+            };
+
+            moreBtn.GestureRecognizers.Add(new TapGestureRecognizer
+            {
+                Command = new Command(async () =>
+                {
+                    await moreBtn.ScaleToAsync(0.85, 70, Easing.CubicOut);
+                    await moreBtn.ScaleToAsync(1.0,  70, Easing.SpringOut);
+                    OptionsRequested?.Invoke(_entry);
+                })
+            });
+
+            var cardGrid = new Grid();
+            cardGrid.Add(coverView);
+            cardGrid.Add(titleOverlay);
+            cardGrid.Add(moreBtn);
+
+            var card = new Border
+            {
+                StrokeThickness = 1,
+                StrokeShape     = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 12 },
+                Padding         = new Thickness(0),
+                Content         = cardGrid,
+            };
+            card.SetDynamicResource(Border.BackgroundColorProperty, "BgCard");
+            if (fileExists)
+                card.SetDynamicResource(Border.StrokeProperty, "Stroke");
+            else
+                card.SetDynamicResource(Border.StrokeProperty, "Warning");
+
+            card.GestureRecognizers.Add(new TapGestureRecognizer
+            {
+                Command = new Command(async () =>
+                {
+                    await card.ScaleToAsync(0.95, 60, Easing.CubicOut);
+                    await card.ScaleToAsync(1.0,  60, Easing.SpringOut);
+                    OpenRequested?.Invoke(_entry);
+                })
+            });
+
+            Content = card;
         }
         else
         {
-            // File missing: Re-download · Remove
-            var redownloadBtn = MakeActionBtn("\uF090", "Re-download", "Accent",  () => RedownloadRequested?.Invoke(_entry));
-            var delBtn        = MakeActionBtn("\uE872", "Remove",      "BgInput", () => DeleteRequested?.Invoke(_entry), outlined: true, danger: true);
+            // ── List view (standard layout) ──────────────────────────────────
+            View coverView;
+            if (!string.IsNullOrWhiteSpace(entry.CoverLocalPath) &&
+                File.Exists(entry.CoverLocalPath))
+            {
+                var img = new Image
+                {
+                    Source            = ImageSource.FromFile(entry.CoverLocalPath),
+                    Aspect            = Aspect.AspectFill,
+                    WidthRequest      = 60,
+                    HeightRequest     = 90,
+                    HorizontalOptions = LayoutOptions.Center,
+                    VerticalOptions   = LayoutOptions.Center,
+                };
+                coverView = new Border
+                {
+                    StrokeThickness = 0,
+                    StrokeShape     = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 8 },
+                    WidthRequest    = 60,
+                    HeightRequest   = 90,
+                    Content         = img,
+                };
+                ((Border)coverView).SetDynamicResource(Border.BackgroundColorProperty, "BgInput");
+            }
+            else
+            {
+                var lilyImg = new Image
+                {
+                    Source            = ImageSource.FromFile("lily.png"),
+                    Aspect            = Aspect.AspectFit,
+                    WidthRequest      = 32,
+                    HeightRequest     = 32,
+                    HorizontalOptions = LayoutOptions.Center,
+                    VerticalOptions   = LayoutOptions.Center,
+                    Opacity           = 0.45,
+                };
 
-            btnRow = new Grid
+                coverView = new Border
+                {
+                    StrokeThickness = 0,
+                    StrokeShape     = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 8 },
+                    WidthRequest    = 60,
+                    HeightRequest   = 90,
+                    Content         = lilyImg,
+                };
+                ((Border)coverView).SetDynamicResource(Border.BackgroundColorProperty, "AccentContainer");
+            }
+
+            var titleLabel = new Label
+            {
+                Text          = entry.Title,
+                FontSize      = 14,
+                FontAttributes = FontAttributes.Bold,
+                LineBreakMode = LineBreakMode.TailTruncation,
+                MaxLines      = 2,
+            };
+            titleLabel.SetDynamicResource(Label.TextColorProperty, "TextPrimary");
+
+            var authorLabel = new Label
+            {
+                Text          = string.IsNullOrWhiteSpace(entry.Author) ? "" : entry.Author,
+                FontSize      = 12,
+                LineBreakMode = LineBreakMode.TailTruncation,
+                MaxLines      = 1,
+                IsVisible     = !string.IsNullOrWhiteSpace(entry.Author),
+            };
+            authorLabel.SetDynamicResource(Label.TextColorProperty, "TextMuted");
+
+            var metaLabel = new Label
+            {
+                Text     = $"{entry.ChapterCount} chapters  ·  {entry.CompletedAt:MMM d, yyyy}",
+                FontSize = 11,
+            };
+            metaLabel.SetDynamicResource(Label.TextColorProperty, "TextMuted");
+
+            var fileLabel = new Label
+            {
+                Text      = fileExists ? "\uE876  File available" : "\uE5CD  File missing",
+                FontSize  = 11,
+            };
+            fileLabel.SetDynamicResource(Label.TextColorProperty,
+                fileExists ? "Success" : "TextMuted");
+
+            var textStack = new VerticalStackLayout
+            {
+                Spacing         = 4,
+                VerticalOptions = LayoutOptions.Center,
+                Children        = { titleLabel, authorLabel, metaLabel, fileLabel }
+            };
+
+            var moreIcon = new Label
+            {
+                Text            = "\uE5D4", // more_vert
+                FontFamily      = "MaterialSymbols",
+                FontSize        = 20,
+                HorizontalOptions = LayoutOptions.Center,
+                VerticalOptions   = LayoutOptions.Center,
+            };
+            moreIcon.SetDynamicResource(Label.TextColorProperty, "TextMuted");
+
+            var moreBtn = new Border
+            {
+                StrokeThickness = 0,
+                BackgroundColor = Colors.Transparent,
+                WidthRequest    = 40,
+                HeightRequest   = 40,
+                VerticalOptions = LayoutOptions.Center,
+                Content         = moreIcon,
+            };
+
+            moreBtn.GestureRecognizers.Add(new TapGestureRecognizer
+            {
+                Command = new Command(async () =>
+                {
+                    await moreBtn.ScaleToAsync(0.85, 70, Easing.CubicOut);
+                    await moreBtn.ScaleToAsync(1.0,  70, Easing.SpringOut);
+                    OptionsRequested?.Invoke(_entry);
+                })
+            });
+
+            var contentGrid = new Grid
             {
                 ColumnDefinitions = new ColumnDefinitionCollection
                 {
-                    new ColumnDefinition { Width = GridLength.Star },
-                    new ColumnDefinition { Width = new GridLength(8) },
-                    new ColumnDefinition { Width = GridLength.Star },
+                    new ColumnDefinition { Width = GridLength.Auto }, // coverView
+                    new ColumnDefinition { Width = GridLength.Star }, // textStack
+                    new ColumnDefinition { Width = GridLength.Auto }, // moreBtn
                 },
-                Margin = new Thickness(0, 8, 0, 0),
+                ColumnSpacing = 14,
+                Padding       = new Thickness(12),
             };
-            btnRow.Add(redownloadBtn, 0, 0);
-            btnRow.Add(delBtn,        2, 0);
-        }
+            contentGrid.Add(coverView,   0, 0);
+            contentGrid.Add(textStack,   1, 0);
+            contentGrid.Add(moreBtn,     2, 0);
 
-        var rightStack = new VerticalStackLayout
-        {
-            Spacing         = 0,
-            VerticalOptions = LayoutOptions.Fill,
-            Children        = { textStack, btnRow }
-        };
-
-        var contentGrid = new Grid
-        {
-            ColumnDefinitions = new ColumnDefinitionCollection
+            var card = new Border
             {
-                new ColumnDefinition { Width = GridLength.Auto },
-                new ColumnDefinition { Width = GridLength.Star },
-            },
-            ColumnSpacing = 14,
-            Padding       = new Thickness(16),
-        };
-        contentGrid.Add(coverView,   0, 0);
-        contentGrid.Add(rightStack,  1, 0);
+                StrokeThickness = 1,
+                StrokeShape     = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 20 },
+                Padding         = new Thickness(0),
+                Content         = contentGrid,
+            };
+            card.SetDynamicResource(Border.BackgroundColorProperty, "BgCard");
+            if (fileExists)
+                card.SetDynamicResource(Border.StrokeProperty, "Stroke");
+            else
+                card.SetDynamicResource(Border.StrokeProperty, "Warning");
 
-        var card = new Border
-        {
-            StrokeThickness = 1,
-            StrokeShape     = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 20 },
-            Padding         = new Thickness(4),
-            Content         = contentGrid,
-        };
-        card.SetDynamicResource(Border.BackgroundColorProperty, "BgCard");
-        // Amber border when file is missing so it stands out
-        if (fileExists)
-            card.SetDynamicResource(Border.StrokeProperty, "Stroke");
-        else
-            card.SetDynamicResource(Border.StrokeProperty, "Warning");
+            card.GestureRecognizers.Add(new TapGestureRecognizer
+            {
+                Command = new Command(async () =>
+                {
+                    await card.ScaleToAsync(0.97, 60, Easing.CubicOut);
+                    await card.ScaleToAsync(1.0,  60, Easing.SpringOut);
+                    OpenRequested?.Invoke(_entry);
+                })
+            });
 
-        Content = card;
+            Content = card;
+        }
     }
 
     /// <summary>
@@ -210,71 +313,5 @@ public class HistoryCard : ContentView
         return File.Exists(path);
     }
 
-    private static Border MakeActionBtn(string icon, string label, string bgKey,
-        Action onTap, bool outlined = false, bool danger = false)    {
-        var iconLabel = new Label
-        {
-            Text            = icon,
-            FontFamily      = "MaterialSymbols",
-            FontSize        = 14,
-            VerticalOptions = LayoutOptions.Center,
-            Margin          = new Thickness(0, 0, 4, 0),
-        };
 
-        var textLabel = new Label
-        {
-            Text            = label,
-            FontSize        = 11,
-            FontAttributes  = FontAttributes.Bold,
-            VerticalOptions = LayoutOptions.Center,
-        };
-
-        if (danger)
-        {
-            iconLabel.SetDynamicResource(Label.TextColorProperty, "Danger");
-            textLabel.SetDynamicResource(Label.TextColorProperty, "Danger");
-        }
-        else if (outlined)
-        {
-            iconLabel.SetDynamicResource(Label.TextColorProperty, "TextSecondary");
-            textLabel.SetDynamicResource(Label.TextColorProperty, "TextSecondary");
-        }
-        else
-        {
-            iconLabel.SetDynamicResource(Label.TextColorProperty, "TextOnAccent");
-            textLabel.SetDynamicResource(Label.TextColorProperty, "TextOnAccent");
-        }
-
-        var inner = new HorizontalStackLayout
-        {
-            Spacing           = 0,
-            HorizontalOptions = LayoutOptions.Center,
-            VerticalOptions   = LayoutOptions.Center,
-            Children          = { iconLabel, textLabel },
-        };
-
-        // Create border with rounded corners
-        var btn = new Border
-        {
-            StrokeThickness = outlined ? 1 : 0,
-            StrokeShape     = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 8 },
-            HeightRequest   = 30,
-            Padding         = new Thickness(8, 0),
-            Content         = inner,
-        };
-        btn.SetDynamicResource(Border.BackgroundColorProperty, bgKey);
-        if (outlined) btn.SetDynamicResource(Border.StrokeProperty, "Stroke");
-
-        btn.GestureRecognizers.Add(new TapGestureRecognizer
-        {
-            Command = new Command(async () =>
-            {
-                await btn.ScaleToAsync(0.93, 70, Easing.CubicOut);
-                await btn.ScaleToAsync(1.0,  70, Easing.SpringOut);
-                onTap();
-            })
-        });
-
-        return btn;
-    }
 }

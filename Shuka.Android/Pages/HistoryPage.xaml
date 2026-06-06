@@ -110,88 +110,114 @@
                 BackgroundColor="{DynamicResource BgCard}"
                 StrokeThickness="0"
                 Padding="16,10,16,14">
-            <HorizontalStackLayout Spacing="8">
-                <!-- Date pill -->
-                <Border x:Name="SortDatePill"
-                        StrokeThickness="1"
-                        StrokeShape="RoundRectangle 20"
-                        Padding="12,6">
-                    <HorizontalStackLayout Spacing="5">
-                        <Label x:Name="SortDateIcon"
-                               Text="&#xE8B6;"
-                               FontFamily="{DynamicResource IconFont}"
-                               FontSize="13"
-                               VerticalOptions="Center" />
-                        <Label x:Name="SortDateLabel"
-                               Text="Date"
-                               FontSize="12"
-                               FontAttributes="Bold"
-                               VerticalOptions="Center" />
-                        <Label x:Name="SortDateArrow"
-                               FontFamily="{DynamicResource IconFont}"
-                               FontSize="13"
-                               VerticalOptions="Center"
-                               IsVisible="False" />
-                    </HorizontalStackLayout>
-                    <Border.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnSortDateTapped" />
-                    </Border.GestureRecognizers>
-                </Border>
+            <Grid ColumnDefinitions="*,Auto">
+                <HorizontalStackLayout Grid.Column="0" Spacing="8">
+                    <!-- Date pill -->
+                    <Border x:Name="SortDatePill"
+                            StrokeThickness="1"
+                            StrokeShape="RoundRectangle 20"
+                            Padding="12,6">
+                        <HorizontalStackLayout Spacing="5">
+                            <Label x:Name="SortDateIcon"
+                                   Text="&#xE8B6;"
+                                   FontFamily="{DynamicResource IconFont}"
+                                   FontSize="13"
+                                   VerticalOptions="Center" />
+                            <Label x:Name="SortDateLabel"
+                                   Text="Date"
+                                   FontSize="12"
+                                   FontAttributes="Bold"
+                                   VerticalOptions="Center" />
+                            <Label x:Name="SortDateArrow"
+                                   FontFamily="{DynamicResource IconFont}"
+                                   FontSize="13"
+                                   VerticalOptions="Center"
+                                   IsVisible="False" />
+                        </HorizontalStackLayout>
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnSortDateTapped" />
+                        </Border.GestureRecognizers>
+                    </Border>
 
-                <!-- Title pill -->
-                <Border x:Name="SortTitlePill"
-                        StrokeThickness="1"
-                        StrokeShape="RoundRectangle 20"
-                        Padding="12,6">
-                    <HorizontalStackLayout Spacing="5">
-                        <Label x:Name="SortTitleIcon"
-                               Text="&#xE264;"
-                               FontFamily="{DynamicResource IconFont}"
-                               FontSize="13"
-                               VerticalOptions="Center" />
-                        <Label x:Name="SortTitleLabel"
-                               Text="Title"
-                               FontSize="12"
-                               FontAttributes="Bold"
-                               VerticalOptions="Center" />
-                        <Label x:Name="SortTitleArrow"
-                               FontFamily="{DynamicResource IconFont}"
-                               FontSize="13"
-                               VerticalOptions="Center"
-                               IsVisible="False" />
-                    </HorizontalStackLayout>
-                    <Border.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnSortTitleTapped" />
-                    </Border.GestureRecognizers>
-                </Border>
+                    <!-- Title pill -->
+                    <Border x:Name="SortTitlePill"
+                            StrokeThickness="1"
+                            StrokeShape="RoundRectangle 20"
+                            Padding="12,6">
+                        <HorizontalStackLayout Spacing="5">
+                            <Label x:Name="SortTitleIcon"
+                                   Text="&#xE264;"
+                                   FontFamily="{DynamicResource IconFont}"
+                                   FontSize="13"
+                                   VerticalOptions="Center" />
+                            <Label x:Name="SortTitleLabel"
+                                   Text="Title"
+                                   FontSize="12"
+                                   FontAttributes="Bold"
+                                   VerticalOptions="Center" />
+                            <Label x:Name="SortTitleArrow"
+                                   FontFamily="{DynamicResource IconFont}"
+                                   FontSize="13"
+                                   VerticalOptions="Center"
+                                   IsVisible="False" />
+                        </HorizontalStackLayout>
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnSortTitleTapped" />
+                        </Border.GestureRecognizers>
+                    </Border>
 
-                <!-- Author pill -->
-                <Border x:Name="SortAuthorPill"
+                    <!-- Author pill -->
+                    <Border x:Name="SortAuthorPill"
+                            StrokeThickness="1"
+                            StrokeShape="RoundRectangle 20"
+                            Padding="12,6">
+                        <HorizontalStackLayout Spacing="5">
+                            <Label x:Name="SortAuthorIcon"
+                                   Text="&#xE7FD;"
+                                   FontFamily="{DynamicResource IconFont}"
+                                   FontSize="13"
+                                   VerticalOptions="Center" />
+                            <Label x:Name="SortAuthorLabel"
+                                   Text="Author"
+                                   FontSize="12"
+                                   FontAttributes="Bold"
+                                   VerticalOptions="Center" />
+                            <Label x:Name="SortAuthorArrow"
+                                   FontFamily="{DynamicResource IconFont}"
+                                   FontSize="13"
+                                   VerticalOptions="Center"
+                                   IsVisible="False" />
+                        </HorizontalStackLayout>
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnSortAuthorTapped" />
+                        </Border.GestureRecognizers>
+                    </Border>
+                </HorizontalStackLayout>
+
+                <!-- View Mode Toggle Pill -->
+                <Border Grid.Column="1"
+                        x:Name="ToggleViewPill"
                         StrokeThickness="1"
                         StrokeShape="RoundRectangle 20"
-                        Padding="12,6">
+                        Padding="12,6"
+                        HorizontalOptions="End">
                     <HorizontalStackLayout Spacing="5">
-                        <Label x:Name="SortAuthorIcon"
-                               Text="&#xE7FD;"
+                        <Label x:Name="ToggleViewIcon"
+                               Text="&#xE8EF;"
                                FontFamily="{DynamicResource IconFont}"
                                FontSize="13"
                                VerticalOptions="Center" />
-                        <Label x:Name="SortAuthorLabel"
-                               Text="Author"
+                        <Label x:Name="ToggleViewLabel"
+                               Text="List"
                                FontSize="12"
                                FontAttributes="Bold"
                                VerticalOptions="Center" />
-                        <Label x:Name="SortAuthorArrow"
-                               FontFamily="{DynamicResource IconFont}"
-                               FontSize="13"
-                               VerticalOptions="Center"
-                               IsVisible="False" />
                     </HorizontalStackLayout>
                     <Border.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnSortAuthorTapped" />
+                        <TapGestureRecognizer Tapped="OnToggleViewTapped" />
                     </Border.GestureRecognizers>
                 </Border>
-            </HorizontalStackLayout>
+            </Grid>
         </Border>
 
         <!-- ── Body ─────────────────────────────────────────── -->
@@ -256,10 +282,144 @@
             <!-- Scrollable list of novel cards -->
             <ScrollView x:Name="ListScroll" IsVisible="False">
                 <VerticalStackLayout x:Name="CardList"
-                                     Padding="16,13,16,92"
-                                     Spacing="13" />
+                                     Padding="12,12,12,92"
+                                     Spacing="8" />
             </ScrollView>
 
+            <!-- Scrollable grid of novel cards -->
+            <ScrollView x:Name="GridScroll" IsVisible="False">
+                <Grid x:Name="CardGrid"
+                      ColumnDefinitions="*,*,*,*"
+                      RowSpacing="8"
+                      ColumnSpacing="8"
+                      Padding="12,14,12,92" />
+            </ScrollView>
+
+        </Grid>
+
+        <!-- Options bottom sheet overlay -->
+        <Grid x:Name="OptionsSheetOverlay"
+              IsVisible="False"
+              BackgroundColor="#88000000"
+              Grid.RowSpan="4">
+            <Grid.GestureRecognizers>
+                <TapGestureRecognizer Tapped="OnOptionsSheetOverlayTapped" />
+            </Grid.GestureRecognizers>
+
+            <Border x:Name="OptionsSheet"
+                    Margin="12,0,12,16"
+                    Padding="14,14,14,10"
+                    VerticalOptions="End"
+                    Stroke="{DynamicResource Stroke}"
+                    StrokeThickness="1"
+                    StrokeShape="RoundRectangle 18"
+                    BackgroundColor="{DynamicResource BgCard}"
+                    TranslationY="28"
+                    Opacity="0">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnOptionsSheetTapped" />
+                </Border.GestureRecognizers>
+
+                <VerticalStackLayout Spacing="12">
+                    <!-- Title & Subtitle -->
+                    <Grid ColumnDefinitions="*,Auto">
+                        <VerticalStackLayout Spacing="2">
+                            <Label Text="Options"
+                                   FontSize="16"
+                                   FontAttributes="Bold"
+                                   TextColor="{DynamicResource TextPrimary}" />
+                            <Label x:Name="OptionsSheetSubtitle"
+                                   FontSize="11"
+                                   LineBreakMode="TailTruncation"
+                                   TextColor="{DynamicResource TextMuted}" />
+                        </VerticalStackLayout>
+                        <Label Grid.Column="1"
+                               Text="&#xE5CD;"
+                               FontFamily="{DynamicResource IconFont}"
+                               FontSize="20"
+                               TextColor="{DynamicResource TextMuted}">
+                            <Label.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnOptionsSheetCloseTapped" />
+                            </Label.GestureRecognizers>
+                        </Label>
+                    </Grid>
+
+                    <!-- Option Buttons -->
+                    <VerticalStackLayout Spacing="8">
+                        <!-- Share Option -->
+                        <Border x:Name="OptionsSheetShareBtn"
+                                BackgroundColor="{DynamicResource BgInput}"
+                                Stroke="{DynamicResource Stroke}"
+                                StrokeShape="RoundRectangle 14"
+                                Padding="14,12">
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                <Label Text="&#xE6B8;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="18"
+                                       TextColor="{DynamicResource TextSecondary}"
+                                       VerticalOptions="Center" />
+                                <Label Grid.Column="1"
+                                       Text="Share EPUB"
+                                       FontSize="13"
+                                       FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}"
+                                       VerticalOptions="Center" />
+                            </Grid>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnOptionsSheetShareTapped" />
+                            </Border.GestureRecognizers>
+                        </Border>
+
+                        <!-- Re-download Option -->
+                        <Border x:Name="OptionsSheetRedownloadBtn"
+                                BackgroundColor="{DynamicResource BgInput}"
+                                Stroke="{DynamicResource Stroke}"
+                                StrokeShape="RoundRectangle 14"
+                                Padding="14,12">
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                <Label Text="&#xF090;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="18"
+                                       TextColor="{DynamicResource TextSecondary}"
+                                       VerticalOptions="Center" />
+                                <Label Grid.Column="1"
+                                       Text="Re-download Novel"
+                                       FontSize="13"
+                                       FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}"
+                                       VerticalOptions="Center" />
+                            </Grid>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnOptionsSheetRedownloadTapped" />
+                            </Border.GestureRecognizers>
+                        </Border>
+
+                        <!-- Remove Option -->
+                        <Border x:Name="OptionsSheetRemoveBtn"
+                                BackgroundColor="{DynamicResource BgInput}"
+                                Stroke="{DynamicResource Stroke}"
+                                StrokeShape="RoundRectangle 14"
+                                Padding="14,12">
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                <Label Text="&#xE872;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="18"
+                                       TextColor="{DynamicResource Warning}"
+                                       VerticalOptions="Center" />
+                                <Label Grid.Column="1"
+                                       Text="Remove from History"
+                                       FontSize="13"
+                                       FontAttributes="Bold"
+                                       TextColor="{DynamicResource Warning}"
+                                       VerticalOptions="Center" />
+                            </Grid>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnOptionsSheetRemoveTapped" />
+                            </Border.GestureRecognizers>
+                        </Border>
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </Border>
         </Grid>
 
     </Grid>
