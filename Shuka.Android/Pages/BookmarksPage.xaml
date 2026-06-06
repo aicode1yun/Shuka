@@ -424,5 +424,148 @@
             </Border>
         </Grid>
 
+        <!-- ── Card action sheet (matches HistoryPage OptionsSheet style) ─── -->
+        <Grid x:Name="CardActionSheetOverlay"
+              IsVisible="False"
+              BackgroundColor="#88000000"
+              Grid.RowSpan="4">
+            <Grid.GestureRecognizers>
+                <TapGestureRecognizer Tapped="OnCardActionSheetOverlayTapped" />
+            </Grid.GestureRecognizers>
+
+            <Border x:Name="CardActionSheet"
+                    Margin="12,0,12,16"
+                    Padding="14,14,14,10"
+                    VerticalOptions="End"
+                    Stroke="{DynamicResource Stroke}"
+                    StrokeThickness="1"
+                    StrokeShape="RoundRectangle 18"
+                    BackgroundColor="{DynamicResource BgCard}"
+                    TranslationY="28"
+                    Opacity="0">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnCardActionSheetTapped" />
+                </Border.GestureRecognizers>
+
+                <VerticalStackLayout Spacing="12">
+
+                    <!-- Title & Subtitle -->
+                    <Grid ColumnDefinitions="*,Auto">
+                        <VerticalStackLayout Spacing="2">
+                            <Label Text="Options"
+                                   FontSize="16" FontAttributes="Bold"
+                                   TextColor="{DynamicResource TextPrimary}" />
+                            <Label x:Name="CardActionSheetTitle"
+                                   FontSize="11"
+                                   LineBreakMode="TailTruncation"
+                                   TextColor="{DynamicResource TextMuted}" />
+                        </VerticalStackLayout>
+                        <Label Grid.Column="1"
+                               Text="&#xE5CD;"
+                               FontFamily="{DynamicResource IconFont}"
+                               FontSize="20"
+                               TextColor="{DynamicResource TextMuted}">
+                            <Label.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnCardActionSheetCloseTapped" />
+                            </Label.GestureRecognizers>
+                        </Label>
+                    </Grid>
+
+                    <!-- Option Buttons -->
+                    <VerticalStackLayout Spacing="8">
+
+                        <!-- Download -->
+                        <Border BackgroundColor="{DynamicResource BgInput}"
+                                Stroke="{DynamicResource Stroke}"
+                                StrokeShape="RoundRectangle 14"
+                                Padding="14,12">
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                <Label Text="&#xF090;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="18"
+                                       TextColor="{DynamicResource TextSecondary}"
+                                       VerticalOptions="Center" />
+                                <Label Grid.Column="1"
+                                       Text="Download"
+                                       FontSize="13" FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}"
+                                       VerticalOptions="Center" />
+                            </Grid>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnCardActionDownloadTapped" />
+                            </Border.GestureRecognizers>
+                        </Border>
+
+                        <!-- Fetch URL -->
+                        <Border BackgroundColor="{DynamicResource BgInput}"
+                                Stroke="{DynamicResource Stroke}"
+                                StrokeShape="RoundRectangle 14"
+                                Padding="14,12">
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                <Label Text="&#xE2C4;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="18"
+                                       TextColor="{DynamicResource TextSecondary}"
+                                       VerticalOptions="Center" />
+                                <Label Grid.Column="1"
+                                       Text="Fetch URL"
+                                       FontSize="13" FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}"
+                                       VerticalOptions="Center" />
+                            </Grid>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnCardActionFetchTapped" />
+                            </Border.GestureRecognizers>
+                        </Border>
+
+                        <!-- Manage Tags -->
+                        <Border BackgroundColor="{DynamicResource BgInput}"
+                                Stroke="{DynamicResource Stroke}"
+                                StrokeShape="RoundRectangle 14"
+                                Padding="14,12">
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                <Label Text="&#xE893;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="18"
+                                       TextColor="{DynamicResource TextSecondary}"
+                                       VerticalOptions="Center" />
+                                <Label Grid.Column="1"
+                                       Text="Manage Tags"
+                                       FontSize="13" FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}"
+                                       VerticalOptions="Center" />
+                            </Grid>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnCardActionTagTapped" />
+                            </Border.GestureRecognizers>
+                        </Border>
+
+                        <!-- Remove Bookmark -->
+                        <Border BackgroundColor="{DynamicResource BgInput}"
+                                Stroke="{DynamicResource Stroke}"
+                                StrokeShape="RoundRectangle 14"
+                                Padding="14,12">
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                <Label Text="&#xE872;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="18"
+                                       TextColor="{DynamicResource Warning}"
+                                       VerticalOptions="Center" />
+                                <Label Grid.Column="1"
+                                       Text="Remove Bookmark"
+                                       FontSize="13" FontAttributes="Bold"
+                                       TextColor="{DynamicResource Warning}"
+                                       VerticalOptions="Center" />
+                            </Grid>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnCardActionRemoveTapped" />
+                            </Border.GestureRecognizers>
+                        </Border>
+
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </Border>
+        </Grid>
+
     </Grid>
 </ContentPage>

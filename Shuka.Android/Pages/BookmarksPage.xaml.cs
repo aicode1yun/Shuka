@@ -22,6 +22,8 @@ public partial class BookmarksPage : ContentPage
     private readonly object _rebuildLock = new();
     private bool _isRemoveBookmarkSheetOpen;
     private BookmarkItem? _removeBookmarkTarget;
+    private bool _isCardActionSheetOpen;
+    private BookmarkItem? _cardActionTarget;
 
     /// <summary>
     /// Creates a bookmarks page showing all bookmarks or filtered by site.
@@ -351,10 +353,7 @@ public partial class BookmarksPage : ContentPage
     {
         bool isSelected = _selectedUrls.Contains(bookmark.Url);
 
-        System.Diagnostics.Debug.WriteLine($"[BookmarksPage] BuildBookmarkCard: Title='{bookmark.Title}', URL='{bookmark.Url}', Selected={isSelected}, URLInSet={_selectedUrls.Contains(bookmark.Url)}, TotalSelected={_selectedUrls.Count}");
-
-        // ── Main content ─────────────────────────────────────────────────────
-        // Cover thumbnail: show remote cover when available, otherwise lily placeholder
+        // ── Cover thumbnail ────────────────────────────────────────────────
         View coverThumbnail;
         if (!string.IsNullOrWhiteSpace(bookmark.CoverUrl) &&
             Uri.TryCreate(bookmark.CoverUrl, UriKind.Absolute, out var bmCoverUri))
@@ -362,15 +361,10 @@ public partial class BookmarksPage : ContentPage
             coverThumbnail = new Border
             {
                 StrokeThickness = 0,
-                StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 10 },
-                WidthRequest = 52,
-                HeightRequest = 74,
-                VerticalOptions = LayoutOptions.Start,
-                Content = new Image
-                {
-                    Source = ImageSource.FromUri(bmCoverUri),
-                    Aspect = Aspect.AspectFill,
-                },
+                StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 8 },
+                WidthRequest = 44, HeightRequest = 62,
+                VerticalOptions = LayoutOptions.Center,
+                Content = new Image { Source = ImageSource.FromUri(bmCoverUri), Aspect = Aspect.AspectFill },
             };
             ((Border)coverThumbnail).SetDynamicResource(Border.BackgroundColorProperty, "BgInput");
         }
@@ -379,16 +373,14 @@ public partial class BookmarksPage : ContentPage
             coverThumbnail = new Border
             {
                 StrokeThickness = 0,
-                StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 10 },
-                WidthRequest = 52,
-                HeightRequest = 74,
-                VerticalOptions = LayoutOptions.Start,
+                StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 8 },
+                WidthRequest = 44, HeightRequest = 62,
+                VerticalOptions = LayoutOptions.Center,
                 Content = new Image
                 {
                     Source = ImageSource.FromFile("lily.png"),
                     Aspect = Aspect.AspectFit,
-                    WidthRequest = 28,
-                    HeightRequest = 28,
+                    WidthRequest = 22, HeightRequest = 22,
                     HorizontalOptions = LayoutOptions.Center,
                     VerticalOptions = LayoutOptions.Center,
                     Opacity = 0.45,
@@ -397,373 +389,210 @@ public partial class BookmarksPage : ContentPage
             ((Border)coverThumbnail).SetDynamicResource(Border.BackgroundColorProperty, "AccentContainer");
         }
 
+        // ── Text info ────────────────────────────────────────────────────
         var titleLabel = new Label
         {
-            Text = bookmark.Title,
-            FontSize = 14,
+            Text = bookmark.Title, FontSize = 13,
             FontAttributes = FontAttributes.Bold,
-            LineBreakMode = LineBreakMode.TailTruncation,
-            MaxLines = 2,
+            LineBreakMode = LineBreakMode.TailTruncation, MaxLines = 2,
         };
         titleLabel.SetDynamicResource(Label.TextColorProperty, "TextPrimary");
 
         var infoLabel = new Label
         {
             Text = bookmark.ChapterCount > 0
-                ? $"{bookmark.Author} • {bookmark.ChapterCount} chapters"
+                ? $"{bookmark.Author} \u2022 {bookmark.ChapterCount} ch"
                 : bookmark.Author,
-            FontSize = 11,
-            LineBreakMode = LineBreakMode.TailTruncation,
+            FontSize = 10, LineBreakMode = LineBreakMode.TailTruncation,
         };
         infoLabel.SetDynamicResource(Label.TextColorProperty, "TextMuted");
 
-        var dateLabel = new Label
-        {
-            Text = FormatDate(bookmark.BookmarkedAt),
-            FontSize = 10,
-        };
+        var dateLabel = new Label { Text = FormatDate(bookmark.BookmarkedAt), FontSize = 9 };
         dateLabel.SetDynamicResource(Label.TextColorProperty, "TextMuted");
 
         var textStack = new VerticalStackLayout
         {
-            Spacing = 3,
-            VerticalOptions = LayoutOptions.Start,
+            Spacing = 2, VerticalOptions = LayoutOptions.Center,
             Children = { titleLabel, infoLabel, dateLabel },
         };
 
-        // Add tags
         if (bookmark.Tags.Count > 0)
         {
-            var tagsStack = new HorizontalStackLayout { Spacing = 6, Margin = new Thickness(0, 4, 0, 0) };
+            var tagsStack = new HorizontalStackLayout { Spacing = 4, Margin = new Thickness(0, 3, 0, 0) };
             foreach (var tag in bookmark.Tags.Take(3))
-            {
                 tagsStack.Add(CreateTagBadge(tag));
-            }
             if (bookmark.Tags.Count > 3)
             {
-                var moreLabel = new Label
-                {
-                    Text = $"+{bookmark.Tags.Count - 3}",
-                    FontSize = 9,
-                    VerticalOptions = LayoutOptions.Center,
-                };
-                moreLabel.SetDynamicResource(Label.TextColorProperty, "TextMuted");
-                tagsStack.Add(moreLabel);
+                var ml = new Label { Text = $"+{bookmark.Tags.Count - 3}", FontSize = 9, VerticalOptions = LayoutOptions.Center };
+                ml.SetDynamicResource(Label.TextColorProperty, "TextMuted");
+                tagsStack.Add(ml);
             }
             textStack.Add(tagsStack);
         }
 
+        // ── Right widget: checkmark (select mode) or three-dot menu ───────────
+        View rightWidget;
+        if (_selectMode)
+        {
+            var checkIcon = new Label
+            {
+                Text = isSelected ? "\uE876" : "\uE835",
+                FontFamily = "MaterialSymbols", FontSize = 22,
+                VerticalOptions = LayoutOptions.Center,
+                HorizontalOptions = LayoutOptions.Center,
+            };
+            checkIcon.SetDynamicResource(Label.TextColorProperty, isSelected ? "AccentLight" : "TextMuted");
+            rightWidget = checkIcon;
+        }
+        else
+        {
+            var menuIcon = new Label
+            {
+                Text = "\uE5D4",  // more_vert
+                FontFamily = "MaterialSymbols", FontSize = 22,
+                VerticalOptions = LayoutOptions.Center,
+                HorizontalOptions = LayoutOptions.Center,
+            };
+            menuIcon.SetDynamicResource(Label.TextColorProperty, "TextMuted");
+
+            var menuBtn = new Grid
+            {
+                WidthRequest = 36, HeightRequest = 36,
+                VerticalOptions = LayoutOptions.Center,
+            };
+            menuBtn.Add(menuIcon);
+            menuBtn.GestureRecognizers.Add(new TapGestureRecognizer
+            {
+                Command = new Command(async () =>
+                {
+                    await menuBtn.ScaleToAsync(0.85, 60, Easing.CubicOut);
+                    await menuBtn.ScaleToAsync(1.0, 60, Easing.SpringOut);
+                    await ShowCardActionSheetAsync(bookmark);
+                })
+            });
+            rightWidget = menuBtn;
+        }
+
+        // ── Card layout: cover | text | right widget ──────────────────────
         var mainContent = new Grid
         {
             ColumnDefinitions = new ColumnDefinitionCollection
             {
                 new ColumnDefinition { Width = GridLength.Auto },
                 new ColumnDefinition { Width = GridLength.Star },
+                new ColumnDefinition { Width = GridLength.Auto },
             },
-            ColumnSpacing = 12,
+            ColumnSpacing = 10,
         };
         mainContent.Add(coverThumbnail, 0, 0);
         mainContent.Add(textStack, 1, 0);
+        mainContent.Add(rightWidget, 2, 0);
 
-        // ── Action buttons (only in normal mode) ────────────────────────────
-        View actionButtons;
-        if (_selectMode)
-        {
-            // In select mode, show selection indicator
-            var selectionLabel = new Label
-            {
-                Text = isSelected ? "✓ SELECTED" : "TAP TO SELECT",
-                FontSize = 11,
-                FontAttributes = FontAttributes.Bold,
-                Margin = new Thickness(0, 12, 0, 0),
-            };
-            selectionLabel.SetDynamicResource(Label.TextColorProperty, isSelected ? "AccentLight" : "TextMuted");
-            actionButtons = selectionLabel;
-        }
-        else
-        {
-            // Normal mode - show action buttons
-            var actionsStack = new HorizontalStackLayout
-            {
-                Spacing = 8,
-                Margin = new Thickness(0, 12, 0, 0),
-            };
-
-            actionsStack.Add(CreateActionButton("\uE89E", "Open", async () =>
-            {
-                // Create WebView page on background thread to avoid UI blocking
-                WebBrowsePage? webPage = null;
-                await Task.Run(() =>
-                {
-                    webPage = new WebBrowsePage(bookmark.Url);
-                });
-                
-                if (webPage != null)
-                {
-                    var nav = Shell.Current?.Navigation;
-                    if (nav == null) return;
-                    if (nav.NavigationStack?.LastOrDefault() is WebBrowsePage)
-                        return;
-
-                    await nav.PushAsync(webPage);
-                }
-            }));
-
-            actionsStack.Add(CreateActionButton("\uE2C4", "Fetch", async () =>
-            {
-                if (MainPage.Instance != null)
-                {
-                    WebBrowsePage.OnUrlFetched = MainPage.Instance.FillUrlFromWebView;
-                }
-                WebBrowsePage.OnUrlFetched?.Invoke(bookmark.Url);
-                await Shell.Current.GoToAsync("//MainPage");
-            }));
-
-            actionsStack.Add(CreateActionButton("\uF090", "Download", async () =>
-            {
-                await DownloadBookmarkAsync(bookmark);
-            }));
-
-            actionsStack.Add(CreateActionButton("\uE893", "Tag", async () =>
-            {
-                await ShowTagDialogAsync(bookmark);
-            }));
-
-            actionsStack.Add(CreateActionButton("\uE872", "Remove", async () =>
-            {
-                await ShowRemoveBookmarkSheetAsync(bookmark);
-            }, isDestructive: true));
-
-            actionButtons = actionsStack;
-        }
-
-        var cardContent = new VerticalStackLayout
-        {
-            Spacing = 0,
-            Children = { mainContent, actionButtons }
-        };
-
-        // ── Card border ──────────────────────────────────────────────────────
         var card = new Border
         {
-            StrokeThickness = (isSelected && _selectMode) ? 4 : 1,
-            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 16 },
-            Padding = new Thickness(14),
-            Content = cardContent,
+            StrokeThickness = (isSelected && _selectMode) ? 3 : 1,
+            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 14 },
+            Padding = new Thickness(10),
+            Content = mainContent,
         };
-
-        // Set border color (no background tint)
         card.SetDynamicResource(Border.BackgroundColorProperty, "BgCard");
+        card.SetDynamicResource(Border.StrokeProperty, (isSelected && _selectMode) ? "AccentLight" : "Stroke");
 
-        if (isSelected && _selectMode)
-        {
-            card.SetDynamicResource(Border.StrokeProperty, "AccentLight");
-        }
-        else
-        {
-            card.SetDynamicResource(Border.StrokeProperty, "Stroke");
-        }
-
-        // ── Unified gesture handling (tap and long-press) ───────────────────
-        // Use only PointerGestureRecognizer to avoid conflicts between TapGestureRecognizer and PointerGestureRecognizer
+        // ── Gestures ────────────────────────────────────────────────────
         CancellationTokenSource? lpCts = null;
         bool longPressTriggered = false;
         var pointerGesture = new PointerGestureRecognizer();
-        
+
         pointerGesture.PointerPressed += async (s, e) =>
         {
             try
             {
-                lpCts?.Cancel();
-                lpCts?.Dispose();
+                lpCts?.Cancel(); lpCts?.Dispose();
                 longPressTriggered = false;
                 var cts = new CancellationTokenSource();
                 lpCts = cts;
-                
                 try
                 {
-                    await Task.Delay(500, cts.Token); // cancelled for normal taps
-
-                    // Pointer was held for 500 ms — this is a genuine long press
+                    await Task.Delay(500, cts.Token);
                     longPressTriggered = true;
-                    System.Diagnostics.Debug.WriteLine($"[BookmarksPage] LONG PRESS detected on: {bookmark.Url}");
-
-                    // Haptic feedback
                     try
                     {
 #if ANDROID
-#pragma warning disable CA1416 // Version checks are in place
+#pragma warning disable CA1416
                         if (global::Android.OS.Build.VERSION.SdkInt >= global::Android.OS.BuildVersionCodes.S)
                         {
-                            var vibratorManager = global::Android.App.Application.Context.GetSystemService(global::Android.Content.Context.VibratorManagerService) as global::Android.OS.VibratorManager;
-                            var vibrator = vibratorManager?.DefaultVibrator;
-                            if (vibrator != null && vibrator.HasVibrator)
-                            {
-                                var effect = global::Android.OS.VibrationEffect.CreateOneShot(50, global::Android.OS.VibrationEffect.DefaultAmplitude);
-                                vibrator.Vibrate(effect);
-                            }
-                        }
-                        else if (global::Android.OS.Build.VERSION.SdkInt >= global::Android.OS.BuildVersionCodes.O)
-                        {
-#pragma warning disable CA1422
-                            var vibrator = global::Android.App.Application.Context.GetSystemService(global::Android.Content.Context.VibratorService) as global::Android.OS.Vibrator;
-#pragma warning restore CA1422
-                            if (vibrator != null && vibrator.HasVibrator)
-                            {
-                                var effect = global::Android.OS.VibrationEffect.CreateOneShot(50, global::Android.OS.VibrationEffect.DefaultAmplitude);
-                                vibrator.Vibrate(effect);
-                            }
+                            var vm = global::Android.App.Application.Context.GetSystemService(global::Android.Content.Context.VibratorManagerService) as global::Android.OS.VibratorManager;
+                            var vib = vm?.DefaultVibrator;
+                            if (vib?.HasVibrator == true)
+                                vib.Vibrate(global::Android.OS.VibrationEffect.CreateOneShot(50, global::Android.OS.VibrationEffect.DefaultAmplitude));
                         }
                         else
                         {
 #pragma warning disable CA1422
-                            var vibrator = global::Android.App.Application.Context.GetSystemService(global::Android.Content.Context.VibratorService) as global::Android.OS.Vibrator;
-                            if (vibrator != null && vibrator.HasVibrator)
-                            {
-                                vibrator.Vibrate(50);
-                            }
+                            var vib = global::Android.App.Application.Context.GetSystemService(global::Android.Content.Context.VibratorService) as global::Android.OS.Vibrator;
+                            if (vib?.HasVibrator == true)
+                                vib.Vibrate(global::Android.OS.VibrationEffect.CreateOneShot(50, global::Android.OS.VibrationEffect.DefaultAmplitude));
 #pragma warning restore CA1422
                         }
 #pragma warning restore CA1416
 #endif
                     }
                     catch { }
-
-                    // Enter select mode if not already in it
-                    if (!_selectMode)
-                    {
-                        EnterSelectMode();
-                    }
-
-                    // Select this item
+                    if (!_selectMode) EnterSelectMode();
                     if (!_selectedUrls.Contains(bookmark.Url))
                     {
                         _selectedUrls.Add(bookmark.Url);
-                        MainThread.BeginInvokeOnMainThread(async () =>
-                        {
-                            try
-                            {
-                                // Wait for gesture to fully complete before rebuilding
-                                await Task.Delay(100);
-                                BuildBookmarksList();
-                            }
-                            catch (Exception ex)
-                            {
-                                System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Error in BuildBookmarksList (long press deferred): {ex.Message}");
-                            }
-                        });
+                        MainThread.BeginInvokeOnMainThread(async () => { await Task.Delay(100); BuildBookmarksList(); });
                     }
                 }
-                catch (OperationCanceledException) { /* normal tap — do nothing */ }
+                catch (OperationCanceledException) { }
                 catch (ObjectDisposedException) { }
             }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Error in PointerPressed: {ex.Message}");
-            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[BookmarksPage] PointerPressed: {ex.Message}"); }
         };
-        
+
         pointerGesture.PointerReleased += async (s, e) =>
         {
             try
             {
-                // Cancel long-press if pointer was released early (normal tap)
                 if (lpCts != null && !lpCts.Token.IsCancellationRequested)
                 {
                     lpCts.Cancel();
-                    
-                    // If a long press already triggered, do not also handle this as a tap.
-                    if (longPressTriggered)
-                    {
-                        longPressTriggered = false;
-                        return;
-                    }
-                    
-                    // This is a normal tap (pointer released < 500ms)
-                    System.Diagnostics.Debug.WriteLine($"[BookmarksPage] TAP detected on: {bookmark.Url}, SelectMode: {_selectMode}");
+                    if (longPressTriggered) { longPressTriggered = false; return; }
 
                     if (_selectMode)
                     {
-                        // In select mode: toggle selection by checking current state
-                        bool currentlySelected = _selectedUrls.Contains(bookmark.Url);
-                        System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Toggle - Before: IsInSet={currentlySelected}, Count={_selectedUrls.Count}");
-
-                        if (currentlySelected)
-                        {
-                            System.Diagnostics.Debug.WriteLine($"[BookmarksPage] TAP: Removing {bookmark.Url}");
-                            _selectedUrls.Remove(bookmark.Url);
-                        }
-                        else
-                        {
-                            System.Diagnostics.Debug.WriteLine($"[BookmarksPage] TAP: Adding {bookmark.Url}");
-                            _selectedUrls.Add(bookmark.Url);
-                        }
-
-                        System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Toggle - After: IsInSet={_selectedUrls.Contains(bookmark.Url)}, Count={_selectedUrls.Count}");
-                        
-                        // Defer UI update significantly to avoid issues with card being removed from tree
-                        // while gesture handler is still executing
-                        MainThread.BeginInvokeOnMainThread(async () =>
-                        {
-                            try
-                            {
-                                // Wait for gesture to fully complete before rebuilding
-                                await Task.Delay(100);
-                                BuildBookmarksList();
-                            }
-                            catch (Exception ex)
-                            {
-                                System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Error in BuildBookmarksList (tap deferred): {ex.Message}");
-                            }
-                        });
+                        if (_selectedUrls.Contains(bookmark.Url)) _selectedUrls.Remove(bookmark.Url);
+                        else _selectedUrls.Add(bookmark.Url);
+                        MainThread.BeginInvokeOnMainThread(async () => { await Task.Delay(100); BuildBookmarksList(); });
                     }
                     else
                     {
-                        // Normal mode: open in WebView
-                        System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Opening in WebView: {bookmark.Url}");
                         try
                         {
-                            // Immediate visual feedback - faster animation
                             var scaleTask = card.ScaleToAsync(0.95, 50, Easing.CubicOut);
-                            
-                            // Create the WebView page on background thread to avoid UI blocking
                             WebBrowsePage? webPage = null;
-                            await Task.Run(() =>
-                            {
-                                webPage = new WebBrowsePage(bookmark.Url);
-                            });
-                            
-                            // Wait for animation and navigate
+                            await Task.Run(() => { webPage = new WebBrowsePage(bookmark.Url); });
                             await scaleTask;
                             await card.ScaleToAsync(1.0, 100, Easing.SpringOut);
-                            
                             if (webPage != null)
                             {
                                 var nav = Shell.Current?.Navigation;
-                                if (nav == null) return;
-                                if (nav.NavigationStack?.LastOrDefault() is WebBrowsePage)
-                                    return;
-
-                                await nav.PushAsync(webPage);
+                                if (nav != null && !(nav.NavigationStack?.LastOrDefault() is WebBrowsePage))
+                                    await nav.PushAsync(webPage);
                             }
                         }
-                        catch (Exception ex)
-                        {
-                            System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Error opening WebView: {ex.Message}");
-                        }
+                        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[BookmarksPage] OpenWebView: {ex.Message}"); }
                     }
                 }
             }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[BookmarksPage] Error in PointerReleased: {ex.Message}");
-            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[BookmarksPage] PointerReleased: {ex.Message}"); }
         };
-        
-        card.GestureRecognizers.Add(pointerGesture);
 
+        card.GestureRecognizers.Add(pointerGesture);
         return card;
     }
+
 
     private Border CreateActionButton(string icon, string label, Func<Task> action, bool isDestructive = false)
     {
@@ -1364,5 +1193,80 @@ public partial class BookmarksPage : ContentPage
 
         TagSheet.Margin = new Thickness(12, 0, 12, bottomInset);
         RemoveBookmarkSheet.Margin = new Thickness(12, 0, 12, bottomInset);
+        CardActionSheet.Margin = new Thickness(12, 0, 12, bottomInset);
+    }
+
+    // ── Card action sheet ─────────────────────────────────────────────────────
+
+    private async Task ShowCardActionSheetAsync(BookmarkItem bookmark)
+    {
+        if (_isCardActionSheetOpen) return;
+        _isCardActionSheetOpen = true;
+        _cardActionTarget = bookmark;
+
+        CardActionSheetTitle.Text = bookmark.Title;
+
+        CardActionSheetOverlay.IsVisible = true;
+        CardActionSheetOverlay.Opacity = 0;
+        CardActionSheet.Opacity = 0;
+        CardActionSheet.TranslationY = 28;
+
+        await Task.WhenAll(
+            CardActionSheetOverlay.FadeToAsync(1, 160, Easing.CubicOut),
+            CardActionSheet.FadeToAsync(1, 180, Easing.CubicOut),
+            CardActionSheet.TranslateToAsync(0, 0, 180, Easing.CubicOut));
+    }
+
+    private async Task HideCardActionSheetAsync()
+    {
+        if (!_isCardActionSheetOpen) return;
+        _isCardActionSheetOpen = false;
+        await Task.WhenAll(
+            CardActionSheet.FadeToAsync(0, 140, Easing.CubicIn),
+            CardActionSheet.TranslateToAsync(0, 24, 140, Easing.CubicIn),
+            CardActionSheetOverlay.FadeToAsync(0, 140, Easing.CubicIn));
+        CardActionSheetOverlay.IsVisible = false;
+        _cardActionTarget = null;
+    }
+
+    private async void OnCardActionSheetOverlayTapped(object sender, TappedEventArgs e)
+        => await HideCardActionSheetAsync();
+
+    private void OnCardActionSheetTapped(object sender, TappedEventArgs e) { /* swallow */ }
+
+    private async void OnCardActionSheetCloseTapped(object sender, TappedEventArgs e)
+        => await HideCardActionSheetAsync();
+
+    private async void OnCardActionDownloadTapped(object sender, TappedEventArgs e)
+    {
+        var target = _cardActionTarget;
+        await HideCardActionSheetAsync();
+        if (target != null) await DownloadBookmarkAsync(target);
+    }
+
+    private async void OnCardActionFetchTapped(object sender, TappedEventArgs e)
+    {
+        var target = _cardActionTarget;
+        await HideCardActionSheetAsync();
+        if (target == null) return;
+        if (MainPage.Instance != null)
+            WebBrowsePage.OnUrlFetched = MainPage.Instance.FillUrlFromWebView;
+        WebBrowsePage.OnUrlFetched?.Invoke(target.Url);
+        await Shell.Current.GoToAsync("//MainPage");
+    }
+
+    private async void OnCardActionTagTapped(object sender, TappedEventArgs e)
+    {
+        var target = _cardActionTarget;
+        await HideCardActionSheetAsync();
+        if (target != null) await ShowTagDialogAsync(target);
+    }
+
+    private async void OnCardActionRemoveTapped(object sender, TappedEventArgs e)
+    {
+        var target = _cardActionTarget;
+        await HideCardActionSheetAsync();
+        if (target != null) await ShowRemoveBookmarkSheetAsync(target);
     }
 }
+
