@@ -407,56 +407,107 @@
                         BackgroundColor="{DynamicResource BgPage}"
                         StrokeThickness="0"
                         Padding="16,12,16,8">
-                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
-                        <!-- Search textbox -->
-                        <Border Grid.Column="0"
-                                Stroke="{DynamicResource Stroke}"
-                                StrokeThickness="1.5"
-                                StrokeShape="RoundRectangle 14"
-                                BackgroundColor="{DynamicResource BgInput}"
-                                Padding="12,0">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <Entry Grid.Column="0"
-                                       x:Name="GlobalSearchEntry"
-                                       Placeholder="Search all sources..."
-                                       Keyboard="Text"
-                                       HeightRequest="44"
-                                       ReturnType="Search"
-                                       Completed="OnGlobalSearchCompleted" />
-                                <Label Grid.Column="1"
-                                       x:Name="GlobalSearchClearBtn"
-                                       Text="&#xE5CD;"
+                    <VerticalStackLayout Spacing="8">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                            <!-- Search textbox -->
+                            <Border Grid.Column="0"
+                                    Stroke="{DynamicResource Stroke}"
+                                    StrokeThickness="1.5"
+                                    StrokeShape="RoundRectangle 14"
+                                    BackgroundColor="{DynamicResource BgInput}"
+                                    Padding="12,0">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <Entry Grid.Column="0"
+                                           x:Name="GlobalSearchEntry"
+                                           Placeholder="Search all sources..."
+                                           Keyboard="Text"
+                                           HeightRequest="44"
+                                           ReturnType="Search"
+                                           Completed="OnGlobalSearchCompleted" />
+                                    <Label Grid.Column="1"
+                                           x:Name="GlobalSearchClearBtn"
+                                           Text="&#xE5CD;"
+                                           FontFamily="{DynamicResource IconFont}"
+                                           FontSize="18"
+                                           TextColor="{DynamicResource TextMuted}"
+                                           VerticalOptions="Center"
+                                           IsVisible="False">
+                                        <Label.GestureRecognizers>
+                                            <TapGestureRecognizer Tapped="OnGlobalSearchClearTapped" />
+                                        </Label.GestureRecognizers>
+                                    </Label>
+                                </Grid>
+                            </Border>
+                            <!-- Browser icon — separate container, opens Shuka Quest Mini Browser -->
+                            <Border Grid.Column="1"
+                                    x:Name="BrowserIconBtn"
+                                    StrokeThickness="0"
+                                    StrokeShape="RoundRectangle 12"
+                                    BackgroundColor="{DynamicResource Accent}"
+                                    WidthRequest="44"
+                                    HeightRequest="44"
+                                    VerticalOptions="Center">
+                                <Label Text="&#xE80B;"
                                        FontFamily="{DynamicResource IconFont}"
-                                       FontSize="18"
-                                       TextColor="{DynamicResource TextMuted}"
-                                       VerticalOptions="Center"
-                                       IsVisible="False">
-                                    <Label.GestureRecognizers>
-                                        <TapGestureRecognizer Tapped="OnGlobalSearchClearTapped" />
-                                    </Label.GestureRecognizers>
-                                </Label>
-                            </Grid>
-                        </Border>
-                        <!-- Browser icon — separate container, opens Shuka Quest Mini Browser -->
-                        <Border Grid.Column="1"
-                                x:Name="BrowserIconBtn"
-                                StrokeThickness="0"
-                                StrokeShape="RoundRectangle 12"
-                                BackgroundColor="{DynamicResource Accent}"
-                                WidthRequest="44"
-                                HeightRequest="44"
-                                VerticalOptions="Center">
-                            <Label Text="&#xE80B;"
-                                   FontFamily="{DynamicResource IconFont}"
-                                   FontSize="20"
-                                   TextColor="{DynamicResource TextOnAccent}"
-                                   HorizontalOptions="Center"
-                                   VerticalOptions="Center" />
-                            <Border.GestureRecognizers>
-                                <TapGestureRecognizer Tapped="OnBrowserIconTapped" />
-                            </Border.GestureRecognizers>
-                        </Border>
-                    </Grid>
+                                       FontSize="20"
+                                       TextColor="{DynamicResource TextOnAccent}"
+                                       HorizontalOptions="Center"
+                                       VerticalOptions="Center" />
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnBrowserIconTapped" />
+                                </Border.GestureRecognizers>
+                            </Border>
+                        </Grid>
+
+                        <!-- Scope Filter Chips -->
+                        <HorizontalStackLayout Spacing="8">
+                            <!-- Global Chip -->
+                            <Border x:Name="ChipGlobal"
+                                    StrokeThickness="1.5"
+                                    StrokeShape="RoundRectangle 10"
+                                    Padding="12,6"
+                                    BackgroundColor="{DynamicResource BgInput}">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnChipGlobalTapped" />
+                                </Border.GestureRecognizers>
+                                <HorizontalStackLayout Spacing="6" VerticalOptions="Center">
+                                    <Label Text="&#xE894;" FontFamily="{DynamicResource IconFont}" FontSize="13" VerticalOptions="Center"/>
+                                    <Label Text="Global" FontSize="11" FontAttributes="Bold" VerticalOptions="Center"/>
+                                </HorizontalStackLayout>
+                            </Border>
+
+                            <!-- Selected Source Chip -->
+                            <Border x:Name="ChipSelected"
+                                    StrokeThickness="1.5"
+                                    StrokeShape="RoundRectangle 10"
+                                    Padding="12,6"
+                                    BackgroundColor="{DynamicResource BgInput}">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnChipSelectedTapped" />
+                                </Border.GestureRecognizers>
+                                <HorizontalStackLayout Spacing="6" VerticalOptions="Center">
+                                    <Label Text="&#xE8B0;" FontFamily="{DynamicResource IconFont}" FontSize="13" VerticalOptions="Center"/>
+                                    <Label x:Name="ChipSelectedLabel" Text="Selected: ..." FontSize="11" FontAttributes="Bold" VerticalOptions="Center"/>
+                                    <Label Text="&#xE5C5;" FontFamily="{DynamicResource IconFont}" FontSize="11" VerticalOptions="Center"/>
+                                </HorizontalStackLayout>
+                            </Border>
+
+                            <!-- Pinned Chip -->
+                            <Border x:Name="ChipPinned"
+                                    StrokeThickness="1.5"
+                                    StrokeShape="RoundRectangle 10"
+                                    Padding="12,6"
+                                    BackgroundColor="{DynamicResource BgInput}">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnChipPinnedTapped" />
+                                </Border.GestureRecognizers>
+                                <HorizontalStackLayout Spacing="6" VerticalOptions="Center">
+                                    <Label Text="&#xE9C9;" FontFamily="{DynamicResource IconFont}" FontSize="13" VerticalOptions="Center"/>
+                                    <Label Text="Pinned Only" FontSize="11" FontAttributes="Bold" VerticalOptions="Center"/>
+                                </HorizontalStackLayout>
+                            </Border>
+                        </HorizontalStackLayout>
+                    </VerticalStackLayout>
                 </Border>
 
                 <!-- Source list -->
@@ -479,21 +530,27 @@
                     </ScrollView>
                 </Grid>
 
-                <!-- Loading state for global search -->
-                <VerticalStackLayout Grid.Row="1"
-                                     x:Name="SearchLoadingState"
-                                     IsVisible="False"
-                                     HorizontalOptions="Center"
-                                     VerticalOptions="Center"
-                                     Spacing="12">
-                    <ActivityIndicator IsRunning="True"
-                                       Color="{DynamicResource AccentLight}"
-                                       WidthRequest="40" HeightRequest="40" />
-                    <Label Text="Searching all sources..."
-                           FontSize="13"
-                           TextColor="{DynamicResource TextMuted}"
-                           HorizontalOptions="Center" />
-                </VerticalStackLayout>
+                <!-- Loading/Progress state for global search -->
+                <ScrollView Grid.Row="1" x:Name="SearchProgressScrollView" IsVisible="False">
+                    <VerticalStackLayout Padding="20,16,20,40" Spacing="16">
+                        <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,8">
+                            <Label Grid.Column="0"
+                                   x:Name="SearchProgressHeader"
+                                   Text="Searching sources..."
+                                   FontSize="16" FontAttributes="Bold"
+                                   TextColor="{DynamicResource TextPrimary}"
+                                   VerticalOptions="Center" />
+                            <ActivityIndicator Grid.Column="1"
+                                               x:Name="SearchProgressSpinner"
+                                               IsRunning="True"
+                                               Color="{DynamicResource AccentLight}"
+                                               WidthRequest="24" HeightRequest="24"
+                                               VerticalOptions="Center" />
+                        </Grid>
+                        
+                        <VerticalStackLayout x:Name="SearchProgressList" Spacing="12" />
+                    </VerticalStackLayout>
+                </ScrollView>
 
                 <!-- Bookmark toast banner for Discover -->
                 <Border Grid.Row="1"
@@ -524,7 +581,67 @@
                 </Border>
 
             </Grid>
+        </Grid>
 
+        <!-- Custom Source Selection Modal Overlay -->
+        <Grid x:Name="SourceSelectModal"
+              Grid.Row="0"
+              Grid.RowSpan="3"
+              IsVisible="False"
+              Opacity="0">
+            
+            <!-- Background Dimmer (handles click to close) -->
+            <BoxView BackgroundColor="#80000000"
+                     HorizontalOptions="Fill"
+                     VerticalOptions="Fill">
+                <BoxView.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnSourceSelectModalBackgroundTapped" />
+                </BoxView.GestureRecognizers>
+            </BoxView>
+            
+            <!-- Bottom Sheet -->
+            <Border x:Name="SourceSelectBottomSheet"
+                    VerticalOptions="End"
+                    Margin="0,0,0,0"
+                    Padding="20,24,20,32"
+                    StrokeThickness="1"
+                    StrokeShape="RoundRectangle 24,24,0,0"
+                    BackgroundColor="{DynamicResource BgPage}"
+                    Stroke="{DynamicResource Stroke}"
+                    TranslationY="400">
+                <VerticalStackLayout Spacing="16">
+                    <!-- Header -->
+                    <Grid ColumnDefinitions="*,Auto">
+                        <Label Grid.Column="0"
+                               Text="Select Search Source"
+                               FontSize="18"
+                               FontAttributes="Bold"
+                               TextColor="{DynamicResource TextPrimary}"
+                               VerticalOptions="Center" />
+                        <Border Grid.Column="1"
+                                BackgroundColor="Transparent"
+                                StrokeThickness="0"
+                                WidthRequest="36"
+                                HeightRequest="36"
+                                VerticalOptions="Center">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnCloseSourceSelectModalTapped" />
+                            </Border.GestureRecognizers>
+                            <Label Text="&#xE5CD;"
+                                   FontFamily="{DynamicResource IconFont}"
+                                   FontSize="20"
+                                   TextColor="{DynamicResource TextMuted}"
+                                   HorizontalOptions="Center"
+                                   VerticalOptions="Center" />
+                        </Border>
+                    </Grid>
+                    
+                    <!-- Scrollable source options -->
+                    <ScrollView MaximumHeightRequest="400">
+                        <VerticalStackLayout x:Name="SourceSelectOptionsContainer" Spacing="10" />
+                    </ScrollView>
+                </VerticalStackLayout>
+            </Border>
         </Grid>
 
     </Grid>

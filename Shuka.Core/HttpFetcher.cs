@@ -68,7 +68,7 @@ public class HttpFetcher : IDisposable
                 // even if CF headers aren't present (some CDN configs omit them)
                 if ((int)resp.StatusCode == 403 || (int)resp.StatusCode == 503)
                 {
-                    bool isKnownCfSite = url.Contains("69shuba.com", StringComparison.OrdinalIgnoreCase);
+                    bool isKnownCfSite = url.Contains("69shuba.com", StringComparison.OrdinalIgnoreCase) || url.Contains("yamibo.com", StringComparison.OrdinalIgnoreCase);
                     if (isKnownCfSite && _cfBypass != null)
                     {
                         log?.Invoke($"[CF bypass] {(int)resp.StatusCode} (no CF header) on {url}");

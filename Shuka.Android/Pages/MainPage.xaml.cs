@@ -2,17 +2,54 @@ using Shuka.Android.Behaviors;
 using Shuka.Android.Platforms.Android;
 using Shuka.Android.Services;
 using Shuka.Core;
+using Shuka.Core.Adapters;
 using System.Text.RegularExpressions;
 
 namespace Shuka.Android.Pages;
 
 public partial class MainPage : ContentPage
 {
+    public enum SearchScope
+    {
+        Global,
+        SelectedSource,
+        PinnedSources
+    }
+
     public static MainPage? Instance { get; private set; }
 
     private readonly DiscoverService _discoverService;
     private bool _discoverBuilt = false;
     private CancellationTokenSource? _discoverBannerCts;
+
+    private SearchScope _currentScope = SearchScope.Global;
+    private IBrowsableAdapter? _selectedSource;
+    private int _currentPage = 1;
+    private bool _hasMore = false;
+    private string _currentQuery = "";
+    private CancellationTokenSource? _searchCts;
+
+    // Cache definitions
+    private record SearchCacheKey(string Query, SearchScope Scope, string? SelectedSourceSiteName, int Page);
+    private record SearchCacheValue(
+        List<SourceSearchResult> SourceResults,
+        List<(NovelEntry Novel, IBrowsableAdapter Source)> MergedResults,
+        DateTime Timestamp
+    );
+    private static readonly Dictionary<SearchCacheKey, SearchCacheValue> _searchCache = new();
+    private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(5);
+
+    private const string PrefKeyLastSelectedSource = "discover_last_selected_source";
+
+    // Progress trackers
+    private class SourceSearchProgressTracker
+    {
+        public IBrowsableAdapter Source { get; set; } = null!;
+        public Label StatusLabel { get; set; } = null!;
+        public ActivityIndicator Spinner { get; set; } = null!;
+        public Border ContainerBorder { get; set; } = null!;
+    }
+    private readonly Dictionary<IBrowsableAdapter, SourceSearchProgressTracker> _progressTrackers = new();
 
     public MainPage()
     {
@@ -30,6 +67,14 @@ public partial class MainPage : ContentPage
         CoverEntry.TextChanged += (_, e) => CoverClearBtn.IsVisible = !string.IsNullOrEmpty(e.NewTextValue);
         GlobalSearchEntry.TextChanged += (_, e) =>
             GlobalSearchClearBtn.IsVisible = !string.IsNullOrEmpty(e.NewTextValue);
+
+        // Load last selected source
+        string lastSelected = Preferences.Default.Get(PrefKeyLastSelectedSource, "");
+        _selectedSource = DiscoverService.Sources.FirstOrDefault(s => s.SiteName == lastSelected) 
+                          ?? DiscoverService.Sources[0];
+
+        // Initialize Scope UI
+        UpdateScopeUi();
 
         // Subscribe to bookmark changes to update the badge counts
         BookmarkService.Instance.BookmarksChanged += OnBookmarksChanged;
@@ -637,9 +682,7 @@ public partial class MainPage : ContentPage
     private async void OnGlobalSearchCompleted(object sender, EventArgs e)
     {
         string query = GlobalSearchEntry.Text?.Trim() ?? "";
-        if (string.IsNullOrWhiteSpace(query))
-            return;
-
+        if (string.IsNullOrWhiteSpace(query)) return;
         await RunGlobalSearchAsync(query);
     }
 
@@ -647,8 +690,8 @@ public partial class MainPage : ContentPage
     {
         GlobalSearchEntry.Text = "";
         GlobalSearchClearBtn.IsVisible = false;
+        _searchCts?.Cancel();
         ShowSourceList();
-        await Task.CompletedTask;
     }
 
     private async void OnBrowserIconTapped(object sender, TappedEventArgs e)
@@ -673,86 +716,701 @@ public partial class MainPage : ContentPage
         }
     }
 
-    private async Task RunGlobalSearchAsync(string query)
-    {
-        DiscoverSourceScrollView.IsVisible = false;
-        SearchResultsView.IsVisible = false;
-        SearchLoadingState.IsVisible = true;
-        SearchResultsList.Children.Clear();
-
-        try
-        {
-            // Debug logging for CF sources
-            Action<string> log = msg => System.Diagnostics.Debug.WriteLine(msg);
-
-            var sourceResults = await _discoverService.SearchAllWithStatusAsync(query, log);
-
-            SearchLoadingState.IsVisible = false;
-
-            var successful = sourceResults
-                .Where(r => r.IsSuccess && r.Results.Novels.Count > 0)
-                .ToList();
-            var failed = sourceResults
-                .Where(r => !r.IsSuccess)
-                .ToList();
-
-            if (successful.Count == 0 && failed.Count == 0)
-            {
-                SearchResultsLabel.Text = $"No results for \"{query}\"";
-                SearchResultsView.IsVisible = true;
-                return;
-            }
-
-            int total = successful.Sum(r => r.Results.Novels.Count);
-            SearchResultsLabel.Text = $"{total} result{(total == 1 ? "" : "s")} for \"{query}\"";
-
-            foreach (var result in successful)
-            {
-                var source = result.Source;
-                var page = result.Results;
-                SearchResultsList.Children.Add(BuildSearchSourceHeader(source, page.Novels.Count));
-
-                var shown = page.Novels.Take(5).ToList();
-                SearchResultsList.Children.Add(BuildSearchResultsGrid(source, shown));
-
-                if (page.Novels.Count > 5 || page.HasNextPage)
-                    SearchResultsList.Children.Add(BuildSeeAllButton(source, query));
-            }
-
-            foreach (var fail in failed)
-            {
-                SearchResultsList.Children.Add(BuildSearchSourceHeader(fail.Source, 0));
-                SearchResultsList.Children.Add(BuildSourceUnavailableRow(fail.Source, fail.ErrorMessage, query));
-            }
-
-            SearchResultsView.IsVisible = true;
-        }
-        catch (Exception ex)
-        {
-            SearchLoadingState.IsVisible = false;
-            SearchResultsLabel.Text = $"Search failed: {ex.Message}";
-            SearchResultsView.IsVisible = true;
-        }
-    }
-
     private void ShowSourceList()
     {
-        SearchLoadingState.IsVisible = false;
+        SearchProgressScrollView.IsVisible = false;
         SearchResultsView.IsVisible = false;
         DiscoverSourceScrollView.IsVisible = true;
     }
 
-    private View BuildSearchSourceHeader(IBrowsableAdapter source, int count)
+    private async void OnChipGlobalTapped(object sender, EventArgs e)
     {
-        var label = new Label
+        if (_currentScope != SearchScope.Global)
         {
-            Text = $"{source.SiteName}  ·  {count} result{(count == 1 ? "" : "s")}",
-            FontSize = 12,
-            FontAttributes = FontAttributes.Bold,
-            Margin = new Thickness(4, 8, 0, 4),
+            _currentScope = SearchScope.Global;
+            UpdateScopeUi();
+            string query = GlobalSearchEntry.Text?.Trim() ?? "";
+            if (!string.IsNullOrWhiteSpace(query))
+                await RunGlobalSearchAsync(query);
+        }
+    }
+
+    private async void OnChipSelectedTapped(object sender, EventArgs e)
+    {
+        if (_currentScope != SearchScope.SelectedSource)
+        {
+            _currentScope = SearchScope.SelectedSource;
+            UpdateScopeUi();
+            string query = GlobalSearchEntry.Text?.Trim() ?? "";
+            if (!string.IsNullOrWhiteSpace(query))
+                await RunGlobalSearchAsync(query);
+        }
+        else
+        {
+            await SelectSourceAsync();
+        }
+    }
+
+    private async void OnChipPinnedTapped(object sender, EventArgs e)
+    {
+        if (_currentScope != SearchScope.PinnedSources)
+        {
+            _currentScope = SearchScope.PinnedSources;
+            UpdateScopeUi();
+            string query = GlobalSearchEntry.Text?.Trim() ?? "";
+            if (!string.IsNullOrWhiteSpace(query))
+                await RunGlobalSearchAsync(query);
+        }
+    }
+
+    private async Task SelectSourceAsync()
+    {
+        await OpenSourceSelectModalAsync();
+    }
+
+    private async Task OpenSourceSelectModalAsync()
+    {
+        SourceSelectOptionsContainer.Children.Clear();
+        
+        foreach (var source in DiscoverService.Sources)
+        {
+            var isSelected = _selectedSource != null && _selectedSource.SiteName == source.SiteName;
+            SourceSelectOptionsContainer.Children.Add(BuildSourceOptionRow(source, isSelected));
+        }
+        
+        // Dynamically adjust padding for bottom inset (tab bar / navigation bar overlap)
+        double bottomInset = 32;
+#if ANDROID
+        if (MainActivity.Instance is { } activity)
+            bottomInset = Math.Max(bottomInset, activity.GetOverlayBottomInsetDip(8));
+#endif
+        SourceSelectBottomSheet.Padding = new Thickness(20, 24, 20, bottomInset);
+
+        SourceSelectModal.IsVisible = true;
+        
+        SourceSelectBottomSheet.TranslationY = 400;
+        SourceSelectModal.Opacity = 0;
+        
+        await Task.WhenAll(
+            SourceSelectModal.FadeToAsync(1, 200, Easing.CubicOut),
+            SourceSelectBottomSheet.TranslateToAsync(0, 0, 250, Easing.CubicOut)
+        );
+    }
+
+    private async Task CloseSourceSelectModalAsync()
+    {
+        await Task.WhenAll(
+            SourceSelectModal.FadeToAsync(0, 200, Easing.CubicIn),
+            SourceSelectBottomSheet.TranslateToAsync(0, 400, 200, Easing.CubicIn)
+        );
+        SourceSelectModal.IsVisible = false;
+    }
+
+    private async void OnSourceSelectModalBackgroundTapped(object sender, TappedEventArgs e)
+    {
+        await CloseSourceSelectModalAsync();
+    }
+
+    private async void OnCloseSourceSelectModalTapped(object sender, TappedEventArgs e)
+    {
+        await CloseSourceSelectModalAsync();
+    }
+
+    private View BuildSourceOptionRow(IBrowsableAdapter source, bool isSelected)
+    {
+        var iconLabel = new Label
+        {
+            Text = source.IconGlyph,
+            FontFamily = "MaterialSymbols",
+            FontSize = 18,
+            VerticalOptions = LayoutOptions.Center
         };
-        label.SetDynamicResource(Label.TextColorProperty, "AccentLight");
-        return label;
+        iconLabel.SetDynamicResource(Label.TextColorProperty, isSelected ? "AccentLight" : "TextMuted");
+
+        var nameLabel = new Label
+        {
+            Text = source.SiteName,
+            FontSize = 14,
+            FontAttributes = FontAttributes.Bold,
+            VerticalOptions = LayoutOptions.Center
+        };
+        nameLabel.SetDynamicResource(Label.TextColorProperty, "TextPrimary");
+
+        var descLabel = new Label
+        {
+            Text = source.Description,
+            FontSize = 11,
+            LineBreakMode = LineBreakMode.TailTruncation,
+            VerticalOptions = LayoutOptions.Center
+        };
+        descLabel.SetDynamicResource(Label.TextColorProperty, "TextMuted");
+
+        var textStack = new VerticalStackLayout
+        {
+            Spacing = 2,
+            VerticalOptions = LayoutOptions.Center,
+            Children = { nameLabel, descLabel }
+        };
+
+        var checkIcon = new Label
+        {
+            Text = isSelected ? "\uE876" : "",
+            FontFamily = "MaterialSymbols",
+            FontSize = 20,
+            HorizontalOptions = LayoutOptions.End,
+            VerticalOptions = LayoutOptions.Center
+        };
+        checkIcon.SetDynamicResource(Label.TextColorProperty, "AccentLight");
+
+        var rowGrid = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitionCollection
+            {
+                new ColumnDefinition { Width = GridLength.Auto },
+                new ColumnDefinition { Width = GridLength.Star },
+                new ColumnDefinition { Width = GridLength.Auto }
+            },
+            ColumnSpacing = 12,
+            Padding = new Thickness(14, 12)
+        };
+        rowGrid.Add(iconLabel, 0, 0);
+        rowGrid.Add(textStack, 1, 0);
+        rowGrid.Add(checkIcon, 2, 0);
+
+        var border = new Border
+        {
+            StrokeThickness = isSelected ? 1.5 : 1,
+            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 12 },
+            Content = rowGrid
+        };
+        
+        if (isSelected)
+        {
+            border.SetDynamicResource(Border.BackgroundColorProperty, "AccentContainer");
+            border.SetDynamicResource(Border.StrokeProperty, "AccentLight");
+        }
+        else
+        {
+            border.SetDynamicResource(Border.BackgroundColorProperty, "BgCard");
+            border.SetDynamicResource(Border.StrokeProperty, "Stroke");
+        }
+
+        border.GestureRecognizers.Add(new TapGestureRecognizer
+        {
+            Command = new Command(async () =>
+            {
+                await border.ScaleToAsync(0.97, 50, Easing.CubicOut);
+                await border.ScaleToAsync(1.0, 50, Easing.CubicIn);
+                
+                _selectedSource = source;
+                Preferences.Default.Set(PrefKeyLastSelectedSource, source.SiteName);
+                UpdateScopeUi();
+                
+                await CloseSourceSelectModalAsync();
+
+                string query = GlobalSearchEntry.Text?.Trim() ?? "";
+                if (!string.IsNullOrWhiteSpace(query))
+                {
+                    await RunGlobalSearchAsync(query);
+                }
+            })
+        });
+
+        return border;
+    }
+
+
+    private void UpdateScopeUi()
+    {
+        SetChipActive(ChipGlobal, _currentScope == SearchScope.Global);
+        SetChipActive(ChipSelected, _currentScope == SearchScope.SelectedSource);
+        SetChipActive(ChipPinned, _currentScope == SearchScope.PinnedSources);
+
+        ChipSelectedLabel.Text = _selectedSource != null ? $"Selected: {_selectedSource.SiteName}" : "Selected Source";
+        GlobalSearchEntry.Placeholder = _currentScope switch
+        {
+            SearchScope.Global => "Search all sources...",
+            SearchScope.SelectedSource => $"Search {_selectedSource?.SiteName ?? "selected source"}...",
+            SearchScope.PinnedSources => "Search pinned sources...",
+            _ => "Search..."
+        };
+    }
+
+    private void SetChipActive(Border chip, bool active)
+    {
+        if (active)
+        {
+            chip.SetDynamicResource(Border.BackgroundColorProperty, "AccentContainer");
+            chip.SetDynamicResource(Border.StrokeProperty, "AccentLight");
+            if (chip.Content is HorizontalStackLayout layout)
+            {
+                foreach (var child in layout.Children)
+                {
+                    if (child is Label lbl)
+                        lbl.SetDynamicResource(Label.TextColorProperty, "AccentLight");
+                }
+            }
+        }
+        else
+        {
+            chip.SetDynamicResource(Border.BackgroundColorProperty, "BgInput");
+            chip.SetDynamicResource(Border.StrokeProperty, "Stroke");
+            if (chip.Content is HorizontalStackLayout layout)
+            {
+                foreach (var child in layout.Children)
+                {
+                    if (child is Label lbl)
+                        lbl.SetDynamicResource(Label.TextColorProperty, "TextMuted");
+                }
+            }
+        }
+    }
+
+    private async Task RunGlobalSearchAsync(string query, bool isLoadMore = false)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(query)) return;
+
+            _searchCts?.Cancel();
+            _searchCts?.Dispose();
+            _searchCts = new CancellationTokenSource();
+            var ct = _searchCts.Token;
+
+            if (!isLoadMore)
+            {
+                _currentPage = 1;
+                _currentQuery = query;
+                _hasMore = false;
+                SearchResultsList.Children.Clear();
+                _progressTrackers.Clear();
+                SearchProgressList.Children.Clear();
+
+                DiscoverSourceScrollView.IsVisible = false;
+                SearchResultsView.IsVisible = false;
+                SearchProgressScrollView.IsVisible = true;
+                SearchProgressSpinner.IsRunning = true;
+                SearchProgressHeader.Text = "Searching sources...";
+            }
+
+            List<IBrowsableAdapter> sourcesToSearch = new();
+            if (_currentScope == SearchScope.Global)
+            {
+                sourcesToSearch = DiscoverService.Sources.ToList();
+            }
+            else if (_currentScope == SearchScope.PinnedSources)
+            {
+                var pins = LoadPins();
+                sourcesToSearch = DiscoverService.Sources.Where(s => pins.Contains(s.SiteName)).ToList();
+            }
+            else if (_currentScope == SearchScope.SelectedSource && _selectedSource != null)
+            {
+                sourcesToSearch = new List<IBrowsableAdapter> { _selectedSource };
+            }
+
+            if (sourcesToSearch.Count == 0)
+            {
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    SearchProgressSpinner.IsRunning = false;
+                    SearchProgressHeader.Text = "No sources to search";
+                    var emptyLabel = new Label
+                    {
+                        Text = _currentScope == SearchScope.PinnedSources 
+                            ? "No pinned sources. Pin favorite sources below." 
+                            : "No source selected.",
+                        FontSize = 13,
+                        HorizontalOptions = LayoutOptions.Center,
+                        Margin = new Thickness(0, 24),
+                    };
+                    emptyLabel.SetDynamicResource(Label.TextColorProperty, "TextMuted");
+                    SearchProgressList.Children.Add(emptyLabel);
+                });
+                return;
+            }
+
+            if (!isLoadMore)
+            {
+                foreach (var source in sourcesToSearch)
+                {
+                    SearchProgressList.Children.Add(BuildProgressRow(source));
+                }
+            }
+
+            var cacheKey = new SearchCacheKey(
+                query.Trim().ToLowerInvariant(),
+                _currentScope,
+                _currentScope == SearchScope.SelectedSource ? _selectedSource?.SiteName : null,
+                _currentPage
+            );
+
+            List<SourceSearchResult> results = new();
+            List<(NovelEntry Novel, IBrowsableAdapter Source)> merged = new();
+            bool cacheHit = false;
+
+            if (_searchCache.TryGetValue(cacheKey, out var cachedEntry) && 
+                cachedEntry != null &&
+                DateTime.UtcNow - cachedEntry.Timestamp < CacheDuration)
+            {
+                results = cachedEntry.SourceResults;
+                merged = cachedEntry.MergedResults;
+                cacheHit = true;
+
+                foreach (var r in results)
+                {
+                    if (r.IsSuccess)
+                        UpdateProgress(r.Source, $"{r.Results.Novels.Count} result{(r.Results.Novels.Count == 1 ? "" : "s")} (Cached)", false, true);
+                    else
+                        UpdateProgress(r.Source, "Failed (Cached)", false, false);
+                }
+            }
+            else
+            {
+                var cfSources = sourcesToSearch.Where(s => s.RequiresCfBypass).ToList();
+                var normalSources = sourcesToSearch.Where(s => !s.RequiresCfBypass).ToList();
+
+                var fetchTasks = normalSources.Select(async source =>
+                {
+                    UpdateProgress(source, "Searching...", true, false);
+                    try
+                    {
+                        var resultsPage = await _discoverService.SearchAsync(source, query, _currentPage, ct: ct);
+                        
+                        if (source is ShukuBrowse)
+                        {
+                            var filtered = resultsPage.Novels.Where(n =>
+                                (n.Title != null && n.Title.Contains(query, StringComparison.OrdinalIgnoreCase)) ||
+                                (n.Author != null && n.Author.Contains(query, StringComparison.OrdinalIgnoreCase))
+                            ).ToList();
+                            resultsPage = new ListingPage(filtered, resultsPage.HasNextPage, resultsPage.CurrentPage);
+                        }
+
+                        UpdateProgress(source, $"{resultsPage.Novels.Count} result{(resultsPage.Novels.Count == 1 ? "" : "s")}", false, true);
+                        return new SourceSearchResult(source, resultsPage, true, null);
+                    }
+                    catch (Exception ex)
+                    {
+                        UpdateProgress(source, "Failed", false, false);
+                        return new SourceSearchResult(source, new ListingPage(new List<NovelEntry>(), false, _currentPage), false, ex.Message);
+                    }
+                }).ToList();
+
+                var normalResults = await Task.WhenAll(fetchTasks);
+                results.AddRange(normalResults);
+
+                foreach (var source in cfSources)
+                {
+                    UpdateProgress(source, "Searching...", true, false);
+                    SourceSearchResult? sourceResult = null;
+
+                    for (int attempt = 1; attempt <= 2; attempt++)
+                    {
+                        try
+                        {
+                            if (attempt > 1) await Task.Delay(1000, ct);
+                            var resultsPage = await _discoverService.SearchAsync(source, query, _currentPage, ct: ct);
+                            UpdateProgress(source, $"{resultsPage.Novels.Count} result{(resultsPage.Novels.Count == 1 ? "" : "s")}", false, true);
+                            sourceResult = new SourceSearchResult(source, resultsPage, true, null);
+                            break;
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            throw;
+                        }
+                        catch (Exception ex)
+                        {
+                            if (attempt == 2)
+                            {
+                                UpdateProgress(source, "Failed", false, false);
+                                sourceResult = new SourceSearchResult(source, new ListingPage(new List<NovelEntry>(), false, _currentPage), false, ex.Message);
+                            }
+                        }
+                    }
+
+                    if (sourceResult != null)
+                    {
+                        results.Add(sourceResult);
+                    }
+
+                    if (cfSources.IndexOf(source) < cfSources.Count - 1)
+                    {
+                        await Task.Delay(500, ct);
+                    }
+                }
+            }
+
+            var successful = results.Where(r => r.IsSuccess).ToList();
+            var failed = results.Where(r => !r.IsSuccess).ToList();
+
+            if (!cacheHit)
+            {
+                if (_currentScope == SearchScope.SelectedSource)
+                {
+                    var sr = successful.FirstOrDefault();
+                    if (sr != null)
+                    {
+                        merged = sr.Results.Novels.Select(n => (n, sr.Source)).ToList();
+                    }
+                }
+                else
+                {
+                    merged = MergeAndRankResults(results, query);
+                }
+                
+                CacheSearchResults(cacheKey, results, merged);
+            }
+
+            if (_currentScope == SearchScope.SelectedSource)
+            {
+                var sr = successful.FirstOrDefault();
+                _hasMore = sr != null && sr.Results.HasNextPage;
+            }
+            else
+            {
+                _hasMore = successful.Any(r => r.Results.HasNextPage) && merged.Count > 0;
+            }
+
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                var existingLoadMoreBtn = SearchResultsList.Children.FirstOrDefault(c => c.AutomationId == "LoadMoreButton");
+                if (existingLoadMoreBtn != null)
+                    SearchResultsList.Children.Remove(existingLoadMoreBtn);
+
+                if (!isLoadMore)
+                {
+                    if (_currentScope == SearchScope.SelectedSource)
+                    {
+                        var sourceName = _selectedSource?.SiteName ?? "Selected Source";
+                        SearchResultsLabel.Text = merged.Count == 0 && failed.Count == 0
+                            ? $"No results for \"{query}\" on {sourceName}"
+                            : $"Found {merged.Count} result{(merged.Count == 1 ? "" : "s")} from {sourceName}";
+                    }
+                    else
+                    {
+                        int searchedCount = sourcesToSearch.Count;
+                        SearchResultsLabel.Text = $"Searched {searchedCount} source{(searchedCount == 1 ? "" : "s")} · Found {merged.Count} result{(merged.Count == 1 ? "" : "s")}";
+                    }
+                }
+
+                foreach (var item in merged)
+                {
+                    SearchResultsList.Children.Add(BuildSearchResultCard(item.Source, item.Novel));
+                }
+
+                foreach (var fail in failed)
+                {
+                    SearchResultsList.Children.Add(BuildSourceUnavailableRow(fail.Source, fail.ErrorMessage, query));
+                }
+
+                if (_hasMore)
+                {
+                    SearchResultsList.Children.Add(BuildLoadMoreButton());
+                }
+
+                SearchProgressScrollView.IsVisible = false;
+                SearchProgressSpinner.IsRunning = false;
+                SearchResultsView.IsVisible = true;
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            System.Diagnostics.Debug.WriteLine("[MainPage] Search cancelled.");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[MainPage] Search error: {ex}");
+            MainThread.BeginInvokeOnMainThread(async () =>
+            {
+                SearchProgressSpinner.IsRunning = false;
+                SearchProgressHeader.Text = "Search failed";
+                await DisplayAlertAsync("Search Error", $"An error occurred during search:\n{ex.Message}", "OK");
+            });
+        }
+    }
+
+    private View BuildProgressRow(IBrowsableAdapter source)
+    {
+        var icon = new Label
+        {
+            Text = source.IconGlyph,
+            FontFamily = "MaterialSymbols",
+            FontSize = 18,
+            VerticalOptions = LayoutOptions.Center
+        };
+        icon.SetDynamicResource(Label.TextColorProperty, "AccentLight");
+
+        var nameLabel = new Label
+        {
+            Text = source.SiteName,
+            FontSize = 13,
+            FontAttributes = FontAttributes.Bold,
+            VerticalOptions = LayoutOptions.Center
+        };
+        nameLabel.SetDynamicResource(Label.TextColorProperty, "TextPrimary");
+
+        var statusLabel = new Label
+        {
+            Text = "Queued",
+            FontSize = 11,
+            HorizontalOptions = LayoutOptions.End,
+            VerticalOptions = LayoutOptions.Center
+        };
+        statusLabel.SetDynamicResource(Label.TextColorProperty, "TextMuted");
+
+        var spinner = new ActivityIndicator
+        {
+            IsRunning = false,
+            IsVisible = false,
+            Color = (Color)(Application.Current?.Resources["AccentLight"] ?? Colors.DeepPink),
+            WidthRequest = 14,
+            HeightRequest = 14,
+            HorizontalOptions = LayoutOptions.End,
+            VerticalOptions = LayoutOptions.Center
+        };
+
+        var rowGrid = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitionCollection
+            {
+                new ColumnDefinition { Width = GridLength.Auto },
+                new ColumnDefinition { Width = GridLength.Star },
+                new ColumnDefinition { Width = GridLength.Auto },
+                new ColumnDefinition { Width = GridLength.Auto },
+            },
+            ColumnSpacing = 10,
+            Padding = new Thickness(12, 8),
+        };
+
+        rowGrid.Add(icon, 0, 0);
+        rowGrid.Add(nameLabel, 1, 0);
+        rowGrid.Add(spinner, 2, 0);
+        rowGrid.Add(statusLabel, 3, 0);
+
+        var border = new Border
+        {
+            StrokeThickness = 1,
+            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 10 },
+            Content = rowGrid
+        };
+        border.SetDynamicResource(Border.BackgroundColorProperty, "BgCard");
+        border.SetDynamicResource(Border.StrokeProperty, "Stroke");
+
+        var tracker = new SourceSearchProgressTracker
+        {
+            Source = source,
+            StatusLabel = statusLabel,
+            Spinner = spinner,
+            ContainerBorder = border
+        };
+        _progressTrackers[source] = tracker;
+
+        return border;
+    }
+
+    private void UpdateProgress(IBrowsableAdapter source, string status, bool isSearching, bool isSuccess)
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            if (_progressTrackers.TryGetValue(source, out var tracker) && tracker != null)
+            {
+                tracker.StatusLabel.Text = status;
+                tracker.Spinner.IsRunning = isSearching;
+                tracker.Spinner.IsVisible = isSearching;
+                if (!isSearching)
+                {
+                    tracker.StatusLabel.SetDynamicResource(Label.TextColorProperty,
+                        isSuccess ? "AccentLight" : "Danger");
+                }
+            }
+        });
+    }
+
+    private List<(NovelEntry Novel, IBrowsableAdapter Source)> MergeAndRankResults(
+        List<SourceSearchResult> sourceResults, string query)
+    {
+        var allItems = new List<(NovelEntry Novel, IBrowsableAdapter Source)>();
+        foreach (var sr in sourceResults)
+        {
+            if (sr != null && sr.IsSuccess && sr.Results != null && sr.Results.Novels != null)
+            {
+                foreach (var novel in sr.Results.Novels)
+                {
+                    allItems.Add((novel, sr.Source));
+                }
+            }
+        }
+
+        // Group by relevance score
+        var groups = allItems
+            .GroupBy(item => GetRelevanceScore(item.Novel, query))
+            .OrderByDescending(g => g.Key);
+
+        var mergedList = new List<(NovelEntry Novel, IBrowsableAdapter Source)>();
+
+        foreach (var group in groups)
+        {
+            // Interleave items in this group by source to prevent single source dominance
+            var sourceGroups = group
+                .GroupBy(item => item.Source.SiteName)
+                .Select(g => g.ToList())
+                .ToList();
+
+            bool itemsRemaining = true;
+            int index = 0;
+            while (itemsRemaining)
+            {
+                itemsRemaining = false;
+                foreach (var sg in sourceGroups)
+                {
+                    if (index < sg.Count)
+                    {
+                        mergedList.Add(sg[index]);
+                        itemsRemaining = true;
+                    }
+                }
+                index++;
+            }
+        }
+
+        return mergedList;
+    }
+
+    private int GetRelevanceScore(NovelEntry novel, string query)
+    {
+        if (string.IsNullOrWhiteSpace(query)) return 0;
+        
+        string title = novel.Title ?? "";
+        string author = novel.Author ?? "";
+        string desc = novel.Description ?? "";
+
+        if (title.Equals(query, StringComparison.OrdinalIgnoreCase))
+            return 100;
+
+        if (title.StartsWith(query, StringComparison.OrdinalIgnoreCase))
+            return 80;
+
+        if (title.Contains(query, StringComparison.OrdinalIgnoreCase))
+            return 60;
+
+        if (author.Contains(query, StringComparison.OrdinalIgnoreCase))
+            return 40;
+
+        if (desc.Contains(query, StringComparison.OrdinalIgnoreCase))
+            return 20;
+
+        return 10;
+    }
+
+    private void CacheSearchResults(
+        SearchCacheKey key, 
+        List<SourceSearchResult> sourceResults, 
+        List<(NovelEntry Novel, IBrowsableAdapter Source)> mergedResults)
+    {
+        var now = DateTime.UtcNow;
+        var expired = _searchCache.Where(kvp => now - kvp.Value.Timestamp > CacheDuration).Select(kvp => kvp.Key).ToList();
+        foreach (var k in expired) _searchCache.Remove(k);
+
+        _searchCache[key] = new SearchCacheValue(sourceResults, mergedResults, now);
     }
 
     private View BuildSourceUnavailableRow(IBrowsableAdapter source, string? errorMessage, string query)
@@ -846,7 +1504,26 @@ public partial class MainPage : ContentPage
         if (rowIndex < 0)
             return;
 
+        var loading = new ActivityIndicator
+        {
+            IsRunning = true,
+            Color = (Color)(Application.Current?.Resources["AccentLight"] ?? Colors.DeepPink),
+            HeightRequest = 32,
+            HorizontalOptions = LayoutOptions.Center
+        };
+        SearchResultsList.Children[rowIndex] = loading;
+
         var result = await _discoverService.SearchSourceWithStatusAsync(source, query);
+        
+        if (result.IsSuccess && source is ShukuBrowse)
+        {
+            var filtered = result.Results.Novels.Where(n =>
+                (n.Title != null && n.Title.Contains(query, StringComparison.OrdinalIgnoreCase)) ||
+                (n.Author != null && n.Author.Contains(query, StringComparison.OrdinalIgnoreCase))
+            ).ToList();
+            result = new SourceSearchResult(source, new ListingPage(filtered, result.Results.HasNextPage, result.Results.CurrentPage), true, null);
+        }
+
         MainThread.BeginInvokeOnMainThread(() =>
         {
             if (rowIndex >= SearchResultsList.Children.Count)
@@ -855,11 +1532,11 @@ public partial class MainPage : ContentPage
             SearchResultsList.Children.RemoveAt(rowIndex);
             if (result.IsSuccess && result.Results.Novels.Count > 0)
             {
-                var shown = result.Results.Novels.Take(5).ToList();
-                SearchResultsList.Children.Insert(rowIndex, BuildSearchResultsGrid(source, shown));
-
-                if (result.Results.Novels.Count > 5 || result.Results.HasNextPage)
-                    SearchResultsList.Children.Insert(rowIndex + 1, BuildSeeAllButton(source, query));
+                for (int i = 0; i < result.Results.Novels.Count; i++)
+                {
+                    SearchResultsList.Children.Insert(rowIndex + i, 
+                        BuildSearchResultCard(source, result.Results.Novels[i]));
+                }
             }
             else
             {
@@ -869,30 +1546,60 @@ public partial class MainPage : ContentPage
         });
     }
 
-    private Grid BuildSearchResultsGrid(IBrowsableAdapter source, List<NovelEntry> novels)
+    private View BuildLoadMoreButton()
     {
-        var twoColGrid = new Grid
+        var lbl = new Label
         {
-            ColumnDefinitions = new ColumnDefinitionCollection
-            {
-                new ColumnDefinition { Width = GridLength.Star },
-                new ColumnDefinition { Width = GridLength.Star },
-            },
-            ColumnSpacing = 8,
-            RowSpacing = 8,
+            Text = "Load more",
+            FontSize = 13,
+            FontAttributes = FontAttributes.Bold,
+            HorizontalOptions = LayoutOptions.Center,
+            VerticalOptions = LayoutOptions.Center,
+        };
+        lbl.SetDynamicResource(Label.TextColorProperty, "AccentLight");
+
+        var spinner = new ActivityIndicator
+        {
+            IsRunning = false,
+            IsVisible = false,
+            Color = (Color)(Application.Current?.Resources["AccentLight"] ?? Colors.DeepPink),
+            WidthRequest = 20,
+            HeightRequest = 20,
+            HorizontalOptions = LayoutOptions.Center,
+            VerticalOptions = LayoutOptions.Center
         };
 
-        for (int i = 0; i < novels.Count; i++)
+        var contentGrid = new Grid
         {
-            int row = i / 2;
-            int col = i % 2;
-            if (twoColGrid.RowDefinitions.Count <= row)
-                twoColGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            Children = { lbl, spinner }
+        };
 
-            twoColGrid.Add(BuildSearchResultCard(source, novels[i]), col, row);
-        }
+        var btn = new Border
+        {
+            AutomationId = "LoadMoreButton",
+            StrokeThickness = 1,
+            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 14 },
+            HeightRequest = 44,
+            HorizontalOptions = LayoutOptions.Fill,
+            Content = contentGrid,
+        };
+        btn.SetDynamicResource(Border.BackgroundColorProperty, "BgCard");
+        btn.SetDynamicResource(Border.StrokeProperty, "Stroke");
 
-        return twoColGrid;
+        btn.GestureRecognizers.Add(new TapGestureRecognizer
+        {
+            Command = new Command(async () =>
+            {
+                lbl.IsVisible = false;
+                spinner.IsVisible = true;
+                spinner.IsRunning = true;
+                
+                _currentPage++;
+                await RunGlobalSearchAsync(_currentQuery, isLoadMore: true);
+            })
+        });
+
+        return btn;
     }
 
     private View BuildSearchResultCard(IBrowsableAdapter source, NovelEntry novel)
@@ -965,6 +1672,30 @@ public partial class MainPage : ContentPage
         };
         authorLbl.SetDynamicResource(Label.TextColorProperty, "TextMuted");
 
+        Border? sourceBadge = null;
+        if (source != null)
+        {
+            sourceBadge = new Border
+            {
+                StrokeThickness = 0,
+                StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 6 },
+                Padding = new Thickness(6, 2),
+                HorizontalOptions = LayoutOptions.Start,
+            };
+            sourceBadge.SetDynamicResource(Border.BackgroundColorProperty, "AccentContainer");
+            var badgeLbl = new Label { Text = source.SiteName, FontSize = 9, FontAttributes = FontAttributes.Bold };
+            badgeLbl.SetDynamicResource(Label.TextColorProperty, "AccentLight");
+            sourceBadge.Content = badgeLbl;
+        }
+
+        var metaFlow = new HorizontalStackLayout
+        {
+            Spacing = 8,
+            VerticalOptions = LayoutOptions.Center
+        };
+        if (sourceBadge != null) metaFlow.Children.Add(sourceBadge);
+        metaFlow.Children.Add(authorLbl);
+
         string chapterText = $"Chapter: {GetChapterSummary(novel)}";
         var chapterLbl = new Label
         {
@@ -1013,7 +1744,7 @@ public partial class MainPage : ContentPage
             })
         });
 
-        bool isBookmarked = BookmarkService.Instance.IsBookmarked(novel.Url, source.SiteName);
+        bool isBookmarked = BookmarkService.Instance.IsBookmarked(novel.Url, source!.SiteName);
 
         if (isBookmarked)
         {
@@ -1073,7 +1804,7 @@ public partial class MainPage : ContentPage
                 await bmBtn.ScaleToAsync(0.93, 70, Easing.CubicOut);
                 await bmBtn.ScaleToAsync(1.0, 70, Easing.SpringOut);
 
-                if (BookmarkService.Instance.IsBookmarked(novel.Url, source.SiteName))
+                if (BookmarkService.Instance.IsBookmarked(novel.Url, source!.SiteName))
                 {
                     BookmarkService.Instance.RemoveBookmark(novel.Url);
                     bmIcon.Text = "\uE867";
@@ -1089,7 +1820,7 @@ public partial class MainPage : ContentPage
                         novel.Url,
                         novel.Title,
                         novel.Author ?? "Unknown",
-                        source.SiteName,
+                        source!.SiteName,
                         knownCount,
                         novel.CoverUrl);
                     // If the listing didn't include a chapter count, fetch it in the background
@@ -1126,7 +1857,7 @@ public partial class MainPage : ContentPage
         {
             Spacing = 2,
             VerticalOptions = LayoutOptions.Center,
-            Children = { titleLbl, authorLbl, chapterLbl, actionRow }
+            Children = { titleLbl, metaFlow, chapterLbl, actionRow }
         };
 
         var grid = new Grid
@@ -1251,46 +1982,7 @@ public partial class MainPage : ContentPage
         return 0;
     }
 
-    private View BuildSeeAllButton(IBrowsableAdapter source, string query)
-    {
-        var lbl = new Label
-        {
-            Text = $"See all results from {source.SiteName} →",
-            FontSize = 12,
-            FontAttributes = FontAttributes.Bold,
-            HorizontalOptions = LayoutOptions.Center,
-            VerticalOptions = LayoutOptions.Center,
-            HorizontalTextAlignment = TextAlignment.Center,
-            VerticalTextAlignment = TextAlignment.Center,
-        };
-        lbl.SetDynamicResource(Label.TextColorProperty, "AccentLight");
 
-        var btn = new Border
-        {
-            StrokeThickness = 1,
-            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 12 },
-            HeightRequest = 34,
-            HorizontalOptions = LayoutOptions.Fill,
-            Padding = new Thickness(10, 0),
-            Content = new Grid
-            {
-                Children = { lbl }
-            },
-        };
-        btn.SetDynamicResource(Border.BackgroundColorProperty, "BgCard");
-        btn.SetDynamicResource(Border.StrokeProperty, "Stroke");
-
-        btn.GestureRecognizers.Add(new TapGestureRecognizer
-        {
-            Command = new Command(async () =>
-            {
-                var browsePage = new SourceBrowsePage(source, initialQuery: query);
-                await Shell.Current.Navigation.PushAsync(browsePage);
-            })
-        });
-
-        return btn;
-    }
 
     // ── Download handlers (unchanged) ─────────────────────────────────────────
 

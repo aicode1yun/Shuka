@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Text.RegularExpressions;
 
 namespace Shuka.Core.Adapters;
@@ -33,14 +34,20 @@ public class ShukuBrowse : IBrowsableAdapter
             ? "https://www.52shuku.net/yanqing/"
             : $"https://www.52shuku.net/yanqing/index_{page}.html";
 
-    // Search is disabled on the site — fall back to recent listing
+    // Search is disabled on the site — fall back to recent listing but include query for local filtering
     public string GetSearchUrl(string query, int page = 1) =>
-        GetRecentUrl(page);
+        GetRecentUrl(page) + "?q=" + Uri.EscapeDataString(query);
 
     public ListingPage ParseListing(string html, string pageUrl)
     {
         var novels = new List<NovelEntry>();
         var seen   = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // Extract query from pageUrl if present, to filter results locally
+        string? query = null;
+        var queryMatch = Regex.Match(pageUrl, @"[?&]q=([^&]+)");
+        if (queryMatch.Success)
+            query = Uri.UnescapeDataString(queryMatch.Groups[1].Value);
 
         // Each novel entry on 52shuku is structured as:
         //   ## [Title_Author【status】](https://www.52shuku.net/{cat}/{folder}/bk{id}.html)
@@ -111,6 +118,15 @@ public class ShukuBrowse : IBrowsableAdapter
                 if (title.Length < 2) continue;
                 novels.Add(new NovelEntry(title, null, url, null, null, null));
             }
+        }
+
+        // Apply local query filtering if present
+        if (!string.IsNullOrEmpty(query))
+        {
+            novels = novels.Where(n =>
+                (n.Title != null && n.Title.Contains(query, StringComparison.OrdinalIgnoreCase)) ||
+                (n.Author != null && n.Author.Contains(query, StringComparison.OrdinalIgnoreCase))
+            ).ToList();
         }
 
         // Pagination: pages use index_{page}.html

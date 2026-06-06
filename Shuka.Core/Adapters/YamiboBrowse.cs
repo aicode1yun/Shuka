@@ -23,7 +23,7 @@ public class YamiboBrowse : IBrowsableAdapter
     public string SiteName         => "yamibo.com";
     public string Description      => "百合会 · Yuri / GL original novels";
     public string IconGlyph        => "\uE894"; // language (globe)
-    public bool   RequiresCfBypass => false;
+    public bool   RequiresCfBypass => true;
 
     public string GetRecentUrl(int page = 1) =>
         page == 1
@@ -48,29 +48,36 @@ public class YamiboBrowse : IBrowsableAdapter
         var novels = new List<NovelEntry>();
         var seen   = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        // Each row in the <tbody> of the novel list looks like:
-        //   <tr data-key="{novelId}">
-        //     <td>{rank}</td>
-        //     <td><a href="/novel/{novelId}">Title</a></td>
-        //     <td><a href="/user/space?id={uid}" target="_blank">Author</a></td>
-        //     <td>[Category]</td>
-        //     <td>Status (连载中 / 已完结)</td>
-        //     ...
-        //   </tr>
-        var rowPattern = new Regex(
-            @"<tr[^>]+data-key=""(\d+)""[^>]*>.*?<td>.*?<a\s+href=""/novel/\1""[^>]*>(.*?)</a>.*?</td>.*?" +
-            @"<td>.*?<a[^>]+href=""/user/space\?id=\d+""[^>]*>(.*?)</a>.*?</td>.*?" +
-            @"<td>\s*\[?([^\]<]+?)\]?\s*</td>.*?" +
-            @"<td>\s*([^<]+?)\s*</td>",
-            RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        // First find each row in the <tbody> of the novel list
+        var trPattern = new Regex(@"<tr[^>]+data-key=""(\d+)""[^>]*>([\s\S]*?)</tr>", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(2));
 
-        foreach (Match m in rowPattern.Matches(html))
+        foreach (Match m in trPattern.Matches(html))
         {
-            string novelId  = m.Groups[1].Value.Trim();
-            string rawTitle = WebUtility.HtmlDecode(m.Groups[2].Value.Trim());
-            string rawAuth  = WebUtility.HtmlDecode(m.Groups[3].Value.Trim());
-            string category = WebUtility.HtmlDecode(m.Groups[4].Value.Trim());
-            string status   = WebUtility.HtmlDecode(m.Groups[5].Value.Trim());
+            string novelId = m.Groups[1].Value.Trim();
+            string innerHtml = m.Groups[2].Value;
+
+            // Extract title: <a href="/novel/{novelId}">Title</a>
+            var titleMatch = Regex.Match(innerHtml, $@"<a\s+href=""/novel/{novelId}""[^>]*>([\s\S]*?)</a>", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(2));
+            if (!titleMatch.Success) continue;
+            string rawTitle = WebUtility.HtmlDecode(titleMatch.Groups[1].Value.Trim());
+
+            // Extract author: <a href="/user/space?id={uid}">Author</a>
+            var authorMatch = Regex.Match(innerHtml, @"<a[^>]*href=""/user/space\?id=\d+""[^>]*>([\s\S]*?)</a>", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(2));
+            string rawAuth = authorMatch.Success ? WebUtility.HtmlDecode(authorMatch.Groups[1].Value.Trim()) : "Unknown";
+
+            // Extract category and status from <td> cells
+            var tdMatches = Regex.Matches(innerHtml, @"<td[^>]*>([\s\S]*?)</td>", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(2));
+            string category = "";
+            string status = "";
+
+            if (tdMatches.Count > 3)
+            {
+                category = WebUtility.HtmlDecode(tdMatches[3].Groups[1].Value.Trim()).Trim('[', ']');
+            }
+            if (tdMatches.Count > 4)
+            {
+                status = WebUtility.HtmlDecode(tdMatches[4].Groups[1].Value.Trim());
+            }
 
             string url = $"https://www.yamibo.com/novel/{novelId}";
             if (!seen.Add(url)) continue;
@@ -81,9 +88,7 @@ public class YamiboBrowse : IBrowsableAdapter
             string tags = string.Join(" · ",
                 new[] { category, status }.Where(s => !string.IsNullOrWhiteSpace(s)));
 
-            // Cover image follows a predictable URL pattern from the novel ID:
-            // /covern/000/{padded novel id}.jpg  — zero-padded into groups of 3
-            // e.g. ID 267137 → /covern/000/267/137.jpg
+            // Cover image follows a predictable URL pattern from the novel ID
             string? cover = BuildCoverUrl(novelId);
 
             novels.Add(new NovelEntry(rawTitle, rawAuth, url, cover, null, tags));
@@ -95,7 +100,7 @@ public class YamiboBrowse : IBrowsableAdapter
         {
             var linkPat = new Regex(
                 @"<a\s+href=""/novel/(\d+)""[^>]*>\s*([^<]{1,100}?)\s*</a>",
-                RegexOptions.IgnoreCase);
+                RegexOptions.IgnoreCase, TimeSpan.FromSeconds(2));
             foreach (Match m in linkPat.Matches(html))
             {
                 string novelId = m.Groups[1].Value;
@@ -115,11 +120,11 @@ public class YamiboBrowse : IBrowsableAdapter
         // <li class="next"><a href="/novel/list?page=2&per-page=50" data-page="1">下一页</a></li>
         bool hasNext = Regex.IsMatch(html,
             @"<li[^>]+class=""next""[^>]*>\s*<a\b",
-            RegexOptions.IgnoreCase);
+            RegexOptions.IgnoreCase, TimeSpan.FromSeconds(2));
 
         // Derive current page from URL query string or pagination active element
         int currentPage = 1;
-        var pageM = Regex.Match(pageUrl, @"[?&]page=(\d+)", RegexOptions.IgnoreCase);
+        var pageM = Regex.Match(pageUrl, @"[?&]page=(\d+)", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(2));
         if (pageM.Success) int.TryParse(pageM.Groups[1].Value, out currentPage);
         if (currentPage == 0) currentPage = 1;
 
