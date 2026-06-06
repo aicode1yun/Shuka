@@ -531,7 +531,100 @@
                     </VerticalStackLayout>
                 </Border>
 
+                <!-- ── BOOKMARKS ───────────────────────────── -->
+                <Label Text="BOOKMARKS"
+                       FontSize="11"
+                       FontAttributes="Bold"
+                       TextColor="{DynamicResource AccentLight}"
+                       CharacterSpacing="1.5"
+                       Margin="4,16,0,6" />
+
+                <Border BackgroundColor="{DynamicResource BgCard}"
+                        Stroke="{DynamicResource Stroke}"
+                        StrokeThickness="1"
+                        StrokeShape="RoundRectangle 20"
+                        Padding="0">
+                    <VerticalStackLayout>
+
+                        <!-- Backup Bookmarks -->
+                        <Grid ColumnDefinitions="Auto,*,Auto" Padding="16,14,16,14">
+                            <Border Grid.Column="0"
+                                    BackgroundColor="{DynamicResource AccentContainer}"
+                                    StrokeThickness="0"
+                                    StrokeShape="RoundRectangle 12"
+                                    WidthRequest="40" HeightRequest="40"
+                                    VerticalOptions="Center"
+                                    Margin="0,0,14,0">
+                                <Label Text="&#xE2C4;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="20"
+                                       TextColor="{DynamicResource AccentLight}"
+                                       HorizontalOptions="Center"
+                                       VerticalOptions="Center" />
+                            </Border>
+                            <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                                <Label Text="Backup Bookmarks"
+                                       FontSize="15"
+                                       FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}" />
+                                <Label Text="Export all bookmarks to a JSON file"
+                                       FontSize="12"
+                                       TextColor="{DynamicResource TextMuted}" />
+                            </VerticalStackLayout>
+                            <Label Grid.Column="2"
+                                   Text="{DynamicResource IconChevronRight}"
+                                   FontFamily="{DynamicResource IconFont}"
+                                   FontSize="22"
+                                   TextColor="{DynamicResource TextMuted}"
+                                   VerticalOptions="Center" />
+                            <Grid.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnBackupBookmarksTapped" />
+                            </Grid.GestureRecognizers>
+                        </Grid>
+
+                        <BoxView HeightRequest="1" BackgroundColor="{DynamicResource Divider}" Margin="16,0" />
+
+                        <!-- Restore Bookmarks -->
+                        <Grid ColumnDefinitions="Auto,*,Auto" Padding="16,14,16,14">
+                            <Border Grid.Column="0"
+                                    BackgroundColor="{DynamicResource AccentContainer}"
+                                    StrokeThickness="0"
+                                    StrokeShape="RoundRectangle 12"
+                                    WidthRequest="40" HeightRequest="40"
+                                    VerticalOptions="Center"
+                                    Margin="0,0,14,0">
+                                <Label Text="&#xE2C6;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="20"
+                                       TextColor="{DynamicResource AccentLight}"
+                                       HorizontalOptions="Center"
+                                       VerticalOptions="Center" />
+                            </Border>
+                            <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                                <Label Text="Restore Bookmarks"
+                                       FontSize="15"
+                                       FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}" />
+                                <Label Text="Import bookmarks from a JSON backup file"
+                                       FontSize="12"
+                                       TextColor="{DynamicResource TextMuted}" />
+                            </VerticalStackLayout>
+                            <Label Grid.Column="2"
+                                   Text="{DynamicResource IconChevronRight}"
+                                   FontFamily="{DynamicResource IconFont}"
+                                   FontSize="22"
+                                   TextColor="{DynamicResource TextMuted}"
+                                   VerticalOptions="Center" />
+                            <Grid.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnRestoreBookmarksTapped" />
+                            </Grid.GestureRecognizers>
+                        </Grid>
+
+                    </VerticalStackLayout>
+                </Border>
+
                 <!-- ── UPDATE ─────────────────────────────── -->
+
                 <Label Text="UPDATE"
                        FontSize="11"
                        FontAttributes="Bold"
@@ -735,6 +828,231 @@
 
             </VerticalStackLayout>
         </ScrollView>
+
+        <!-- ── Duplicate Resolution Sheet (Restore Bookmarks) ───────────────── -->
+        <Grid x:Name="DuplicateSheetOverlay"
+              IsVisible="False"
+              BackgroundColor="#88000000"
+              Grid.RowSpan="2">
+            <Grid.GestureRecognizers>
+                <TapGestureRecognizer Tapped="OnDuplicateSheetOverlayTapped" />
+            </Grid.GestureRecognizers>
+
+            <Border x:Name="DuplicateSheet"
+                    Margin="12,0,12,16"
+                    Padding="14,14,14,12"
+                    VerticalOptions="End"
+                    Stroke="{DynamicResource Stroke}"
+                    StrokeThickness="1"
+                    StrokeShape="RoundRectangle 18"
+                    BackgroundColor="{DynamicResource BgCard}"
+                    TranslationY="28"
+                    Opacity="0">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnDuplicateSheetTapped" />
+                </Border.GestureRecognizers>
+
+                <VerticalStackLayout Spacing="12">
+
+                    <!-- Header: icon · title · subtitle · close -->
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                        <Border Grid.Column="0"
+                                BackgroundColor="{DynamicResource AccentContainer}"
+                                StrokeThickness="0"
+                                StrokeShape="RoundRectangle 10"
+                                WidthRequest="36" HeightRequest="36"
+                                VerticalOptions="Center">
+                            <Label Text="&#xE2C6;"
+                                   FontFamily="{DynamicResource IconFont}"
+                                   FontSize="18"
+                                   TextColor="{DynamicResource AccentLight}"
+                                   HorizontalOptions="Center"
+                                   VerticalOptions="Center" />
+                        </Border>
+                        <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                            <Label Text="Duplicate Found"
+                                   FontSize="16"
+                                   FontAttributes="Bold"
+                                   TextColor="{DynamicResource TextPrimary}" />
+                            <Label x:Name="DuplicateSheetTitle"
+                                   FontSize="11"
+                                   LineBreakMode="TailTruncation"
+                                   TextColor="{DynamicResource TextMuted}" />
+                        </VerticalStackLayout>
+                        <Label Grid.Column="2"
+                               Text="&#xE5CD;"
+                               FontFamily="{DynamicResource IconFont}"
+                               FontSize="20"
+                               TextColor="{DynamicResource TextMuted}"
+                               VerticalOptions="Start">
+                            <Label.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnDuplicateSheetCloseTapped" />
+                            </Label.GestureRecognizers>
+                        </Label>
+                    </Grid>
+
+                    <!-- Chapter count comparison -->
+                    <Border BackgroundColor="{DynamicResource BgInput}"
+                            Stroke="{DynamicResource Stroke}"
+                            StrokeThickness="1"
+                            StrokeShape="RoundRectangle 12"
+                            Padding="12,10">
+                        <Grid ColumnDefinitions="*,Auto,*">
+                            <VerticalStackLayout HorizontalOptions="Center" Spacing="1">
+                                <Label Text="CURRENT"
+                                       FontSize="9"
+                                       FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextMuted}"
+                                       HorizontalOptions="Center" />
+                                <Label x:Name="DuplicateSheetCurrentChapters"
+                                       FontSize="22"
+                                       FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}"
+                                       HorizontalOptions="Center" />
+                                <Label Text="chapters"
+                                       FontSize="9"
+                                       TextColor="{DynamicResource TextMuted}"
+                                       HorizontalOptions="Center" />
+                            </VerticalStackLayout>
+                            <Label Grid.Column="1"
+                                   Text="&#xE315;"
+                                   FontFamily="{DynamicResource IconFont}"
+                                   FontSize="24"
+                                   TextColor="{DynamicResource TextMuted}"
+                                   VerticalOptions="Center"
+                                   HorizontalOptions="Center"
+                                   Margin="8,0" />
+                            <VerticalStackLayout Grid.Column="2" HorizontalOptions="Center" Spacing="1">
+                                <Label Text="BACKUP"
+                                       FontSize="9"
+                                       FontAttributes="Bold"
+                                       TextColor="{DynamicResource AccentLight}"
+                                       HorizontalOptions="Center" />
+                                <Label x:Name="DuplicateSheetBackupChapters"
+                                       FontSize="22"
+                                       FontAttributes="Bold"
+                                       TextColor="{DynamicResource AccentLight}"
+                                       HorizontalOptions="Center" />
+                                <Label Text="chapters"
+                                       FontSize="9"
+                                       TextColor="{DynamicResource TextMuted}"
+                                       HorizontalOptions="Center" />
+                            </VerticalStackLayout>
+                        </Grid>
+                    </Border>
+
+                    <!-- Action rows -->
+                    <VerticalStackLayout Spacing="8">
+
+                        <!-- Keep Existing -->
+                        <Border BackgroundColor="{DynamicResource BgInput}"
+                                Stroke="{DynamicResource Stroke}"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 14"
+                                Padding="14,12">
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                <Label Text="&#xE876;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="18"
+                                       TextColor="{DynamicResource TextSecondary}"
+                                       VerticalOptions="Center" />
+                                <VerticalStackLayout Grid.Column="1" Spacing="1" VerticalOptions="Center">
+                                    <Label Text="Keep Existing"
+                                           FontSize="13" FontAttributes="Bold"
+                                           TextColor="{DynamicResource TextPrimary}" />
+                                    <Label Text="Leave the current bookmark unchanged"
+                                           FontSize="10"
+                                           TextColor="{DynamicResource TextMuted}" />
+                                </VerticalStackLayout>
+                            </Grid>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnDuplicateKeepTapped" />
+                            </Border.GestureRecognizers>
+                        </Border>
+
+                        <!-- Replace with Backup -->
+                        <Border BackgroundColor="{DynamicResource BgInput}"
+                                Stroke="{DynamicResource Stroke}"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 14"
+                                Padding="14,12">
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                <Label Text="&#xE042;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="18"
+                                       TextColor="{DynamicResource AccentLight}"
+                                       VerticalOptions="Center" />
+                                <VerticalStackLayout Grid.Column="1" Spacing="1" VerticalOptions="Center">
+                                    <Label Text="Replace with Backup"
+                                           FontSize="13" FontAttributes="Bold"
+                                           TextColor="{DynamicResource TextPrimary}" />
+                                    <Label Text="Overwrite this bookmark with the backup version"
+                                           FontSize="10"
+                                           TextColor="{DynamicResource TextMuted}" />
+                                </VerticalStackLayout>
+                            </Grid>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnDuplicateReplaceTapped" />
+                            </Border.GestureRecognizers>
+                        </Border>
+
+                        <!-- Replace All with Backup -->
+                        <Border BackgroundColor="{DynamicResource AccentContainer}"
+                                Stroke="{DynamicResource AccentLight}"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 14"
+                                Padding="14,12">
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                <Label Text="&#xE2C6;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="18"
+                                       TextColor="{DynamicResource AccentLight}"
+                                       VerticalOptions="Center" />
+                                <VerticalStackLayout Grid.Column="1" Spacing="1" VerticalOptions="Center">
+                                    <Label Text="Replace All with Backup"
+                                           FontSize="13" FontAttributes="Bold"
+                                           TextColor="{DynamicResource AccentLight}" />
+                                    <Label Text="Overwrite all remaining duplicates with backup"
+                                           FontSize="10"
+                                           TextColor="{DynamicResource AccentLight}"
+                                           Opacity="0.75" />
+                                </VerticalStackLayout>
+                            </Grid>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnDuplicateReplaceAllTapped" />
+                            </Border.GestureRecognizers>
+                        </Border>
+
+                        <!-- Skip All Remaining -->
+                        <Border BackgroundColor="{DynamicResource BgInput}"
+                                Stroke="{DynamicResource Stroke}"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 14"
+                                Padding="14,12">
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                <Label Text="&#xEAD0;"
+                                       FontFamily="{DynamicResource IconFont}"
+                                       FontSize="18"
+                                       TextColor="{DynamicResource TextMuted}"
+                                       VerticalOptions="Center" />
+                                <VerticalStackLayout Grid.Column="1" Spacing="1" VerticalOptions="Center">
+                                    <Label Text="Skip All Remaining"
+                                           FontSize="13" FontAttributes="Bold"
+                                           TextColor="{DynamicResource TextPrimary}" />
+                                    <Label Text="Keep all existing bookmarks unchanged"
+                                           FontSize="10"
+                                           TextColor="{DynamicResource TextMuted}" />
+                                </VerticalStackLayout>
+                            </Grid>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnDuplicateSkipAllTapped" />
+                            </Border.GestureRecognizers>
+                        </Border>
+
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </Border>
+        </Grid>
 
     </Grid>
 

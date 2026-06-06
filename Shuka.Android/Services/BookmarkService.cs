@@ -182,6 +182,42 @@ public class BookmarkService
         BookmarksChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// Restores a single bookmark from a backup.
+    /// If <paramref name="replace"/> is true and a bookmark with the same URL already exists,
+    /// the existing entry is removed before inserting the restored one.
+    /// If <paramref name="replace"/> is false, the existing entry is left untouched (no-op).
+    /// </summary>
+    public void RestoreBookmark(BookmarkItem item, bool replace)
+    {
+        string normalizedUrl = NormalizeUrlKey(item.Url);
+
+        var existing = Bookmarks.FirstOrDefault(b =>
+            string.Equals(NormalizeUrlKey(b.Url), normalizedUrl, StringComparison.OrdinalIgnoreCase));
+
+        if (existing != null)
+        {
+            if (!replace)
+                return; // Keep existing — do nothing
+
+            // Replace: remove old entry
+            MainThread.BeginInvokeOnMainThread(() => Bookmarks.Remove(existing));
+        }
+
+        // Ensure restore date is set
+        if (item.BookmarkedAt == default)
+            item.BookmarkedAt = DateTime.Now;
+
+        MainThread.BeginInvokeOnMainThread(() => Bookmarks.Insert(0, item));
+        SaveBookmarks();
+        BookmarksChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Returns a snapshot of all bookmarks suitable for JSON export.
+    /// </summary>
+    public List<BookmarkItem> GetExportSnapshot() => Bookmarks.ToList();
+
     private void LoadBookmarks()
     {
         try

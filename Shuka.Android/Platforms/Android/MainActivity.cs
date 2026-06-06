@@ -32,6 +32,12 @@ public class MainActivity : MauiAppCompatActivity
     public const int FolderPickerRequestCode = 9001;
     private TaskCompletionSource<AndroidUri?>? _folderPickerTcs;
 
+    // File save/open picker support
+    public const int FileSavePickerRequestCode = 9002;
+    public const int FileOpenPickerRequestCode = 9003;
+    private TaskCompletionSource<AndroidUri?>? _fileSavePickerTcs;
+    private TaskCompletionSource<AndroidUri?>? _fileOpenPickerTcs;
+
     /// <summary>
     /// Opens the system folder picker and returns the selected tree URI, or null if cancelled.
     /// </summary>
@@ -42,6 +48,58 @@ public class MainActivity : MauiAppCompatActivity
         intent.AddFlags(ActivityFlags.GrantReadUriPermission | ActivityFlags.GrantWriteUriPermission);
         StartActivityForResult(intent, FolderPickerRequestCode);
         return _folderPickerTcs.Task;
+    }
+
+    /// <summary>
+    /// Opens the system file-save picker (CREATE_DOCUMENT) so the user can choose where
+    /// to save a file with the given suggested name. Returns the chosen URI or null.
+    /// </summary>
+    public Task<AndroidUri?> PickSaveFileAsync(string suggestedName)
+    {
+        _fileSavePickerTcs = new TaskCompletionSource<AndroidUri?>();
+        var intent = new Intent(Intent.ActionCreateDocument);
+        intent.SetType("application/json");
+        intent.PutExtra(Intent.ExtraTitle, suggestedName);
+        intent.AddFlags(ActivityFlags.GrantWriteUriPermission | ActivityFlags.GrantReadUriPermission);
+        StartActivityForResult(intent, FileSavePickerRequestCode);
+        return _fileSavePickerTcs.Task;
+    }
+
+    /// <summary>
+    /// Opens the system file-open picker (OPEN_DOCUMENT) filtered to JSON files.
+    /// Returns the chosen URI or null.
+    /// </summary>
+    public Task<AndroidUri?> PickOpenFileAsync()
+    {
+        _fileOpenPickerTcs = new TaskCompletionSource<AndroidUri?>();
+        var intent = new Intent(Intent.ActionOpenDocument);
+        intent.SetType("application/json");
+        intent.AddCategory(Intent.CategoryOpenable);
+        intent.AddFlags(ActivityFlags.GrantReadUriPermission);
+        StartActivityForResult(intent, FileOpenPickerRequestCode);
+        return _fileOpenPickerTcs.Task;
+    }
+
+    /// <summary>
+    /// Reads the entire contents of a content URI as a UTF-8 string.
+    /// </summary>
+    public string ReadUriToString(AndroidUri uri)
+    {
+        using var stream = ContentResolver!.OpenInputStream(uri)
+            ?? throw new IOException("Cannot open URI for reading.");
+        using var reader = new System.IO.StreamReader(stream, System.Text.Encoding.UTF8);
+        return reader.ReadToEnd();
+    }
+
+    /// <summary>
+    /// Writes a UTF-8 string to a content URI (truncates any existing content).
+    /// </summary>
+    public void WriteStringToUri(AndroidUri uri, string content)
+    {
+        using var stream = ContentResolver!.OpenOutputStream(uri, "wt")
+            ?? throw new IOException("Cannot open URI for writing.");
+        var bytes = System.Text.Encoding.UTF8.GetBytes(content);
+        stream.Write(bytes, 0, bytes.Length);
     }
 
     protected override void OnActivityResult(int requestCode, Result resultCode, Intent? data)
@@ -62,6 +120,32 @@ public class MainActivity : MauiAppCompatActivity
                 _folderPickerTcs?.TrySetResult(null);
             }
             _folderPickerTcs = null;
+        }
+        else if (requestCode == FileSavePickerRequestCode)
+        {
+            if (resultCode == Result.Ok && data?.Data is AndroidUri saveUri)
+            {
+                var flags = ActivityFlags.GrantWriteUriPermission | ActivityFlags.GrantReadUriPermission;
+                ContentResolver?.TakePersistableUriPermission(saveUri, flags);
+                _fileSavePickerTcs?.TrySetResult(saveUri);
+            }
+            else
+            {
+                _fileSavePickerTcs?.TrySetResult(null);
+            }
+            _fileSavePickerTcs = null;
+        }
+        else if (requestCode == FileOpenPickerRequestCode)
+        {
+            if (resultCode == Result.Ok && data?.Data is AndroidUri openUri)
+            {
+                _fileOpenPickerTcs?.TrySetResult(openUri);
+            }
+            else
+            {
+                _fileOpenPickerTcs?.TrySetResult(null);
+            }
+            _fileOpenPickerTcs = null;
         }
     }
 
